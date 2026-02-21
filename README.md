@@ -12,26 +12,26 @@
 ### 의존성 설치
 
 ```bash
-pnpm install
+npm install
 ```
 
 ### DB 마이그레이션
 
 ```bash
-pnpm db:generate
-pnpm db:migrate
+npm run db:generate
+npm run db:migrate
 ```
 
 ### 개발 모드 실행
 
 ```bash
-pnpm dev
+npm run dev
 ```
 
 ### 빌드 (배포용 패키지 생성)
 
 ```bash
-pnpm build
+npm run build
 ```
 
 #### 배포(패키징) 예시
@@ -39,15 +39,15 @@ pnpm build
 - 로컬에서 빌드만 하고 패키징을 별도로 실행하려면:
 
 ```bash
-pnpm build                # electron-vite로 빌드(렌더러/메인)
-pnpm run package:win      # Windows 포터블 패키지 생성
+npm run build                # electron-vite로 빌드(렌더러/메인)
+npm run package:win          # Windows 포터블 패키지 생성
 ```
 
 - 한 번에 패키징(종속성 준비 포함)하려면 CI 또는 아래 명령을 사용하세요:
 
 ```bash
-pnpm exec electron-builder install-app-deps
-pnpm run package:win
+npx electron-builder install-app-deps
+npm run package:win
 ```
 
 #### CI(예: GitHub Actions) 요약
@@ -61,10 +61,10 @@ pnpm run package:win
 
 ```bash
 # 유닛 테스트
-pnpm test
+npm test
 
 # E2E 테스트
-pnpm test:e2e
+npm run test:e2e
 ```
 
 ## Windows 초기 실행 트러블슈팅
@@ -94,8 +94,8 @@ node -e "console.log(require('electron'))"
 네이티브 모듈은 설치/재빌드가 필요할 수 있습니다.
 
 ```bash
-pnpm rebuild better-sqlite3
-pnpm dlx electron-rebuild -f -w better-sqlite3
+npm rebuild better-sqlite3
+npx electron-rebuild -f -w better-sqlite3
 ```
 
 그래도 DB 관련 오류가 반복되면 로컬 DB를 초기화한 뒤 다시 실행하세요:
