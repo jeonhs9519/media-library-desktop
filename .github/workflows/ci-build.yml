@@ -26,6 +26,10 @@ jobs:
         run: npm ci --ignore-scripts
         shell: pwsh
 
+      - name: Build app (renderer & main)
+        run: npm run build
+        shell: pwsh
+
       - name: Prepare native deps for Electron
         run: npx electron-builder install-app-deps
         shell: pwsh
