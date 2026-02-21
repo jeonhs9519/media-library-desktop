@@ -54,6 +54,41 @@ npm run package:win
 
 - 워크플로우는 Windows 러너에서 실행되어 Windows 포터블을 생성합니다.
 - 서명(옵션): 코드 서명을 위해 PFX 파일을 base64로 인코딩해 `CSC_LINK`(Secret)로, 비밀번호를 `CSC_KEY_PASSWORD`로 등록하세요.
+
+### 릴리스(버전/태그) 가이드
+
+릴리스를 만들 때 `package.json`의 `version`을 태그와 일치시키는 간단한 방법을 권장합니다. 저장소 루트에서 아래 명령으로 패치 버전을 올리고 자동으로 커밋·태그한 뒤 원격에 푸시할 수 있습니다:
+
+```bash
+# 패치 버전 증가 및 태그 생성(예: 0.0.3 -> 0.0.4)
+npm run release:patch
+
+# 특정 버전으로 직접 지정(예: 0.0.4)
+npm run release:patch -- 0.0.4
+
+# 또는 키워드로 증분: patch(기본), minor, major
+npm run release:patch -- minor
+
+# 수동 방법(대체)
+npm version 0.0.4
+git push
+git push --tags
+```
+
+`npm run release:patch` 명령은 내부적으로 `scripts/release.js`를 실행합니다. 인자를 지정하지 않으면 `patch`(기본)로 동작하며, `-- <value>` 형태로 다음을 전달할 수 있습니다:
+
+- `patch` | `minor` | `major` — `npm version`의 증분 모드
+- 또는 `MAJOR.MINOR.PATCH` 형식의 정확한 버전(예: `0.0.4`)
+
+예: `npm run release:patch -- 0.0.4`는 `package.json`의 `version`을 `0.0.4`로 설정하고 커밋·태그·푸시합니다. (로컬에서 실행하세요; 실행 전 변경사항이 없는지 확인하시기 바랍니다.)
+
+릴리스 태그를 푸시하면 CI 워크플로우가 트리거되어 빌드·패키징을 수행하고 Artifacts 중 포터블 EXE만 GitHub Release에 업로드합니다.
+
+권장 워크플로우:
+- 로컬에서 `npm run release:patch` 또는 `npm version <x.y.z>`로 버전 증가
+- `git push` 및 `git push --tags` (스크립트가 자동으로 수행)
+- GitHub Release(또는 CI)를 통해 빌드/업로드 확인
+
 - 자세한 절차와 테스트용 PFX는 `README.CI.md`에 정리되어 있습니다.
 
 

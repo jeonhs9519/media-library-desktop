@@ -1,11 +1,13 @@
 {
   "name": "media-library-desktop",
-  "version": "1.0.0",
+  "version": "0.0.4",
   "description": "Personal Media Library Desktop App",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "release:patch": "node ./scripts/release.js",
+    "bundle:main": "esbuild src/main/index.ts --bundle --platform=node --target=node22 --outfile=out/main/index.js --external:electron --external:sharp --external:better-sqlite3",
     "package:win": "electron-builder --win portable",
     "preview": "electron-vite preview",
     "lint": "eslint src --ext .ts,.tsx",
@@ -54,12 +56,31 @@
     "prettier": "^3.8.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "esbuild": "^0.18.19"
   }
   ,
   "build": {
+    "productName": "MediaLibrary",
+    "artifactName": "MediaLibrary_v${version}.${ext}",
+    "asar": true,
+    "compression": "maximum",
     "asarUnpack": [
-      "node_modules/sharp/**/*"
+      "node_modules/sharp/**/*",
+      "node_modules/@img/**/*",
+      "node_modules/@napi-rs/**/*",
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "afterPack": "./scripts/after-pack.js",
+    "files": [
+      "out/**",
+      "package.json",
+      "!**/*.map",
+      "!tests/**",
+      "!**/*.md",
+      "!**/test/**",
+      "!**/.github/**",
+      "!**/.vscode/**"
     ]
   }
 }
