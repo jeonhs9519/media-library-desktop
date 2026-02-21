@@ -137,3 +137,7 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# 테스트용 인증서 (로컬에서만 사용)
+test-cert.pfx
+test-cert.pfx.base64

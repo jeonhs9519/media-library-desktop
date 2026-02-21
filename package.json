@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "package:win": "electron-builder --win portable",
     "preview": "electron-vite preview",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write src",
@@ -13,7 +14,8 @@
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [],
   "author": "",
@@ -58,5 +60,11 @@
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"
+  }
+  ,
+  "build": {
+    "asarUnpack": [
+      "node_modules/sharp/**/*"
+    ]
   }
 }

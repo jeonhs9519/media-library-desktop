@@ -34,6 +34,29 @@ pnpm dev
 pnpm build
 ```
 
+#### 배포(패키징) 예시
+
+- 로컬에서 빌드만 하고 패키징을 별도로 실행하려면:
+
+```bash
+pnpm build                # electron-vite로 빌드(렌더러/메인)
+pnpm run package:win      # Windows 포터블 패키지 생성
+```
+
+- 한 번에 패키징(종속성 준비 포함)하려면 CI 또는 아래 명령을 사용하세요:
+
+```bash
+pnpm exec electron-builder install-app-deps
+pnpm run package:win
+```
+
+#### CI(예: GitHub Actions) 요약
+
+- 워크플로우는 Windows 러너에서 실행되어 Windows 포터블을 생성합니다.
+- 서명(옵션): 코드 서명을 위해 PFX 파일을 base64로 인코딩해 `CSC_LINK`(Secret)로, 비밀번호를 `CSC_KEY_PASSWORD`로 등록하세요.
+- 자세한 절차와 테스트용 PFX는 `README.CI.md`에 정리되어 있습니다.
+
+
 ### 테스트 실행
 
 ```bash
