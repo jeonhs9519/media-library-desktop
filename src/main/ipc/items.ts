@@ -140,6 +140,10 @@ export function registerItemsIPC(db: DB) {
       fileModifiedAt: data.fileModifiedAt,
     }).returning().get()
 
+    if (containerType === 'video') {
+      return result
+    }
+
     if (containerType === 'zip') {
       try {
         const fullPath = path.join(data.filePath, data.fileName + (ext ? '.' + ext : ''))

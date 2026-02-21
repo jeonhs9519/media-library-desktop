@@ -15,6 +15,7 @@ export default function ItemDetailPage() {
   const [reviewForm, setReviewForm] = useState({ rating: 0, comment: '' })
   const [thumbnail, setThumbnail] = useState<string | null>(null)
   const [newTagName, setNewTagName] = useState('')
+  const [isTagComposing, setIsTagComposing] = useState(false)
   const [relinkModal, setRelinkModal] = useState(false)
 
   const itemId = parseInt(id!)
@@ -80,16 +81,35 @@ export default function ItemDetailPage() {
   }
 
   const handleAddTag = async () => {
-    if (!newTagName.trim()) return
-    let tag = allTags.find(t => t.name === newTagName.trim())
+    const trimmed = newTagName.trim()
+    if (!trimmed) return
+
+    let tag = allTags.find(t => t.name === trimmed)
+
     if (!tag) {
-      tag = await window.api.tags.create(newTagName.trim())
-      setAllTags(prev => [...prev, tag!])
+      try {
+        tag = await window.api.tags.create(trimmed)
+        setAllTags(prev => [...prev, tag!])
+      } catch {
+        const refreshedTags = await window.api.tags.getAll()
+        setAllTags(refreshedTags)
+        tag = refreshedTags.find((t: Tag) => t.name === trimmed)
+      }
     }
+
+    if (!tag) return
+
     await window.api.tags.assignToItem(itemId, tag.id)
     setNewTagName('')
     const data = await window.api.items.getById(itemId)
     setItem(data)
+  }
+
+  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !isTagComposing) {
+      e.preventDefault()
+      handleAddTag()
+    }
   }
 
   const handleRemoveTag = async (tagId: number) => {
@@ -243,7 +263,9 @@ export default function ItemDetailPage() {
           <input
             value={newTagName}
             onChange={e => setNewTagName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAddTag()}
+            onKeyDown={handleTagInputKeyDown}
+            onCompositionStart={() => setIsTagComposing(true)}
+            onCompositionEnd={() => setIsTagComposing(false)}
             placeholder="Add tag..."
             list="all-tags"
           />

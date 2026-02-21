@@ -9,6 +9,7 @@ export default function VideoPlayerPage() {
   const [item, setItem] = useState<any>(null)
   const [videoUrl, setVideoUrl] = useState('')
   const [error, setError] = useState(false)
+  const [errorDetail, setErrorDetail] = useState('')
   const videoRef = useRef<HTMLVideoElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout>>()
 
@@ -26,11 +27,20 @@ export default function VideoPlayerPage() {
     load().catch(console.error)
   }, [itemId])
 
-  useEffect(() => {
-    if (videoRef.current && item?.lastPositionSeconds && videoUrl) {
-      videoRef.current.currentTime = item.lastPositionSeconds
+  const handleLoadedMetadata = async () => {
+    const video = videoRef.current
+    if (!video) return
+
+    if (item?.lastPositionSeconds) {
+      video.currentTime = item.lastPositionSeconds
     }
-  }, [videoUrl, item])
+
+    try {
+      await video.play()
+    } catch {
+      // autoplay can be blocked by platform policy
+    }
+  }
 
   const handleTimeUpdate = () => {
     const video = videoRef.current
@@ -85,6 +95,19 @@ export default function VideoPlayerPage() {
     await window.api.file.openExternal(fullPath)
   }
 
+  const handleVideoError = () => {
+    const code = videoRef.current?.error?.code
+    const detail = ({
+      1: 'MEDIA_ERR_ABORTED',
+      2: 'MEDIA_ERR_NETWORK',
+      3: 'MEDIA_ERR_DECODE',
+      4: 'MEDIA_ERR_SRC_NOT_SUPPORTED',
+    } as Record<number, string>)[code || 0] || 'UNKNOWN_ERROR'
+
+    setErrorDetail(detail)
+    setError(true)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000' }}>
       <div style={{
@@ -100,23 +123,49 @@ export default function VideoPlayerPage() {
         <button className="btn-secondary" onClick={handleExternalOpen}>🔗 External Player</button>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+      }}>
         {videoUrl && (
           <video
             ref={videoRef}
             src={videoUrl}
             controls
+            autoPlay
             style={{ maxWidth: '100%', maxHeight: '100%' }}
+            onLoadedMetadata={handleLoadedMetadata}
             onTimeUpdate={handleTimeUpdate}
-            onError={() => setError(true)}
+            onError={handleVideoError}
           />
         )}
         {error && (
-          <div style={{ color: '#e0e0e0', textAlign: 'center' }}>
-            <p>Video cannot be played in the built-in player.</p>
-            <button className="btn-primary" onClick={handleExternalOpen} style={{ marginTop: 16 }}>
-              Open in External Player
-            </button>
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.45)',
+          }}>
+            <div style={{
+              color: '#e0e0e0',
+              textAlign: 'center',
+              background: 'rgba(20, 20, 20, 0.8)',
+              border: '1px solid #2a2a4a',
+              borderRadius: 8,
+              padding: 16,
+              minWidth: 300,
+            }}>
+              <p>Video cannot be played in the built-in player.</p>
+              {errorDetail && <p style={{ fontSize: 12, opacity: 0.8 }}>Reason: {errorDetail}</p>}
+              <button className="btn-primary" onClick={handleExternalOpen} style={{ marginTop: 16 }}>
+                Open in External Player
+              </button>
+            </div>
           </div>
         )}
       </div>

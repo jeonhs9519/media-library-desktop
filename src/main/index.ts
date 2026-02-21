@@ -1,5 +1,7 @@
-import { app, BrowserWindow, session } from 'electron'
+import { app, BrowserWindow, session, protocol, net } from 'electron'
 import path from 'path'
+import { pathToFileURL } from 'url'
+import fs from 'fs'
 import { createDatabase, runMigrations } from './db/migrate'
 import { registerItemsIPC } from './ipc/items'
 import { registerTagsIPC } from './ipc/tags'
@@ -12,6 +14,20 @@ import { registerVideoIPC } from './ipc/video'
 import { registerThumbnailsIPC } from './ipc/thumbnails'
 
 const isDev = !app.isPackaged
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'local-media',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      corsEnabled: true,
+      bypassCSP: true,
+    },
+  },
+])
 
 function getDbPath() {
   const userDataPath = app.getPath('userData')
@@ -46,7 +62,7 @@ async function createWindow() {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': ["default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file:"]
+        'Content-Security-Policy': ["default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file: local-media:"]
       }
     })
   })
@@ -60,6 +76,26 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  protocol.handle('local-media', async (request) => {
+    const url = new URL(request.url)
+    const encodedPath = url.searchParams.get('path')
+
+    if (!encodedPath) {
+      return new Response('Missing path', { status: 400 })
+    }
+
+    const normalizedPath = path.normalize(decodeURIComponent(encodedPath))
+
+    if (!fs.existsSync(normalizedPath)) {
+      return new Response('File not found', { status: 404 })
+    }
+
+    return net.fetch(pathToFileURL(normalizedPath).toString(), {
+      method: request.method,
+      headers: request.headers,
+    })
+  })
+
   const dbPath = getDbPath()
   const migrationsPath = getMigrationsPath()
 
