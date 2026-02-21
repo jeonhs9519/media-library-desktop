@@ -30,7 +30,7 @@ jobs:
           corepack prepare pnpm@8 --activate
         shell: pwsh
 
-      - name: Fallback: Install pnpm globally
+      - name: "Fallback: Install pnpm globally"
         run: npm install -g pnpm@8
         shell: pwsh
 
