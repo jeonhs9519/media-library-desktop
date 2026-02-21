@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --shamefully-hoist
         shell: pwsh
 
       - name: Prepare native deps for Electron
