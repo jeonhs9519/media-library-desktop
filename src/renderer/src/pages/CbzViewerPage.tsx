@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useI18n } from '../useI18n'
 
 type ViewMode = 'scroll' | 'single' | 'double-ltr' | 'double-rtl'
 
@@ -14,6 +15,7 @@ export default function CbzViewerPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('single')
   const [images, setImages] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
+  const { tr } = useI18n()
 
   const getFullPath = useCallback((itemData: any) => {
     return itemData.filePath + '/' + itemData.fileName +
@@ -84,10 +86,10 @@ export default function CbzViewerPage() {
 
   const handleSetThumbnail = async () => {
     await window.api.thumbnail.setFromPage(itemId, currentPage)
-    alert('Thumbnail updated!')
+    alert(tr('viewer.thumbnailUpdated'))
   }
 
-  if (loading) return <div style={{ padding: 24, color: '#e0e0e0' }}>Loading CBZ...</div>
+  if (loading) return <div style={{ padding: 24, color: 'var(--text-primary)' }}>{tr('viewer.cbz.loading')}</div>
 
   const renderContent = () => {
     if (viewMode === 'scroll') {
@@ -97,8 +99,8 @@ export default function CbzViewerPage() {
             const src = images[idx]
             if (!src) {
               return (
-                <div key={idx} style={{ width: '100%', minHeight: 400, background: '#0f3460', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span>Loading page {idx + 1}...</span>
+                <div key={idx} style={{ width: '100%', minHeight: 400, background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span>{tr('viewer.cbz.loadingPage', { page: idx + 1 })}</span>
                 </div>
               )
             }
@@ -113,7 +115,7 @@ export default function CbzViewerPage() {
         <div style={{ display: 'flex', justifyContent: 'center', height: '100%' }}>
           {images[currentPage]
             ? <img src={images[currentPage]} style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} alt={`Page ${currentPage + 1}`} />
-            : <div style={{ display: 'flex', alignItems: 'center', color: '#a0a0b0' }}>Loading...</div>
+            : <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}>{tr('common.loading')}</div>
           }
         </div>
       )
@@ -127,7 +129,7 @@ export default function CbzViewerPage() {
         <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
           {images[leftIdx]
             ? <img src={images[leftIdx]} style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} alt={`Page ${leftIdx + 1}`} />
-            : <div style={{ display: 'flex', alignItems: 'center', color: '#a0a0b0' }}>Loading...</div>
+            : <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}>{tr('common.loading')}</div>
           }
         </div>
         <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
@@ -141,13 +143,30 @@ export default function CbzViewerPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#111' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-primary)' }}>
+      <div
+        style={{
+          height: 32,
+          flexShrink: 0,
+          background: 'var(--bg-secondary)',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          padding: '0 12px',
+          paddingRight: 150,
+          WebkitAppRegion: 'drag' as any,
+        } as any}
+      >
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: 0.2 }}>{tr('app.title')}</span>
+      </div>
+
       <div style={{
-        background: '#16213e', padding: '8px 16px',
+        background: 'var(--bg-secondary)', padding: '8px 16px',
         display: 'flex', gap: 12, alignItems: 'center',
-        borderBottom: '1px solid #2a2a4a', flexShrink: 0,
+        borderBottom: '1px solid var(--border)', flexShrink: 0,
       }}>
-        <button className="btn-secondary" onClick={() => navigate(`/items/${itemId}`)}>← Back</button>
+        <button className="btn-secondary" onClick={() => navigate(`/items/${itemId}`)}>{tr('common.back')}</button>
         <span style={{ fontWeight: 'bold' }}>{item?.title}</span>
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -158,7 +177,7 @@ export default function CbzViewerPage() {
               onClick={() => setViewMode(mode)}
               style={{ fontSize: 12, padding: '4px 8px' }}
             >
-              {mode === 'scroll' ? '↕ Scroll' : mode === 'single' ? '□ Single' : mode === 'double-ltr' ? '□□→' : '←□□'}
+              {mode === 'scroll' ? `↕ ${tr('viewer.cbz.mode.scroll')}` : mode === 'single' ? `□ ${tr('viewer.cbz.mode.single')}` : mode === 'double-ltr' ? `□□→ ${tr('viewer.cbz.mode.doubleLtr')}` : `←□□ ${tr('viewer.cbz.mode.doubleRtl')}`}
             </button>
           ))}
 

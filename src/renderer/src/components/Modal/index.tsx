@@ -5,9 +5,24 @@ interface Props {
   onClose: () => void
   title?: string
   children: React.ReactNode
+  contentWidth?: number | string
+  contentHeight?: number | string
+  contentMaxWidth?: number | string
+  contentMaxHeight?: number | string
+  contentPadding?: number | string
 }
 
-export default function Modal({ open, onClose, title, children }: Props) {
+export default function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  contentWidth,
+  contentHeight,
+  contentMaxWidth,
+  contentMaxHeight,
+  contentPadding,
+}: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -30,13 +45,15 @@ export default function Modal({ open, onClose, title, children }: Props) {
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: '#1a1a2e',
-          border: '1px solid #2a2a4a',
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
           borderRadius: 8,
-          padding: 24,
-          minWidth: 400,
-          maxWidth: '90vw',
-          maxHeight: '90vh',
+          padding: contentPadding ?? 24,
+          minWidth: contentWidth ? undefined : 400,
+          width: contentWidth,
+          height: contentHeight,
+          maxWidth: contentMaxWidth ?? '90vw',
+          maxHeight: contentMaxHeight ?? '90vh',
           overflow: 'auto',
         }}
       >

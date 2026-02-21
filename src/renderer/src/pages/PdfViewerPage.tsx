@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import * as pdfjsLib from 'pdfjs-dist'
+import { useI18n } from '../useI18n'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
@@ -18,6 +19,7 @@ export default function PdfViewerPage() {
   const [loading, setLoading] = useState(true)
   const [item, setItem] = useState<any>(null)
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
+  const { tr } = useI18n()
 
   useEffect(() => {
     const load = async () => {
@@ -53,7 +55,7 @@ export default function PdfViewerPage() {
     canvas.height = viewport.height
 
     const ctx = canvas.getContext('2d')!
-    await page.render({ canvasContext: ctx, viewport }).promise
+    await page.render({ canvas, canvasContext: ctx, viewport }).promise
 
     const progress = pageNum / pageCount
     await window.api.items.update(itemId, {
@@ -86,37 +88,56 @@ export default function PdfViewerPage() {
     if (!canvasRef.current) return
     const base64 = canvasRef.current.toDataURL('image/jpeg', 0.8).split(',')[1]
     await window.api.thumbnail.setFromImageData(itemId, base64)
-    alert('Thumbnail updated!')
+    alert(tr('viewer.thumbnailUpdated'))
   }
 
-  if (loading) return <div style={{ padding: 24, color: '#e0e0e0' }}>Loading PDF...</div>
+  if (loading) return <div style={{ padding: 24, color: 'var(--text-primary)' }}>{tr('viewer.pdf.loading')}</div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#1a1a2e' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-primary)' }}>
+      <div
+        style={{
+          height: 32,
+          flexShrink: 0,
+          background: 'var(--bg-secondary)',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          padding: '0 12px',
+          paddingRight: 150,
+          WebkitAppRegion: 'drag' as any,
+        } as any}
+      >
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: 0.2 }}>{tr('app.title')}</span>
+      </div>
+
       <div style={{
-        background: '#16213e', padding: '8px 16px',
+        background: 'var(--bg-secondary)', padding: '8px 16px',
         display: 'flex', gap: 12, alignItems: 'center',
-        borderBottom: '1px solid #2a2a4a', flexShrink: 0,
+        borderBottom: '1px solid var(--border)', flexShrink: 0,
       }}>
-        <button className="btn-secondary" onClick={() => navigate(`/items/${itemId}`)}>← Back</button>
+        <button className="btn-secondary" onClick={() => navigate(`/items/${itemId}`)}>{tr('common.back')}</button>
         <span style={{ fontWeight: 'bold', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {item?.title}
         </span>
-        <button className="btn-secondary" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}>◀</button>
-        <input
-          type="number"
-          value={currentPage}
-          min={1}
-          max={pageCount}
-          onChange={e => {
-            const v = parseInt(e.target.value)
-            if (!isNaN(v) && v >= 1 && v <= pageCount) setCurrentPage(v)
-          }}
-          style={{ width: 60, textAlign: 'center' }}
-        />
-        <span>/ {pageCount}</span>
-        <button className="btn-secondary" onClick={() => setCurrentPage(p => Math.min(pageCount, p + 1))} disabled={currentPage >= pageCount}>▶</button>
-        <button className="btn-secondary" onClick={handleSetThumbnail}>📷 Set Thumbnail</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto' }}>
+          <button className="btn-secondary" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}>◀</button>
+          <input
+            type="number"
+            value={currentPage}
+            min={1}
+            max={pageCount}
+            onChange={e => {
+              const v = parseInt(e.target.value)
+              if (!isNaN(v) && v >= 1 && v <= pageCount) setCurrentPage(v)
+            }}
+            style={{ width: 60, textAlign: 'center' }}
+          />
+          <span>/ {pageCount}</span>
+          <button className="btn-secondary" onClick={() => setCurrentPage(p => Math.min(pageCount, p + 1))} disabled={currentPage >= pageCount}>▶</button>
+          <button className="btn-secondary" onClick={handleSetThumbnail}>📷 {tr('viewer.setThumbnail')}</button>
+        </div>
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', padding: 16 }}>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useI18n } from '../useI18n'
 
 export default function VideoPlayerPage() {
   const { id } = useParams<{ id: string }>()
@@ -11,7 +12,8 @@ export default function VideoPlayerPage() {
   const [error, setError] = useState(false)
   const [errorDetail, setErrorDetail] = useState('')
   const videoRef = useRef<HTMLVideoElement>(null)
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>()
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const { tr } = useI18n()
 
   useEffect(() => {
     const load = async () => {
@@ -85,7 +87,7 @@ export default function VideoPlayerPage() {
     ctx.drawImage(video, 0, 0)
     const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1]
     await window.api.thumbnail.setFromImageData(itemId, base64)
-    alert('Thumbnail updated!')
+    alert(tr('viewer.thumbnailUpdated'))
   }
 
   const handleExternalOpen = async () => {
@@ -110,17 +112,36 @@ export default function VideoPlayerPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000' }}>
+      <div
+        style={{
+          height: 32,
+          flexShrink: 0,
+          background: 'var(--bg-secondary)',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          padding: '0 12px',
+          paddingRight: 150,
+          WebkitAppRegion: 'drag' as any,
+        } as any}
+      >
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: 0.2 }}>{tr('app.title')}</span>
+      </div>
+
       <div style={{
-        background: '#16213e', padding: '8px 16px',
+        background: 'var(--bg-secondary)', padding: '8px 16px',
         display: 'flex', gap: 12, alignItems: 'center',
-        borderBottom: '1px solid #2a2a4a', flexShrink: 0,
+        borderBottom: '1px solid var(--border)', flexShrink: 0,
       }}>
-        <button className="btn-secondary" onClick={() => navigate(`/items/${itemId}`)}>← Back</button>
+        <button className="btn-secondary" onClick={() => navigate(`/items/${itemId}`)}>{tr('common.back')}</button>
         <span style={{ fontWeight: 'bold', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {item?.title}
         </span>
-        <button className="btn-secondary" onClick={handleSetThumbnail}>📷 Set Thumbnail</button>
-        <button className="btn-secondary" onClick={handleExternalOpen}>🔗 External Player</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button className="btn-secondary" onClick={handleSetThumbnail}>📷 {tr('viewer.setThumbnail')}</button>
+          <button className="btn-secondary" onClick={handleExternalOpen}>🔗 {tr('viewer.video.externalPlayer')}</button>
+        </div>
       </div>
 
       <div style={{
@@ -149,21 +170,23 @@ export default function VideoPlayerPage() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'rgba(0, 0, 0, 0.45)',
+            background: 'var(--overlay)',
+            backdropFilter: 'blur(8px)',
           }}>
             <div style={{
-              color: '#e0e0e0',
+              color: 'var(--text-primary)',
               textAlign: 'center',
-              background: 'rgba(20, 20, 20, 0.8)',
-              border: '1px solid #2a2a4a',
+              background: 'var(--surface-glass)',
+              border: '1px solid var(--border)',
+              backdropFilter: 'blur(12px)',
               borderRadius: 8,
               padding: 16,
               minWidth: 300,
             }}>
-              <p>Video cannot be played in the built-in player.</p>
-              {errorDetail && <p style={{ fontSize: 12, opacity: 0.8 }}>Reason: {errorDetail}</p>}
+              <p>{tr('viewer.video.cannotPlayBuiltIn')}</p>
+              {errorDetail && <p style={{ fontSize: 12, opacity: 0.8 }}>{tr('viewer.video.reason')}: {errorDetail}</p>}
               <button className="btn-primary" onClick={handleExternalOpen} style={{ marginTop: 16 }}>
-                Open in External Player
+                {tr('viewer.video.openExternalPlayer')}
               </button>
             </div>
           </div>

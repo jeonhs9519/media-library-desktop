@@ -1,11 +1,13 @@
 :root {
-  --bg-primary: #1a1a2e;
-  --bg-secondary: #16213e;
-  --bg-card: #0f3460;
-  --accent: #e94560;
-  --text-primary: #e0e0e0;
-  --text-secondary: #a0a0b0;
-  --border: #2a2a4a;
+  --bg-primary: #111315;
+  --bg-secondary: #1a1d21;
+  --bg-card: #23272d;
+  --accent: #8aa4ff;
+  --text-primary: #e6e9ef;
+  --text-secondary: #9aa3b2;
+  --border: #323842;
+  --overlay: rgba(8, 10, 12, 0.55);
+  --surface-glass: rgba(26, 29, 33, 0.72);
   --success: #4caf50;
   --warning: #ff9800;
 }
@@ -57,6 +59,32 @@ input:focus, select:focus, textarea:focus {
 }
 
 .btn-danger {
-  background: #c62828;
+  background: #b94a57;
   color: white;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+  background-clip: content-box;
 }
