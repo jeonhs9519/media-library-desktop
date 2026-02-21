@@ -49,6 +49,13 @@ const api = {
   video: {
     getLocalUrl: (filePath: string) => ipcRenderer.invoke('video:getLocalUrl', { filePath }),
   },
+  app: {
+    reload: () => ipcRenderer.invoke('app:reload'),
+    toggleDevTools: () => ipcRenderer.invoke('app:toggleDevTools'),
+    zoomIn: () => ipcRenderer.invoke('app:zoomIn'),
+    zoomOut: () => ipcRenderer.invoke('app:zoomOut'),
+    zoomReset: () => ipcRenderer.invoke('app:zoomReset'),
+  },
 }
 
 contextBridge.exposeInMainWorld('api', api)
