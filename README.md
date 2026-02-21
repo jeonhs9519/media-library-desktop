@@ -86,3 +86,33 @@ Remove-Item "$env:APPDATA/media-library-desktop/media-library.db-shm" -Force -Er
 Remove-Item "$env:APPDATA/media-library-desktop/media-library.db-wal" -Force -ErrorAction SilentlyContinue
 pnpm dev
 ```
+
+## i18n(다국어) 기여 가이드
+
+### 파일 구조
+
+- i18n 엔트리: `src/renderer/src/i18n/index.ts`
+- 언어별 사전:
+	- `src/renderer/src/i18n/locales/en.ts`
+	- `src/renderer/src/i18n/locales/ko.ts`
+	- `src/renderer/src/i18n/locales/ja.ts`
+	- `src/renderer/src/i18n/locales/zh.ts`
+
+### 키 네이밍 규칙
+
+- 도메인 단위 prefix 사용: `app.*`, `filters.*`, `library.*`, `settings.*`, `common.*`, `detail.*`, `viewer.*`
+- 같은 의미의 라벨/문구는 모든 언어에서 동일한 키를 유지
+- 변수 치환은 `{name}` 형태 사용 (예: `library.page`, `modal.duplicate.message`)
+
+### 문구 톤 가이드
+
+- 버튼/짧은 라벨: 간결형
+- 안내/확인 문구: 자연스러운 문장형
+- 언어별 용어는 가능한 한 페이지 전반에서 일관 유지
+
+### 새 키 추가 절차
+
+1. 먼저 `en.ts`에 키를 추가
+2. `ko.ts`, `ja.ts`, `zh.ts`에 같은 키를 추가
+3. 컴포넌트에서 하드코딩 문자열 대신 `tr('...')` 사용
+4. 키가 누락되면 `en`으로 fallback 되므로, PR 전 누락 키가 없는지 확인
