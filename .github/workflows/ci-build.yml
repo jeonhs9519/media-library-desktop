@@ -27,7 +27,7 @@ jobs:
         shell: pwsh
 
       - name: Prepare native deps for Electron (debug)
-        run: npx electron-builder install-app-deps --log-level debug
+        run: npx electron-builder install-app-deps --debug
         shell: pwsh
 
       - name: Build Windows portable artifact
