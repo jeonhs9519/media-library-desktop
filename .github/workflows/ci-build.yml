@@ -22,27 +22,16 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Setup pnpm
-        # Ensure pnpm is available via corepack (stable on Node 18)
-        run: |
-          corepack enable
-          corepack prepare pnpm@8 --activate
-        shell: pwsh
-
-      - name: "Fallback: Install pnpm globally"
-        run: npm install -g pnpm@8
-        shell: pwsh
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --shamefully-hoist
+        run: npm ci
         shell: pwsh
 
       - name: Prepare native deps for Electron
-        run: pnpm exec electron-builder install-app-deps
+        run: npx electron-builder install-app-deps
         shell: pwsh
 
       - name: Build Windows portable artifact
-        run: pnpm exec electron-builder --win portable --x64
+        run: npx electron-builder --win portable --x64
         shell: pwsh
 
       - name: Upload build artifacts
