@@ -11,7 +11,7 @@ import { registerCbzIPC } from './ipc/cbz'
 import { registerVideoIPC } from './ipc/video'
 import { registerThumbnailsIPC } from './ipc/thumbnails'
 
-const isDev = process.env.NODE_ENV === 'development'
+const isDev = !app.isPackaged
 
 function getDbPath() {
   const userDataPath = app.getPath('userData')

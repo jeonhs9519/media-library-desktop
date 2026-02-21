@@ -19,27 +19,39 @@ CREATE TABLE `items` (
   `updatedAt` integer NOT NULL,
   `fileModifiedAt` integer
 );
+--> statement-breakpoint
 
 CREATE UNIQUE INDEX `unique_file` ON `items` (`filePath`, `fileName`, `fileExtension`);
+--> statement-breakpoint
 CREATE INDEX `idx_content_type` ON `items` (`contentType`);
+--> statement-breakpoint
 CREATE INDEX `idx_language` ON `items` (`language`);
+--> statement-breakpoint
 CREATE INDEX `idx_watched` ON `items` (`watched`);
+--> statement-breakpoint
 CREATE INDEX `idx_created_at` ON `items` (`createdAt`);
+--> statement-breakpoint
 CREATE INDEX `idx_updated_at` ON `items` (`updatedAt`);
+--> statement-breakpoint
 CREATE INDEX `idx_file_modified_at` ON `items` (`fileModifiedAt`);
+--> statement-breakpoint
 CREATE INDEX `idx_title` ON `items` (`title`);
+--> statement-breakpoint
 
 CREATE TABLE `tags` (
   `id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
   `name` text NOT NULL
 );
+--> statement-breakpoint
 CREATE UNIQUE INDEX `tags_name_unique` ON `tags` (`name`);
+--> statement-breakpoint
 
 CREATE TABLE `itemTags` (
   `itemId` integer NOT NULL REFERENCES `items`(`id`) ON DELETE CASCADE,
   `tagId` integer NOT NULL REFERENCES `tags`(`id`) ON DELETE CASCADE,
   PRIMARY KEY(`itemId`, `tagId`)
 );
+--> statement-breakpoint
 
 CREATE TABLE `reviews` (
   `id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -49,7 +61,9 @@ CREATE TABLE `reviews` (
   `createdAt` integer NOT NULL,
   `updatedAt` integer NOT NULL
 );
+--> statement-breakpoint
 CREATE UNIQUE INDEX `reviews_itemId_unique` ON `reviews` (`itemId`);
+--> statement-breakpoint
 
 CREATE TABLE `settings` (
   `key` text PRIMARY KEY NOT NULL,
