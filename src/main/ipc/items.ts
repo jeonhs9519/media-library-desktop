@@ -84,6 +84,17 @@ function resolveImportedPath(baseDir: string, rawPath: string): string {
   return path.resolve(baseDir, normalized)
 }
 
+function normalizeFolderPathForCompare(input: string): string {
+  const resolved = path.normalize(path.resolve(input)).replace(/[\\/]+$/, '')
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved
+}
+
+function isPathInsideFolder(targetPath: string, folderPath: string): boolean {
+  const target = normalizeFolderPathForCompare(targetPath)
+  const folder = normalizeFolderPathForCompare(folderPath)
+  return target === folder || target.startsWith(folder + path.sep)
+}
+
 export function registerItemsIPC(db: DB) {
   const hdtPreviewCache = new Map<string, HdtPreparedItem>()
 
@@ -269,6 +280,45 @@ export function registerItemsIPC(db: DB) {
       updatedAt: now,
     }).where(eq(items.id, id)).run()
     return db.select().from(items).where(eq(items.id, id)).get()
+  })
+
+  ipcMain.handle('items:countByFolderPrefix', async (_event, { folderPath }: { folderPath: string }) => {
+    if (!folderPath?.trim()) return 0
+
+    const rows = db.select({ filePath: items.filePath }).from(items).all()
+    return rows.filter((row) => isPathInsideFolder(row.filePath, folderPath)).length
+  })
+
+  ipcMain.handle('items:bulkRelinkFolder', async (_event, { fromFolder, toFolder }: { fromFolder: string; toFolder: string }) => {
+    if (!fromFolder?.trim() || !toFolder?.trim()) {
+      return { updated: 0 }
+    }
+
+    const fromNormalized = path.normalize(path.resolve(fromFolder))
+    const toNormalized = path.normalize(path.resolve(toFolder))
+    const now = Date.now()
+
+    const rows = db.select({ id: items.id, filePath: items.filePath }).from(items).all()
+    const targets = rows.filter((row) => isPathInsideFolder(row.filePath, fromFolder))
+
+    let updated = 0
+    for (const row of targets) {
+      const currentNormalized = path.normalize(path.resolve(row.filePath))
+      const relative = path.relative(fromNormalized, currentNormalized)
+      const nextFilePath = relative ? path.join(toNormalized, relative) : toNormalized
+
+      if (normalizeFolderPathForCompare(nextFilePath) === normalizeFolderPathForCompare(row.filePath)) {
+        continue
+      }
+
+      db.update(items)
+        .set({ filePath: nextFilePath, updatedAt: now })
+        .where(eq(items.id, row.id))
+        .run()
+      updated++
+    }
+
+    return { updated }
   })
 
   ipcMain.handle('items:checkExists', async (_event, { filePath, fileName, fileExtension }: { filePath: string; fileName: string; fileExtension: string }) => {

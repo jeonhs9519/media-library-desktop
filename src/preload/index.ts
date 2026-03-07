@@ -8,6 +8,9 @@ const api = {
     update: (id: number, fields: any) => ipcRenderer.invoke('items:update', { id, ...fields }),
     delete: (id: number) => ipcRenderer.invoke('items:delete', { id }),
     relink: (id: number, newFilePath: string) => ipcRenderer.invoke('items:relink', { id, newFilePath }),
+    countByFolderPrefix: (folderPath: string) => ipcRenderer.invoke('items:countByFolderPrefix', { folderPath }),
+    bulkRelinkFolder: (fromFolder: string, toFolder: string) =>
+      ipcRenderer.invoke('items:bulkRelinkFolder', { fromFolder, toFolder }),
     checkExists: (filePath: string, fileName: string, fileExtension: string) =>
       ipcRenderer.invoke('items:checkExists', { filePath, fileName, fileExtension }),
     importHdtPreview: (filePaths: string[]) => ipcRenderer.invoke('items:importHdtPreview', { filePaths }),
@@ -36,6 +39,7 @@ const api = {
   },
   file: {
     openDialog: (filters?: Electron.FileFilter[]) => ipcRenderer.invoke('file:open-dialog', { filters }),
+    openFolderDialog: () => ipcRenderer.invoke('file:open-folder-dialog'),
     checkExists: (filePath: string) => ipcRenderer.invoke('file:check-exists', { filePath }),
     readStat: (filePath: string) => ipcRenderer.invoke('file:read-stat', { filePath }),
     openExternal: (filePath: string) => ipcRenderer.invoke('file:open-external', { filePath }),

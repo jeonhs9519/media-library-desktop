@@ -178,6 +178,13 @@ export default function LibraryPage() {
   const [fileUploadNotice, setFileUploadNotice] = useState('')
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [fileModifiedPolicy, setFileModifiedPolicy] = useState('once')
+  const [bulkFromFolder, setBulkFromFolder] = useState('')
+  const [bulkToFolder, setBulkToFolder] = useState('')
+  const [bulkMatchCount, setBulkMatchCount] = useState(0)
+  const [bulkCounting, setBulkCounting] = useState(false)
+  const [bulkRelinking, setBulkRelinking] = useState(false)
+  const [bulkRelinkNotice, setBulkRelinkNotice] = useState('')
+  const [bulkRelinkConfirmOpen, setBulkRelinkConfirmOpen] = useState(false)
   const [hdtUploadModalOpen, setHdtUploadModalOpen] = useState(false)
   const [hdtUploadDragging, setHdtUploadDragging] = useState(false)
   const [hdtUploadNotice, setHdtUploadNotice] = useState('')
@@ -247,6 +254,35 @@ export default function LibraryPage() {
       if (v) setFileModifiedPolicy(v)
     })
   }, [])
+
+  useEffect(() => {
+    let canceled = false
+
+    const loadBulkMatchCount = async () => {
+      if (!bulkFromFolder) {
+        setBulkMatchCount(0)
+        setBulkRelinkNotice('')
+        return
+      }
+
+      setBulkCounting(true)
+      try {
+        const count = await api.items.countByFolderPrefix(bulkFromFolder)
+        if (canceled) return
+        setBulkMatchCount(count)
+      } catch {
+        if (canceled) return
+        setBulkMatchCount(0)
+      } finally {
+        if (!canceled) setBulkCounting(false)
+      }
+    }
+
+    loadBulkMatchCount()
+    return () => {
+      canceled = true
+    }
+  }, [bulkFromFolder])
 
   useEffect(() => {
     if (!id) {
@@ -540,6 +576,36 @@ export default function LibraryPage() {
 
   const handleChangeLanguageSetting = async (value: LanguageSetting) => {
     await changeLanguageSetting(value)
+  }
+
+  const handlePickBulkFromFolder = async () => {
+    const picked = await api.file.openFolderDialog()
+    if (!picked) return
+    setBulkFromFolder(picked)
+    setBulkRelinkNotice('')
+  }
+
+  const handlePickBulkToFolder = async () => {
+    const picked = await api.file.openFolderDialog()
+    if (!picked) return
+    setBulkToFolder(picked)
+    setBulkRelinkNotice('')
+  }
+
+  const handleApplyBulkRelink = async () => {
+    if (bulkRelinking) return
+    setBulkRelinking(true)
+    try {
+      const result = await api.items.bulkRelinkFolder(bulkFromFolder, bulkToFolder)
+      const updated = Number(result?.updated ?? 0)
+      setBulkRelinkNotice(tr('settings.bulkRelink.done', { count: updated }))
+      setBulkRelinkConfirmOpen(false)
+      await loadItems()
+      const latestCount = await api.items.countByFolderPrefix(bulkFromFolder)
+      setBulkMatchCount(Number(latestCount ?? 0))
+    } finally {
+      setBulkRelinking(false)
+    }
   }
 
   const handleOpenDetail = (itemId: number) => {
@@ -993,10 +1059,95 @@ export default function LibraryPage() {
             </div>
           </label>
           </div>
+
+          <div style={{ marginTop: 18, paddingTop: 14, paddingLeft: '2%', paddingRight: '2%', borderTop: '1px solid var(--border)' }}>
+            <h3 style={{ fontSize: 14, marginBottom: 4 }}>{tr('settings.bulkRelink.title')}</h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 12, fontSize: 12 }}>
+              {tr('settings.bulkRelink.help')}
+            </p>
+
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+                <input
+                  value={bulkFromFolder}
+                  readOnly
+                  placeholder={tr('settings.bulkRelink.fromPlaceholder')}
+                />
+                <button className="btn-secondary" onClick={handlePickBulkFromFolder}>
+                  {tr('settings.bulkRelink.pickBefore')}
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+                <input
+                  value={bulkToFolder}
+                  readOnly
+                  placeholder={tr('settings.bulkRelink.toPlaceholder')}
+                />
+                <button className="btn-secondary" onClick={handlePickBulkToFolder}>
+                  {tr('settings.bulkRelink.pickAfter')}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
+              {bulkCounting
+                ? tr('settings.bulkRelink.matchCountLoading')
+                : tr('settings.bulkRelink.matchCount', { count: bulkMatchCount })}
+            </div>
+
+            {bulkRelinkNotice && (
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--accent)' }}>
+                {bulkRelinkNotice}
+              </div>
+            )}
+
+            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                className="btn-primary"
+                disabled={!bulkFromFolder || !bulkToFolder || bulkMatchCount <= 0 || bulkRelinking}
+                onClick={() => setBulkRelinkConfirmOpen(true)}
+              >
+                {tr('settings.bulkRelink.apply')}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div style={{ marginTop: 32, display: 'flex', justifyContent: 'flex-end' }}>
           <button className="btn-primary" style={{ width: '33%', minWidth: 140, paddingTop: 8, paddingBottom: 8 }} onClick={() => setSettingsModalOpen(false)}>{tr('common.close')}</button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={bulkRelinkConfirmOpen}
+        onClose={() => {
+          if (bulkRelinking) return
+          setBulkRelinkConfirmOpen(false)
+        }}
+        title={tr('settings.bulkRelink.confirmTitle')}
+      >
+        <p style={{ marginTop: 0, marginBottom: 12 }}>{tr('settings.bulkRelink.confirmMessage')}</p>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
+          {tr('settings.bulkRelink.confirmBefore')}: {bulkFromFolder}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
+          {tr('settings.bulkRelink.confirmAfter')}: {bulkToFolder}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
+          {tr('settings.bulkRelink.matchCount', { count: bulkMatchCount })}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button
+            className="btn-secondary"
+            disabled={bulkRelinking}
+            onClick={() => setBulkRelinkConfirmOpen(false)}
+          >
+            {tr('common.cancel')}
+          </button>
+          <button className="btn-primary" disabled={bulkRelinking} onClick={handleApplyBulkRelink}>
+            {bulkRelinking ? tr('common.loading') : tr('settings.bulkRelink.confirmApply')}
+          </button>
         </div>
       </Modal>
     </div>

@@ -13,6 +13,13 @@ export function registerFilesIPC() {
     return result.canceled ? [] : result.filePaths
   })
 
+  ipcMain.handle('file:open-folder-dialog', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory']
+    })
+    return result.canceled || !result.filePaths.length ? null : result.filePaths[0]
+  })
+
   ipcMain.handle('file:check-exists', async (_event, { filePath }: { filePath: string }) => {
     return fs.existsSync(filePath)
   })
