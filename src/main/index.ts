@@ -37,8 +37,39 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 function getDbPath() {
-  const userDataPath = app.getPath('userData')
-  return path.join(userDataPath, 'media-library.db')
+  if (isDev) {
+    return path.join(process.cwd(), 'media-library.db')
+  }
+
+  const portableExecutableDir = process.env['PORTABLE_EXECUTABLE_DIR']
+  if (portableExecutableDir) {
+    return path.join(portableExecutableDir, 'media-library.db')
+  }
+
+  const executableDir = path.dirname(process.execPath)
+  return path.join(executableDir, 'media-library.db')
+}
+
+function migrateLegacyDbIfNeeded(dbPath: string) {
+  const legacyDbPath = path.join(app.getPath('userData'), 'media-library.db')
+
+  if (path.resolve(legacyDbPath) === path.resolve(dbPath)) {
+    return
+  }
+
+  if (fs.existsSync(dbPath) || !fs.existsSync(legacyDbPath)) {
+    return
+  }
+
+  fs.copyFileSync(legacyDbPath, dbPath)
+
+  for (const suffix of ['-wal', '-shm']) {
+    const source = `${legacyDbPath}${suffix}`
+    const target = `${dbPath}${suffix}`
+    if (fs.existsSync(source)) {
+      fs.copyFileSync(source, target)
+    }
+  }
 }
 
 function getMigrationsPath() {
@@ -191,6 +222,10 @@ app.whenReady().then(async () => {
 
   const dbPath = getDbPath()
   const migrationsPath = getMigrationsPath()
+
+  console.log(`[main] DB path: ${dbPath} (mode=${isDev ? 'dev' : 'packaged'})`)
+
+  migrateLegacyDbIfNeeded(dbPath)
 
   const { db } = createDatabase(dbPath)
 

@@ -2,6 +2,8 @@
 
 로컬 PDF/CBZ(만화)·동영상 파일을 SQLite 기반으로 태그/평가/썸네일/이어보기까지 관리하는 개인 미디어 라이브러리 데스크톱 앱.
 
+- DB 파일은 기본적으로 앱 실행 파일과 같은 폴더의 `media-library.db`를 사용하며, 기존 `%APPDATA%/media-library-desktop/media-library.db`가 있으면 첫 실행 시 자동으로 1회 복사됩니다.
+
 ## 실행 방법
 
 ### 사전 요구사항
@@ -40,7 +42,7 @@ npm run build
 
 ```bash
 npm run build                # electron-vite로 빌드(렌더러/메인)
-npm run package:win          # Windows 포터블 패키지 생성
+npm run package:win          # Windows ZIP 패키지 생성
 ```
 
 - 한 번에 패키징(종속성 준비 포함)하려면 CI 또는 아래 명령을 사용하세요:
@@ -52,7 +54,7 @@ npm run package:win
 
 #### CI(예: GitHub Actions) 요약
 
-- 워크플로우는 Windows 러너에서 실행되어 Windows 포터블을 생성합니다.
+- 워크플로우는 Windows 러너에서 실행되어 Windows ZIP 패키지를 생성합니다.
 - 서명(옵션): 코드 서명을 위해 PFX 파일을 base64로 인코딩해 `CSC_LINK`(Secret)로, 비밀번호를 `CSC_KEY_PASSWORD`로 등록하세요.
 
 ### 릴리스(버전/태그) 가이드
@@ -82,7 +84,7 @@ git push --tags
 
 예: `npm run release:patch -- 0.0.4`는 `package.json`의 `version`을 `0.0.4`로 설정하고 커밋·태그·푸시합니다. (로컬에서 실행하세요; 실행 전 변경사항이 없는지 확인하시기 바랍니다.)
 
-릴리스 태그를 푸시하면 CI 워크플로우가 트리거되어 빌드·패키징을 수행하고 Artifacts 중 포터블 EXE만 GitHub Release에 업로드합니다.
+릴리스 태그를 푸시하면 CI 워크플로우가 트리거되어 빌드·패키징을 수행하고 Artifacts 중 ZIP 파일을 GitHub Release에 업로드합니다.
 
 권장 워크플로우:
 - 로컬에서 `npm run release:patch` 또는 `npm version <x.y.z>`로 버전 증가
@@ -139,9 +141,9 @@ PowerShell:
 
 ```powershell
 Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force
-Remove-Item "$env:APPDATA/media-library-desktop/media-library.db" -Force -ErrorAction SilentlyContinue
-Remove-Item "$env:APPDATA/media-library-desktop/media-library.db-shm" -Force -ErrorAction SilentlyContinue
-Remove-Item "$env:APPDATA/media-library-desktop/media-library.db-wal" -Force -ErrorAction SilentlyContinue
+Remove-Item ".\media-library.db" -Force -ErrorAction SilentlyContinue
+Remove-Item ".\media-library.db-shm" -Force -ErrorAction SilentlyContinue
+Remove-Item ".\media-library.db-wal" -Force -ErrorAction SilentlyContinue
 pnpm dev
 ```
 

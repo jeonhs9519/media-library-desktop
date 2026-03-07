@@ -8,7 +8,7 @@
     "build": "electron-vite build",
     "release:patch": "node ./scripts/release.js",
     "bundle:main": "esbuild src/main/index.ts --bundle --platform=node --target=node22 --outfile=out/main/index.js --external:electron --external:sharp --external:better-sqlite3",
-    "package:win": "electron-builder --win portable",
+    "package:win": "electron-builder --win zip",
     "preview": "electron-vite preview",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write src",
@@ -72,6 +72,12 @@
       "node_modules/better-sqlite3/**/*"
     ],
     "afterPack": "./scripts/after-pack.js",
+    "extraResources": [
+      {
+        "from": "src/main/db/migrations",
+        "to": "migrations"
+      }
+    ],
     "files": [
       "out/**",
       "package.json",

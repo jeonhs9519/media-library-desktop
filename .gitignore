@@ -141,3 +141,11 @@ vite.config.ts.timestamp-*
 # 테스트용 인증서 (로컬에서만 사용)
 test-cert.pfx
 test-cert.pfx.base64
+
+# Copilot session backup
+.copilot_chat_backup
+
+# Local runtime SQLite DB files
+media-library.db
+media-library.db-shm
+media-library.db-wal

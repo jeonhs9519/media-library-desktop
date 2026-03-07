@@ -1,4 +1,4 @@
-name: CI — Build Electron Portable
+name: CI — Build Electron ZIP
 
 on:
   push:
@@ -45,8 +45,8 @@ jobs:
         run: npm prune --production
         shell: pwsh
 
-      - name: Build Windows portable artifact
-        run: npx electron-builder --win portable --x64
+      - name: Build Windows ZIP artifact
+        run: npx electron-builder --win zip --x64
         shell: pwsh
 
       - name: Upload build artifacts
@@ -66,23 +66,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Find portable EXE
+      - name: Find ZIP artifact
         if: startsWith(github.ref, 'refs/tags/')
-        id: find_exe
+        id: find_zip
         run: |
-          $exe = Get-ChildItem dist -Filter '*.exe' -Recurse | Select-Object -First 1 -ExpandProperty FullName
-          if (-not $exe) { Write-Error 'No EXE found in dist'; exit 1 }
-          $name = Split-Path $exe -Leaf
-          Write-Output "Found EXE: $exe"
-          echo "::set-output name=exe_path::$exe"
-          echo "::set-output name=exe_name::$name"
+          $zip = Get-ChildItem dist -Filter '*.zip' -Recurse | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $zip) { Write-Error 'No ZIP found in dist'; exit 1 }
+          $name = Split-Path $zip -Leaf
+          Write-Output "Found ZIP: $zip"
+          echo "::set-output name=zip_path::$zip"
+          echo "::set-output name=zip_name::$name"
         shell: pwsh
 
-      - name: Upload Release Asset (portable EXE)
+      - name: Upload Release Asset (ZIP)
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.find_exe.outputs.exe_path }}
-          asset_name: ${{ steps.find_exe.outputs.exe_name }}
+          asset_path: ${{ steps.find_zip.outputs.zip_path }}
+          asset_name: ${{ steps.find_zip.outputs.zip_name }}
           asset_content_type: application/octet-stream
