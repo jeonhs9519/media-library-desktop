@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "icon:build": "node ./scripts/build-icon.js",
     "release:patch": "node ./scripts/release.js",
     "bundle:main": "esbuild src/main/index.ts --bundle --platform=node --target=node22 --outfile=out/main/index.js --external:electron --external:sharp --external:better-sqlite3",
     "package:win": "electron-builder --win zip",
@@ -55,6 +56,7 @@
     "jsdom": "^28.1.0",
     "prettier": "^3.8.1",
     "typescript": "^5.9.3",
+    "to-ico": "^1.1.5",
     "vite": "^7.3.1",
     "vitest": "^4.0.18",
     "esbuild": "^0.18.19"
@@ -63,6 +65,9 @@
   "build": {
     "productName": "MediaLibrary",
     "artifactName": "MediaLibrary_v${version}.${ext}",
+    "win": {
+      "icon": "build/icon.ico"
+    },
     "asar": true,
     "compression": "maximum",
     "asarUnpack": [
