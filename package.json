@@ -1,6 +1,6 @@
 {
   "name": "media-library-desktop",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Personal Media Library Desktop App",
   "main": "out/main/index.js",
   "scripts": {
@@ -23,7 +23,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  
   "dependencies": {
     "better-sqlite3": "^12.6.2",
     "drizzle-orm": "^0.45.1",
@@ -60,8 +59,7 @@
     "vite": "^7.3.1",
     "vitest": "^4.0.18",
     "esbuild": "^0.18.19"
-  }
-  ,
+  },
   "build": {
     "productName": "MediaLibrary",
     "artifactName": "MediaLibrary_v${version}.${ext}",
