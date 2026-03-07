@@ -222,7 +222,20 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
             <Field label={tr('detail.sourceUrl')}>
               {editing
                 ? <input value={editForm.sourceUrl} onChange={e => setEditForm((f: any) => ({ ...f, sourceUrl: e.target.value }))} style={{ width: '100%' }} />
-                : (item.sourceUrl ? <a href={item.sourceUrl} style={{ color: 'var(--accent)' }}>{item.sourceUrl}</a> : '—')
+                : (item.sourceUrl
+                    ? (
+                        <a
+                          href={item.sourceUrl}
+                          style={{ color: 'var(--accent)' }}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            void window.api.file.openExternal(item.sourceUrl as string)
+                          }}
+                        >
+                          {item.sourceUrl}
+                        </a>
+                      )
+                    : '—')
               }
             </Field>
           </div>
