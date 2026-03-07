@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 const api = {
   items: {
@@ -10,6 +10,8 @@ const api = {
     relink: (id: number, newFilePath: string) => ipcRenderer.invoke('items:relink', { id, newFilePath }),
     checkExists: (filePath: string, fileName: string, fileExtension: string) =>
       ipcRenderer.invoke('items:checkExists', { filePath, fileName, fileExtension }),
+    importHdtPreview: (filePaths: string[]) => ipcRenderer.invoke('items:importHdtPreview', { filePaths }),
+    importHdtApply: (selectedIds: string[]) => ipcRenderer.invoke('items:importHdtApply', { selectedIds }),
   },
   thumbnail: {
     get: (id: number) => ipcRenderer.invoke('thumbnail:get', { id }),
@@ -37,6 +39,7 @@ const api = {
     checkExists: (filePath: string) => ipcRenderer.invoke('file:check-exists', { filePath }),
     readStat: (filePath: string) => ipcRenderer.invoke('file:read-stat', { filePath }),
     openExternal: (filePath: string) => ipcRenderer.invoke('file:open-external', { filePath }),
+    getPathForFile: (file: any) => webUtils.getPathForFile(file),
   },
   pdf: {
     load: (filePath: string) => ipcRenderer.invoke('pdf:load', { filePath }),
