@@ -103,12 +103,13 @@ export function registerItemsIPC(db: DB) {
     contentType?: string
     language?: string
     watchedState?: 'unread' | 'inProgress' | 'completed'
+    fileState?: 'missing'
     sortBy?: string
     sortDir?: 'asc' | 'desc'
     page?: number
     perPage?: number
   } = {}) => {
-    const { search, contentType, language, watchedState, sortBy = 'createdAt', sortDir = 'desc', page = 1, perPage = 50 } = params
+    const { search, contentType, language, watchedState, fileState, sortBy = 'createdAt', sortDir = 'desc', page = 1, perPage = 50 } = params
 
     const conditions: ReturnType<typeof eq>[] = []
 
@@ -140,14 +141,7 @@ export function registerItemsIPC(db: DB) {
 
     const orderFn = sortDir === 'asc' ? asc : desc
 
-    const total = db.select({ count: sql<number>`count(*)` })
-      .from(items)
-      .where(whereClause)
-      .get()?.count ?? 0
-
-    const offset = (page - 1) * perPage
-
-    const query = db.select({
+    const baseQuery = db.select({
       id: items.id,
       filePath: items.filePath,
       fileName: items.fileName,
@@ -166,14 +160,20 @@ export function registerItemsIPC(db: DB) {
       .from(items)
       .where(whereClause)
       .orderBy(orderFn(sortColumn))
-      .limit(perPage)
-      .offset(offset)
       .all()
 
-    const result = query.map(item => ({
+    const withFileState = baseQuery.map(item => ({
       ...item,
       fileExists: fs.existsSync(path.join(item.filePath, item.fileName + (item.fileExtension ? '.' + item.fileExtension : '')))
     }))
+
+    const filteredByFileState = fileState === 'missing'
+      ? withFileState.filter((item) => item.fileExists === false)
+      : withFileState
+
+    const total = filteredByFileState.length
+    const offset = (page - 1) * perPage
+    const result = filteredByFileState.slice(offset, offset + perPage)
 
     return { items: result, total }
   })

@@ -23,6 +23,8 @@ export const jaMessages: Record<string, string> = {
   'filters.reading.unread': '未開始',
   'filters.reading.inProgress': '閲覧中',
   'filters.reading.completed': '閲覧完了',
+  'filters.file.all': 'ファイル状態（すべて）',
+  'filters.file.missing': 'ファイル欠損のみ',
   'filters.sort.createdAt': '追加日',
   'filters.sort.updatedAt': '更新日',
   'filters.sort.title': 'タイトル',

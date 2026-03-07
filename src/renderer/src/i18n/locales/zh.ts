@@ -23,6 +23,8 @@ export const zhMessages: Record<string, string> = {
   'filters.reading.unread': '未开始',
   'filters.reading.inProgress': '阅读中',
   'filters.reading.completed': '已完成',
+  'filters.file.all': '全部文件状态',
+  'filters.file.missing': '仅缺失文件',
   'filters.sort.createdAt': '添加日期',
   'filters.sort.updatedAt': '更新日期',
   'filters.sort.title': '标题',

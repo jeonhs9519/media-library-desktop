@@ -167,6 +167,7 @@ export default function LibraryPage() {
   const [contentType, setContentType] = useState('')
   const [language, setLanguage] = useState('')
   const [watchedState, setWatchedState] = useState<'all' | 'unread' | 'inProgress' | 'completed'>('all')
+  const [fileState, setFileState] = useState<'all' | 'missing'>('all')
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
@@ -207,6 +208,7 @@ export default function LibraryPage() {
         contentType: contentType || undefined,
         language: language || undefined,
         watchedState: watchedState === 'all' ? undefined : watchedState,
+        fileState: fileState === 'all' ? undefined : fileState,
         sortBy,
         sortDir,
         page,
@@ -217,7 +219,7 @@ export default function LibraryPage() {
     } finally {
       setLoading(false)
     }
-  }, [search, contentType, language, watchedState, sortBy, sortDir, page])
+  }, [search, contentType, language, watchedState, fileState, sortBy, sortDir, page])
 
   useEffect(() => {
     loadItems()
@@ -680,6 +682,11 @@ export default function LibraryPage() {
               <option value="unread">{tr('filters.reading.unread')}</option>
               <option value="inProgress">{tr('filters.reading.inProgress')}</option>
               <option value="completed">{tr('filters.reading.completed')}</option>
+            </select>
+
+            <select value={fileState} onChange={e => { setFileState(e.target.value as any); setPage(1) }}>
+              <option value="all">{tr('filters.file.all')}</option>
+              <option value="missing">{tr('filters.file.missing')}</option>
             </select>
           </div>
 

@@ -23,6 +23,8 @@ export const koMessages: Record<string, string> = {
   'filters.reading.unread': '아직 시작 안 함',
   'filters.reading.inProgress': '열람 중',
   'filters.reading.completed': '열람 완료',
+  'filters.file.all': '전체 파일 상태',
+  'filters.file.missing': '파일 누락만',
   'filters.sort.createdAt': '추가일',
   'filters.sort.updatedAt': '수정일',
   'filters.sort.title': '제목',

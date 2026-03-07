@@ -23,6 +23,8 @@ export const enMessages: Record<string, string> = {
   'filters.reading.unread': 'Not Started',
   'filters.reading.inProgress': 'In Progress',
   'filters.reading.completed': 'Completed',
+  'filters.file.all': 'All File States',
+  'filters.file.missing': 'Missing Files Only',
   'filters.sort.createdAt': 'Date Added',
   'filters.sort.updatedAt': 'Date Updated',
   'filters.sort.title': 'Title',
