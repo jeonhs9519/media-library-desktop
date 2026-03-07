@@ -91,13 +91,13 @@ export function registerItemsIPC(db: DB) {
     search?: string
     contentType?: string
     language?: string
-    watched?: boolean
+    watchedState?: 'unread' | 'inProgress' | 'completed'
     sortBy?: string
     sortDir?: 'asc' | 'desc'
     page?: number
     perPage?: number
   } = {}) => {
-    const { search, contentType, language, watched, sortBy = 'createdAt', sortDir = 'desc', page = 1, perPage = 50 } = params
+    const { search, contentType, language, watchedState, sortBy = 'createdAt', sortDir = 'desc', page = 1, perPage = 50 } = params
 
     const conditions: ReturnType<typeof eq>[] = []
 
@@ -108,7 +108,15 @@ export function registerItemsIPC(db: DB) {
     }
     if (contentType) conditions.push(eq(items.contentType, contentType))
     if (language) conditions.push(eq(items.language, language))
-    if (watched !== undefined) conditions.push(eq(items.watched, watched ? 1 : 0))
+    if (watchedState === 'unread') {
+      conditions.push(sql`(coalesce(${items.progress}, 0) <= 0 AND ${items.watched} = 0)` as any)
+    }
+    if (watchedState === 'inProgress') {
+      conditions.push(sql`(coalesce(${items.progress}, 0) > 0 AND coalesce(${items.progress}, 0) < 0.9 AND ${items.watched} = 0)` as any)
+    }
+    if (watchedState === 'completed') {
+      conditions.push(sql`(${items.watched} = 1 OR coalesce(${items.progress}, 0) >= 0.9)` as any)
+    }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 

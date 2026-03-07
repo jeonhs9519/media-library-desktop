@@ -12,19 +12,44 @@ const THUMB_SIZE = 128
 
 function getContentTypeIcon(ct: string) {
   switch (ct) {
-    case 'book': return 'BOOK'
-    case 'comic': return 'COMIC'
-    case 'video': return 'VIDEO'
-    default: return 'FILE'
+    case 'book': return 'B'
+    case 'comic': return 'C'
+    case 'video': return 'V'
+    default: return 'F'
   }
 }
 
-function getLanguageFlag(lang: string) {
+const TYPE_GLYPH_STYLE: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 20,
+  height: 20,
+  padding: 0,
+  border: '1px solid #fff',
+  borderRadius: 4,
+  background: 'rgba(10, 16, 32, 0.45)',
+  color: '#f5f8ff',
+  fontWeight: 700,
+  fontSize: 14,
+  letterSpacing: '0.02em',
+}
+
+const TYPE_GLYPH_SMALL_STYLE: React.CSSProperties = {
+  ...TYPE_GLYPH_STYLE,
+}
+
+const LANGUAGE_GLYPH_STYLE: React.CSSProperties = {
+  ...TYPE_GLYPH_STYLE,
+  width: 40,
+}
+
+function getLanguageBadge(lang: string) {
   switch (lang) {
-    case 'ko': return 'KO'
-    case 'ja': return 'JA'
-    case 'en': return 'EN'
-    case 'zh': return 'ZH'
+    case 'ko': return 'KOR'
+    case 'ja': return 'JPN'
+    case 'en': return 'ENG'
+    case 'zh': return 'CHN'
     default: return ''
   }
 }
@@ -64,6 +89,7 @@ type HdtPreviewResponse = {
 
 function ItemCard({ item, thumbnailUrl, onClick }: CardProps) {
   const missing = item.fileExists === false
+  const languageBadge = getLanguageBadge(item.language)
 
   return (
     <div
@@ -91,8 +117,8 @@ function ItemCard({ item, thumbnailUrl, onClick }: CardProps) {
         {thumbnailUrl ? (
           <img src={thumbnailUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={item.title} />
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: 40 }}>
-            {getContentTypeIcon(item.contentType)}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <span style={TYPE_GLYPH_STYLE}>{getContentTypeIcon(item.contentType)}</span>
           </div>
         )}
         {missing && (
@@ -101,11 +127,11 @@ function ItemCard({ item, thumbnailUrl, onClick }: CardProps) {
             justifyContent: 'center', background: 'rgba(185, 74, 87, 0.32)', fontSize: 32,
           }}>X</div>
         )}
-        <div style={{ position: 'absolute', bottom: 2, left: 2, fontSize: 16 }}>
-          {getContentTypeIcon(item.contentType)}
+        <div style={{ position: 'absolute', bottom: 2, left: 2 }}>
+          <span style={TYPE_GLYPH_SMALL_STYLE}>{getContentTypeIcon(item.contentType)}</span>
         </div>
-        <div style={{ position: 'absolute', bottom: 2, right: 2, fontSize: 14 }}>
-          {getLanguageFlag(item.language)}
+        <div style={{ position: 'absolute', bottom: 2, right: 2 }}>
+          {languageBadge ? <span style={LANGUAGE_GLYPH_STYLE}>{languageBadge}</span> : null}
         </div>
       </div>
       <div style={{
@@ -140,7 +166,7 @@ export default function LibraryPage() {
   const [search, setSearch] = useState('')
   const [contentType, setContentType] = useState('')
   const [language, setLanguage] = useState('')
-  const [watched, setWatched] = useState<boolean | undefined>(undefined)
+  const [watchedState, setWatchedState] = useState<'all' | 'unread' | 'inProgress' | 'completed'>('all')
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
@@ -173,7 +199,7 @@ export default function LibraryPage() {
         search: search || undefined,
         contentType: contentType || undefined,
         language: language || undefined,
-        watched,
+        watchedState: watchedState === 'all' ? undefined : watchedState,
         sortBy,
         sortDir,
         page,
@@ -184,7 +210,7 @@ export default function LibraryPage() {
     } finally {
       setLoading(false)
     }
-  }, [search, contentType, language, watched, sortBy, sortDir, page])
+  }, [search, contentType, language, watchedState, sortBy, sortDir, page])
 
   useEffect(() => {
     loadItems()
@@ -583,14 +609,12 @@ export default function LibraryPage() {
               <option value="other">{tr('filters.language.other')}</option>
             </select>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 14 }}>
-              <input
-                type="checkbox"
-                checked={watched === true}
-                onChange={e => setWatched(e.target.checked ? true : undefined)}
-              />
-              {tr('filters.watched')}
-            </label>
+            <select value={watchedState} onChange={e => { setWatchedState(e.target.value as any); setPage(1) }}>
+              <option value="all">{tr('filters.reading.all')}</option>
+              <option value="unread">{tr('filters.reading.unread')}</option>
+              <option value="inProgress">{tr('filters.reading.inProgress')}</option>
+              <option value="completed">{tr('filters.reading.completed')}</option>
+            </select>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'nowrap' }}>
@@ -604,9 +628,9 @@ export default function LibraryPage() {
             <button
               className="btn-secondary"
               onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
-              style={{ padding: '6px 10px' }}
+              style={{ padding: '6px 10px', width: 64 }}
             >
-              {sortDir === 'asc' ? 'up' : 'down'}
+              {sortDir === 'asc' ? 'ASC' : 'DESC'}
             </button>
           </div>
         </div>
@@ -838,7 +862,9 @@ export default function LibraryPage() {
                             alt={item.title || tr('modal.hdtImport.untitled')}
                           />
                         ) : (
-                          <div className="hdt-preview-thumb-fallback" aria-hidden="true">{getContentTypeIcon(item.contentType)}</div>
+                          <div className="hdt-preview-thumb-fallback" aria-hidden="true">
+                            <span className="hdt-preview-thumb-fallback-badge">{getContentTypeIcon(item.contentType)}</span>
+                          </div>
                         )}
                       </div>
 
