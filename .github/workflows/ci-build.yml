@@ -41,12 +41,8 @@ jobs:
         run: npm i --no-save electron@^40.6.0
         shell: pwsh
 
-      - name: Prune devDependencies (production only)
-        run: npm prune --production
-        shell: pwsh
-
       - name: Build Windows ZIP artifact
-        run: npx electron-builder --win zip --x64
+        run: npx electron-builder --win zip --x64 --publish never
         shell: pwsh
 
       - name: Upload build artifacts
