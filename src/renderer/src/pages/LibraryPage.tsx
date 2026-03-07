@@ -186,6 +186,20 @@ export default function LibraryPage() {
   const [bulkRelinking, setBulkRelinking] = useState(false)
   const [bulkRelinkNotice, setBulkRelinkNotice] = useState('')
   const [bulkRelinkConfirmOpen, setBulkRelinkConfirmOpen] = useState(false)
+  const [bulkRelinkConflict, setBulkRelinkConflict] = useState<{
+    movingTitle?: string
+    movingPath: string
+    targetPath: string
+    existingTitle?: string
+    existingPath: string
+  } | null>(null)
+  const [bulkRelinkErrorOpen, setBulkRelinkErrorOpen] = useState(false)
+  const [bulkRelinkErrorMessage, setBulkRelinkErrorMessage] = useState('')
+  const [bulkRelinkFailedTarget, setBulkRelinkFailedTarget] = useState<{
+    movingTitle?: string
+    movingPath: string
+    targetPath: string
+  } | null>(null)
   const [hdtUploadModalOpen, setHdtUploadModalOpen] = useState(false)
   const [hdtUploadDragging, setHdtUploadDragging] = useState(false)
   const [hdtUploadNotice, setHdtUploadNotice] = useState('')
@@ -585,6 +599,10 @@ export default function LibraryPage() {
     if (!picked) return
     setBulkFromFolder(picked)
     setBulkRelinkNotice('')
+    setBulkRelinkConflict(null)
+    setBulkRelinkErrorOpen(false)
+    setBulkRelinkErrorMessage('')
+    setBulkRelinkFailedTarget(null)
   }
 
   const handlePickBulkToFolder = async () => {
@@ -592,6 +610,10 @@ export default function LibraryPage() {
     if (!picked) return
     setBulkToFolder(picked)
     setBulkRelinkNotice('')
+    setBulkRelinkConflict(null)
+    setBulkRelinkErrorOpen(false)
+    setBulkRelinkErrorMessage('')
+    setBulkRelinkFailedTarget(null)
   }
 
   const handleApplyBulkRelink = async () => {
@@ -599,12 +621,32 @@ export default function LibraryPage() {
     setBulkRelinking(true)
     try {
       const result = await api.items.bulkRelinkFolder(bulkFromFolder, bulkToFolder)
+
+      if (result?.ok === false && result?.reason === 'duplicate') {
+        setBulkRelinkConfirmOpen(false)
+        setBulkRelinkConflict(result.conflict || null)
+        return
+      }
+
+      if (result?.ok === false) {
+        setBulkRelinkConfirmOpen(false)
+        setBulkRelinkErrorMessage(String(result?.message || ''))
+        setBulkRelinkFailedTarget(result?.failedTarget || null)
+        setBulkRelinkErrorOpen(true)
+        return
+      }
+
       const updated = Number(result?.updated ?? 0)
       setBulkRelinkNotice(tr('settings.bulkRelink.done', { count: updated }))
       setBulkRelinkConfirmOpen(false)
       await loadItems()
       const latestCount = await api.items.countByFolderPrefix(bulkFromFolder)
       setBulkMatchCount(Number(latestCount ?? 0))
+    } catch (error: any) {
+      setBulkRelinkConfirmOpen(false)
+      setBulkRelinkErrorMessage(String(error?.message || ''))
+      setBulkRelinkFailedTarget(null)
+      setBulkRelinkErrorOpen(true)
     } finally {
       setBulkRelinking(false)
     }
@@ -1155,6 +1197,71 @@ export default function LibraryPage() {
           <button className="btn-primary" disabled={bulkRelinking} onClick={handleApplyBulkRelink}>
             {bulkRelinking ? tr('common.loading') : tr('settings.bulkRelink.confirmApply')}
           </button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!bulkRelinkConflict}
+        onClose={() => setBulkRelinkConflict(null)}
+        title={tr('settings.bulkRelink.conflictTitle')}
+      >
+        <p style={{ marginTop: 0, marginBottom: 10 }}>{tr('settings.bulkRelink.conflictMessage')}</p>
+        {bulkRelinkConflict?.movingTitle && (
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
+            {tr('settings.bulkRelink.conflictMovingItem')}: {bulkRelinkConflict.movingTitle}
+          </div>
+        )}
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, wordBreak: 'break-all' }}>
+          {tr('settings.bulkRelink.conflictMovingPath')}: {bulkRelinkConflict?.movingPath}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, wordBreak: 'break-all' }}>
+          {tr('settings.bulkRelink.conflictTargetPath')}: {bulkRelinkConflict?.targetPath}
+        </div>
+        {bulkRelinkConflict?.existingTitle && (
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
+            {tr('settings.bulkRelink.conflictExistingItem')}: {bulkRelinkConflict.existingTitle}
+          </div>
+        )}
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, wordBreak: 'break-all' }}>
+          {tr('settings.bulkRelink.conflictExistingPath')}: {bulkRelinkConflict?.existingPath}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn-primary" onClick={() => setBulkRelinkConflict(null)}>{tr('common.ok')}</button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={bulkRelinkErrorOpen}
+        onClose={() => setBulkRelinkErrorOpen(false)}
+        title={tr('settings.bulkRelink.errorTitle')}
+      >
+        <p style={{ marginTop: 0, marginBottom: 16 }}>{tr('settings.bulkRelink.errorMessage')}</p>
+        {bulkRelinkFailedTarget?.movingTitle && (
+          <div style={{ marginTop: 0, marginBottom: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
+            {tr('settings.bulkRelink.errorFailedItem')}: {bulkRelinkFailedTarget.movingTitle}
+          </div>
+        )}
+        {bulkRelinkFailedTarget?.movingPath && (
+          <div style={{ marginTop: 0, marginBottom: 8, fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+            {tr('settings.bulkRelink.errorCurrentPath')}: {bulkRelinkFailedTarget.movingPath}
+          </div>
+        )}
+        {bulkRelinkFailedTarget?.targetPath && (
+          <div style={{ marginTop: 0, marginBottom: 16, fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+            {tr('settings.bulkRelink.errorTargetPath')}: {bulkRelinkFailedTarget.targetPath}
+          </div>
+        )}
+        {bulkRelinkErrorMessage && (
+          <pre style={{ marginTop: 0, marginBottom: 16, padding: 10, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+            {bulkRelinkErrorMessage}
+          </pre>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn-primary" onClick={() => {
+            setBulkRelinkErrorOpen(false)
+            setBulkRelinkErrorMessage('')
+            setBulkRelinkFailedTarget(null)
+          }}>{tr('common.ok')}</button>
         </div>
       </Modal>
     </div>

@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { eq, and, sql, asc, desc } from 'drizzle-orm'
+import { eq, ne, and, sql, asc, desc } from 'drizzle-orm'
 import { items, tags, itemTags, reviews } from '../db/schema'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import * as schema from '../db/schema'
@@ -93,6 +93,17 @@ function isPathInsideFolder(targetPath: string, folderPath: string): boolean {
   const target = normalizeFolderPathForCompare(targetPath)
   const folder = normalizeFolderPathForCompare(folderPath)
   return target === folder || target.startsWith(folder + path.sep)
+}
+
+function buildItemFullPath(filePath: string, fileName: string, fileExtension: string): string {
+  return path.join(filePath, `${fileName}${fileExtension ? `.${fileExtension}` : ''}`)
+}
+
+function buildItemIdentityKey(filePath: string, fileName: string, fileExtension: string): string {
+  const normalizedPath = normalizeFolderPathForCompare(filePath)
+  const normalizedName = process.platform === 'win32' ? fileName.toLowerCase() : fileName
+  const normalizedExt = process.platform === 'win32' ? fileExtension.toLowerCase() : fileExtension
+  return `${normalizedPath}::${normalizedName}::${normalizedExt}`
 }
 
 export function registerItemsIPC(db: DB) {
@@ -273,13 +284,76 @@ export function registerItemsIPC(db: DB) {
     const now = Date.now()
     const parsed = path.parse(newFilePath)
     const ext = parsed.ext.replace('.', '')
-    db.update(items).set({
-      filePath: parsed.dir,
-      fileName: parsed.name,
-      fileExtension: ext,
-      updatedAt: now,
-    }).where(eq(items.id, id)).run()
-    return db.select().from(items).where(eq(items.id, id)).get()
+
+    const duplicate = db.select({
+      id: items.id,
+      title: items.title,
+      filePath: items.filePath,
+      fileName: items.fileName,
+      fileExtension: items.fileExtension,
+    })
+      .from(items)
+      .where(and(
+        ne(items.id, id),
+        eq(items.filePath, parsed.dir),
+        eq(items.fileName, parsed.name),
+        eq(items.fileExtension, ext),
+      ))
+      .get()
+
+    if (duplicate) {
+      return {
+        ok: false,
+        reason: 'duplicate',
+        targetPath: newFilePath,
+        duplicate,
+      }
+    }
+
+    try {
+      db.update(items).set({
+        filePath: parsed.dir,
+        fileName: parsed.name,
+        fileExtension: ext,
+        updatedAt: now,
+      }).where(eq(items.id, id)).run()
+    } catch (error: any) {
+      const message = String(error?.message || '')
+      if (message.toLowerCase().includes('unique')) {
+        const racedDuplicate = db.select({
+          id: items.id,
+          title: items.title,
+          filePath: items.filePath,
+          fileName: items.fileName,
+          fileExtension: items.fileExtension,
+        })
+          .from(items)
+          .where(and(
+            ne(items.id, id),
+            eq(items.filePath, parsed.dir),
+            eq(items.fileName, parsed.name),
+            eq(items.fileExtension, ext),
+          ))
+          .get()
+
+        return {
+          ok: false,
+          reason: 'duplicate',
+          targetPath: newFilePath,
+          duplicate: racedDuplicate || null,
+        }
+      }
+      return {
+        ok: false,
+        reason: 'error',
+        message,
+      }
+    }
+
+    return {
+      ok: true,
+      item: db.select().from(items).where(eq(items.id, id)).get(),
+    }
   })
 
   ipcMain.handle('items:countByFolderPrefix', async (_event, { folderPath }: { folderPath: string }) => {
@@ -291,34 +365,106 @@ export function registerItemsIPC(db: DB) {
 
   ipcMain.handle('items:bulkRelinkFolder', async (_event, { fromFolder, toFolder }: { fromFolder: string; toFolder: string }) => {
     if (!fromFolder?.trim() || !toFolder?.trim()) {
-      return { updated: 0 }
+      return { ok: true, updated: 0 }
     }
 
     const fromNormalized = path.normalize(path.resolve(fromFolder))
     const toNormalized = path.normalize(path.resolve(toFolder))
     const now = Date.now()
 
-    const rows = db.select({ id: items.id, filePath: items.filePath }).from(items).all()
+    const rows = db.select({
+      id: items.id,
+      title: items.title,
+      filePath: items.filePath,
+      fileName: items.fileName,
+      fileExtension: items.fileExtension,
+    }).from(items).all()
     const targets = rows.filter((row) => isPathInsideFolder(row.filePath, fromFolder))
 
-    let updated = 0
+    if (!targets.length) {
+      return { ok: true, updated: 0 }
+    }
+
+    const identityMap = new Map<string, typeof rows[number]>()
+    for (const row of rows) {
+      const key = buildItemIdentityKey(row.filePath, row.fileName, row.fileExtension)
+      identityMap.set(key, row)
+    }
+
+    const nextFolderById = new Map<number, string>()
     for (const row of targets) {
       const currentNormalized = path.normalize(path.resolve(row.filePath))
       const relative = path.relative(fromNormalized, currentNormalized)
-      const nextFilePath = relative ? path.join(toNormalized, relative) : toNormalized
+      const nextFolderPath = relative ? path.join(toNormalized, relative) : toNormalized
+      nextFolderById.set(row.id, nextFolderPath)
+    }
+
+    for (const row of targets) {
+      const nextFolderPath = nextFolderById.get(row.id) || row.filePath
+      const oldKey = buildItemIdentityKey(row.filePath, row.fileName, row.fileExtension)
+      const nextKey = buildItemIdentityKey(nextFolderPath, row.fileName, row.fileExtension)
+
+      if (oldKey === nextKey) {
+        continue
+      }
+
+      const existingOld = identityMap.get(oldKey)
+      if (existingOld?.id === row.id) {
+        identityMap.delete(oldKey)
+      }
+
+      const occupied = identityMap.get(nextKey)
+      if (occupied && occupied.id !== row.id) {
+        return {
+          ok: false,
+          reason: 'duplicate',
+          conflict: {
+            movingTitle: row.title,
+            movingPath: buildItemFullPath(row.filePath, row.fileName, row.fileExtension),
+            targetPath: buildItemFullPath(nextFolderPath, row.fileName, row.fileExtension),
+            existingTitle: occupied.title,
+            existingPath: buildItemFullPath(occupied.filePath, occupied.fileName, occupied.fileExtension),
+          },
+          updated: 0,
+        }
+      }
+
+      identityMap.set(nextKey, {
+        ...row,
+        filePath: nextFolderPath,
+      })
+    }
+
+    let updated = 0
+    for (const row of targets) {
+      const nextFilePath = nextFolderById.get(row.id) || row.filePath
 
       if (normalizeFolderPathForCompare(nextFilePath) === normalizeFolderPathForCompare(row.filePath)) {
         continue
       }
 
-      db.update(items)
-        .set({ filePath: nextFilePath, updatedAt: now })
-        .where(eq(items.id, row.id))
-        .run()
-      updated++
+      try {
+        db.update(items)
+          .set({ filePath: nextFilePath, updatedAt: now })
+          .where(eq(items.id, row.id))
+          .run()
+        updated++
+      } catch (error: any) {
+        return {
+          ok: false,
+          reason: 'error',
+          message: String(error?.message || ''),
+          failedTarget: {
+            movingTitle: row.title,
+            movingPath: buildItemFullPath(row.filePath, row.fileName, row.fileExtension),
+            targetPath: buildItemFullPath(nextFilePath, row.fileName, row.fileExtension),
+          },
+          updated,
+        }
+      }
     }
 
-    return { updated }
+    return { ok: true, updated }
   })
 
   ipcMain.handle('items:checkExists', async (_event, { filePath, fileName, fileExtension }: { filePath: string; fileName: string; fileExtension: string }) => {

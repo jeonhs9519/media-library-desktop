@@ -22,6 +22,13 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
   const [newTagName, setNewTagName] = useState('')
   const [isTagComposing, setIsTagComposing] = useState(false)
   const [relinkModal, setRelinkModal] = useState(false)
+  const [relinkDuplicate, setRelinkDuplicate] = useState<{
+    targetPath: string
+    duplicatePath: string
+    duplicateTitle?: string
+  } | null>(null)
+  const [relinkErrorOpen, setRelinkErrorOpen] = useState(false)
+  const [relinkErrorMessage, setRelinkErrorMessage] = useState('')
   const { tr } = useI18n()
 
   useEffect(() => {
@@ -71,13 +78,36 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
   }
 
   const handleRelink = async () => {
-    const paths = await window.api.file.openDialog()
-    if (paths.length > 0) {
-      await window.api.items.relink(itemId, paths[0])
-      const data = await window.api.items.getById(itemId)
-      setItem(data)
+    try {
+      const paths = await window.api.file.openDialog()
+      if (paths.length > 0) {
+        const result = await window.api.items.relink(itemId, paths[0])
+
+        if (result?.ok === false && result?.reason === 'duplicate') {
+          const dup = result.duplicate
+          const duplicatePath = dup
+            ? `${dup.filePath}/${dup.fileName}${dup.fileExtension ? '.' + dup.fileExtension : ''}`
+            : ''
+
+          setRelinkDuplicate({
+            targetPath: result.targetPath || paths[0],
+            duplicatePath,
+            duplicateTitle: dup?.title,
+          })
+        } else if (result?.ok === false) {
+          setRelinkErrorMessage(String(result?.message || ''))
+          setRelinkErrorOpen(true)
+        } else {
+          const data = await window.api.items.getById(itemId)
+          setItem(data)
+        }
+      }
+    } catch (error: any) {
+      setRelinkErrorMessage(String(error?.message || ''))
+      setRelinkErrorOpen(true)
+    } finally {
+      setRelinkModal(false)
     }
-    setRelinkModal(false)
   }
 
   const handleOpenViewer = () => {
@@ -349,6 +379,43 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button className="btn-secondary" onClick={() => setRelinkModal(false)}>{tr('common.cancel')}</button>
           <button className="btn-primary" onClick={handleRelink}>{tr('detail.browse')}</button>
+        </div>
+      </Modal>
+
+      <Modal open={!!relinkDuplicate} onClose={() => setRelinkDuplicate(null)} title={tr('detail.relinkDuplicateTitle')}>
+        <p style={{ marginBottom: 8 }}>{tr('detail.relinkDuplicateMessage')}</p>
+        {relinkDuplicate?.duplicateTitle && (
+          <p style={{ marginBottom: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
+            {tr('detail.relinkDuplicateItem')}: {relinkDuplicate.duplicateTitle}
+          </p>
+        )}
+        {relinkDuplicate?.targetPath && (
+          <p style={{ marginBottom: 8, fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+            {tr('detail.relinkDuplicateTarget')}: {relinkDuplicate.targetPath}
+          </p>
+        )}
+        {relinkDuplicate?.duplicatePath && (
+          <p style={{ marginBottom: 16, fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+            {tr('detail.relinkDuplicateExisting')}: {relinkDuplicate.duplicatePath}
+          </p>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn-primary" onClick={() => setRelinkDuplicate(null)}>{tr('common.ok')}</button>
+        </div>
+      </Modal>
+
+      <Modal open={relinkErrorOpen} onClose={() => setRelinkErrorOpen(false)} title={tr('detail.relinkErrorTitle')}>
+        <p style={{ marginBottom: 16 }}>{tr('detail.relinkErrorMessage')}</p>
+        {relinkErrorMessage && (
+          <pre style={{ marginBottom: 16, padding: 10, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+            {relinkErrorMessage}
+          </pre>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn-primary" onClick={() => {
+            setRelinkErrorOpen(false)
+            setRelinkErrorMessage('')
+          }}>{tr('common.ok')}</button>
         </div>
       </Modal>
     </div>
