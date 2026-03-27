@@ -15,6 +15,8 @@ const api = {
       ipcRenderer.invoke('items:checkExists', { filePath, fileName, fileExtension }),
     importHdtPreview: (filePaths: string[]) => ipcRenderer.invoke('items:importHdtPreview', { filePaths }),
     importHdtApply: (selectedIds: string[]) => ipcRenderer.invoke('items:importHdtApply', { selectedIds }),
+    fillMissingMetadata: () => ipcRenderer.invoke('items:fillMissingMetadata'),
+    getMetadataFillStatus: () => ipcRenderer.invoke('items:getMetadataFillStatus'),
   },
   thumbnail: {
     get: (id: number) => ipcRenderer.invoke('thumbnail:get', { id }),

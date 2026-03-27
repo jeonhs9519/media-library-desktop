@@ -51,6 +51,11 @@ export default function PdfViewerPage() {
       setPdfDoc(doc)
       setPageCount(doc.numPages)
 
+      // Save totalContent if not already saved
+      if (!itemData.totalContent) {
+        await window.api.items.update(itemId, { totalContent: doc.numPages })
+      }
+
       const startPage = itemData.lastPageIndex ? itemData.lastPageIndex + 1 : 1
       setCurrentPage(Math.min(startPage, doc.numPages))
       setLoading(false)

@@ -87,9 +87,74 @@ type HdtPreviewResponse = {
   stats: HdtPreviewStats
 }
 
+type MetadataFillStatus = {
+  running: boolean
+  queued: number
+  processed: number
+  updated: number
+  failed: number
+}
+
+function formatVideoDuration(secondsRaw: number): string {
+  const seconds = Math.max(0, Math.floor(secondsRaw))
+  if (seconds < 60) return `00:${seconds.toString().padStart(2, '0')}`
+
+  const ss = (seconds % 60).toString().padStart(2, '0')
+  const totalMinutes = Math.floor(seconds / 60)
+  if (seconds < 3600) {
+    return `${totalMinutes.toString().padStart(2, '0')}:${ss}`
+  }
+
+  const hh = Math.floor(totalMinutes / 60).toString().padStart(2, '0')
+  const mm = (totalMinutes % 60).toString().padStart(2, '0')
+  return `${hh}:${mm}:${ss}`
+}
+
+function formatVideoProgress(currentRaw: number, totalRaw: number): string {
+  const total = Math.max(0, Math.floor(totalRaw))
+  const current = Math.min(total, Math.max(0, Math.floor(currentRaw)))
+
+  if (total < 60) {
+    return `00:${current.toString().padStart(2, '0')}/00:${total.toString().padStart(2, '0')}`
+  }
+
+  if (total < 3600) {
+    const currentMinutes = Math.floor(current / 60).toString().padStart(2, '0')
+    const currentSeconds = (current % 60).toString().padStart(2, '0')
+    const totalMinutes = Math.floor(total / 60).toString().padStart(2, '0')
+    const totalSeconds = (total % 60).toString().padStart(2, '0')
+    return `${currentMinutes}:${currentSeconds}/${totalMinutes}:${totalSeconds}`
+  }
+
+  const currentHours = Math.floor(current / 3600).toString().padStart(2, '0')
+  const currentMinutes = Math.floor((current % 3600) / 60).toString().padStart(2, '0')
+  const currentSeconds = (current % 60).toString().padStart(2, '0')
+  const totalHours = Math.floor(total / 3600).toString().padStart(2, '0')
+  const totalMinutes = Math.floor((total % 3600) / 60).toString().padStart(2, '0')
+  const totalSeconds = (total % 60).toString().padStart(2, '0')
+  return `${currentHours}:${currentMinutes}:${currentSeconds}/${totalHours}:${totalMinutes}:${totalSeconds}`
+}
+
 function ItemCard({ item, thumbnailUrl, onClick }: CardProps) {
   const missing = item.fileExists === false
   const languageBadge = getLanguageBadge(item.language)
+
+  const formatContentInfo = (): string => {
+    if (!item.totalContent) return ''
+    if (item.contentType === 'video') {
+      return formatVideoDuration(item.totalContent)
+    } else if (item.contentType === 'book' || item.contentType === 'comic') {
+      return `${Math.round(item.totalContent)}p`
+    }
+    return ''
+  }
+
+  const contentInfo = formatContentInfo()
+  const progressInfo = item.totalContent
+    ? item.contentType === 'video'
+      ? formatVideoProgress(item.progress * item.totalContent, item.totalContent)
+      : `${Math.round(item.progress * item.totalContent)}/${Math.round(item.totalContent)}p`
+    : ''
 
   return (
     <div
@@ -127,12 +192,17 @@ function ItemCard({ item, thumbnailUrl, onClick }: CardProps) {
             justifyContent: 'center', background: 'rgba(185, 74, 87, 0.32)', fontSize: 32,
           }}>X</div>
         )}
-        <div style={{ position: 'absolute', bottom: 2, left: 2 }}>
+        {/* Top: Type and Language */}
+        <div style={{ position: 'absolute', top: 2, left: 2, right: 2, display: 'flex', gap: 4, justifyContent: 'space-between' }}>
           <span style={TYPE_GLYPH_SMALL_STYLE}>{getContentTypeIcon(item.contentType)}</span>
-        </div>
-        <div style={{ position: 'absolute', bottom: 2, right: 2 }}>
           {languageBadge ? <span style={LANGUAGE_GLYPH_STYLE}>{languageBadge}</span> : null}
         </div>
+        {/* Bottom-right: Content duration/pages or progress info */}
+        {contentInfo && (
+          <div style={{ position: 'absolute', bottom: 2, right: 2, fontSize: 11, color: '#e0e0e0', background: 'rgba(10, 16, 32, 0.45)', padding: '2px 6px', borderRadius: 3 }}>
+            {progressInfo || contentInfo}
+          </div>
+        )}
       </div>
       <div style={{
         marginTop: 6,
@@ -211,6 +281,8 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(false)
   const [detailItemId, setDetailItemId] = useState<number | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const metadataFillStartedRef = useRef(false)
+  const metadataFillUpdatedRef = useRef(0)
   const perPage = 100
   const { tr, languageSetting, changeLanguageSetting } = useI18n()
 
@@ -238,6 +310,56 @@ export default function LibraryPage() {
   useEffect(() => {
     loadItems()
   }, [loadItems])
+
+  useEffect(() => {
+    if (metadataFillStartedRef.current || total <= 0) return
+
+    metadataFillStartedRef.current = true
+    let canceled = false
+    let pollTimer: ReturnType<typeof setInterval> | null = null
+
+    const syncStatus = async (status: MetadataFillStatus) => {
+      if (status.updated > metadataFillUpdatedRef.current) {
+        metadataFillUpdatedRef.current = status.updated
+        await loadItems()
+      }
+
+      if (!status.running && pollTimer) {
+        clearInterval(pollTimer)
+        pollTimer = null
+      }
+    }
+
+    const startBackgroundFill = async () => {
+      try {
+        const initialStatus = await api.items.fillMissingMetadata() as MetadataFillStatus
+        if (canceled) return
+
+        await syncStatus(initialStatus)
+
+        if (initialStatus.running) {
+          pollTimer = setInterval(async () => {
+            try {
+              const nextStatus = await api.items.getMetadataFillStatus() as MetadataFillStatus
+              if (canceled) return
+              await syncStatus(nextStatus)
+            } catch (e) {
+              console.error('Failed to read metadata fill status:', e)
+            }
+          }, 2000)
+        }
+      } catch (e) {
+        console.error('Failed to start metadata fill:', e)
+      }
+    }
+
+    startBackgroundFill()
+
+    return () => {
+      canceled = true
+      if (pollTimer) clearInterval(pollTimer)
+    }
+  }, [total, loadItems])
 
   useEffect(() => {
     const loadThumbnails = async () => {

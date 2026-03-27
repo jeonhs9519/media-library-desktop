@@ -16,6 +16,7 @@ export const items = sqliteTable('items', {
   progress: real('progress').notNull().default(0),
   lastPageIndex: integer('lastPageIndex'),
   lastPositionSeconds: real('lastPositionSeconds'),
+  totalContent: real('totalContent'), // Pages for book/comic, seconds for video
   thumbnail: blob('thumbnail', { mode: 'buffer' }),
   createdAt: integer('createdAt').notNull(),
   updatedAt: integer('updatedAt').notNull(),

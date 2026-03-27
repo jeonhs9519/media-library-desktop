@@ -31,6 +31,11 @@ export default function CbzViewerPage() {
       const pageList = await window.api.cbz.getPages(fullPath)
       setPages(pageList)
 
+      // Save totalContent if not already saved
+      if (!itemData.totalContent) {
+        await window.api.items.update(itemId, { totalContent: pageList.length })
+      }
+
       const startPage = itemData.lastPageIndex || 0
       setCurrentPage(startPage)
       setLoading(false)

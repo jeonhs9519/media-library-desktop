@@ -2,7 +2,7 @@ import { app, BrowserWindow, session, protocol, net, ipcMain } from 'electron'
 import path from 'path'
 import { pathToFileURL } from 'url'
 import fs from 'fs'
-import { createDatabase, runMigrations } from './db/migrate'
+import { createDatabase, ensureRuntimeSchema, runMigrations } from './db/migrate'
 import { registerItemsIPC } from './ipc/items'
 import { registerTagsIPC } from './ipc/tags'
 import { registerReviewsIPC } from './ipc/reviews'
@@ -227,13 +227,15 @@ app.whenReady().then(async () => {
 
   migrateLegacyDbIfNeeded(dbPath)
 
-  const { db } = createDatabase(dbPath)
+  const { db, sqlite } = createDatabase(dbPath)
 
   try {
     runMigrations(db, migrationsPath)
   } catch (e) {
     console.error('Migration error (may be OK on first run):', e)
   }
+
+  ensureRuntimeSchema(sqlite)
 
   registerItemsIPC(db)
   registerTagsIPC(db)

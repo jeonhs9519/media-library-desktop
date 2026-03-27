@@ -14,6 +14,7 @@ export interface Item {
   progress: number
   lastPageIndex?: number | null
   lastPositionSeconds?: number | null
+  totalContent?: number | null // Pages for book/comic, seconds for video
   thumbnail?: Buffer | null
   createdAt: number
   updatedAt: number

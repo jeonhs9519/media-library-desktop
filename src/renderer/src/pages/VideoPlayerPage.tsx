@@ -33,6 +33,11 @@ export default function VideoPlayerPage() {
     const video = videoRef.current
     if (!video) return
 
+    // Save totalContent if not already saved
+    if (item && !item.totalContent && video.duration > 0) {
+      await window.api.items.update(itemId, { totalContent: video.duration })
+    }
+
     if (item?.lastPositionSeconds) {
       video.currentTime = item.lastPositionSeconds
     }
