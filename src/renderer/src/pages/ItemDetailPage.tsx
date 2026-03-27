@@ -5,6 +5,46 @@ import Modal from '../components/Modal'
 import StarRating from '../components/StarRating'
 import { useI18n } from '../useI18n'
 
+function formatVideoProgress(currentRaw: number, totalRaw: number): string {
+  const total = Math.max(0, Math.floor(totalRaw))
+  const current = Math.min(total, Math.max(0, Math.floor(currentRaw)))
+
+  if (total < 60) {
+    return `00:${current.toString().padStart(2, '0')}/00:${total.toString().padStart(2, '0')}`
+  }
+
+  if (total < 3600) {
+    const cm = Math.floor(current / 60).toString().padStart(2, '0')
+    const cs = (current % 60).toString().padStart(2, '0')
+    const tm = Math.floor(total / 60).toString().padStart(2, '0')
+    const ts = (total % 60).toString().padStart(2, '0')
+    return `${cm}:${cs}/${tm}:${ts}`
+  }
+
+  const ch = Math.floor(current / 3600).toString().padStart(2, '0')
+  const cm = Math.floor((current % 3600) / 60).toString().padStart(2, '0')
+  const cs = (current % 60).toString().padStart(2, '0')
+  const th = Math.floor(total / 3600).toString().padStart(2, '0')
+  const tm = Math.floor((total % 3600) / 60).toString().padStart(2, '0')
+  const ts = (total % 60).toString().padStart(2, '0')
+  return `${ch}:${cm}:${cs}/${th}:${tm}:${ts}`
+}
+
+function formatProgressDetail(item: any): string {
+  const pct = Math.round(item.progress * 100)
+  if (!item.totalContent) return `${pct}%`
+
+  if (item.containerType === 'video') {
+    const pos = item.lastPositionSeconds ?? 0
+    return `${formatVideoProgress(pos, item.totalContent)} (${pct}%)`
+  }
+
+  // book / comic: lastPageIndex is 0-based
+  const current = (item.lastPageIndex ?? 0) + 1
+  const total = Math.round(item.totalContent)
+  return `${current}p/${total}p (${pct}%)`
+}
+
 interface ItemDetailPageProps {
   itemId: number
   onClose: () => void
@@ -236,27 +276,28 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
                 : (item.language ? tr(`filters.language.${item.language}`) : tr('detail.unknown'))
               }
             </Field>
-            <Field label={tr('detail.author')}>
+            <Field label={tr('detail.author')} style={{ gridColumn: '1 / -1' }}>
               {editing
-                ? <input value={editForm.author} onChange={e => setEditForm((f: any) => ({ ...f, author: e.target.value }))} />
+                ? <input value={editForm.author} onChange={e => setEditForm((f: any) => ({ ...f, author: e.target.value }))} style={{ width: '100%' }} />
                 : (item.author || '—')
               }
             </Field>
+            <Field label={tr('detail.progress')}>{formatProgressDetail(item)}</Field>
             <Field label={tr('detail.watched')}>
               {editing
                 ? <input type="checkbox" checked={editForm.watched} onChange={e => setEditForm((f: any) => ({ ...f, watched: e.target.checked }))} />
                 : (item.watched ? '✓' : '✗')
               }
             </Field>
-            <Field label={tr('detail.progress')}>{Math.round(item.progress * 100)}%</Field>
-            <Field label={tr('detail.sourceUrl')}>
+            <Field label={tr('detail.sourceUrl')} style={{ gridColumn: '1 / -1' }}>
               {editing
                 ? <input value={editForm.sourceUrl} onChange={e => setEditForm((f: any) => ({ ...f, sourceUrl: e.target.value }))} style={{ width: '100%' }} />
                 : (item.sourceUrl
                     ? (
                         <a
                           href={item.sourceUrl}
-                          style={{ color: 'var(--accent)' }}
+                          style={{ color: 'var(--accent)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          title={item.sourceUrl}
                           onClick={(e) => {
                             e.preventDefault()
                             void window.api.file.openExternal(item.sourceUrl as string)
@@ -422,9 +463,9 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ lineHeight: '24px' }}>
+    <div style={{ lineHeight: '24px', ...style }}>
       <div style={{ fontSize: 12, color: '#a0a0b0', marginBottom: 4 }}>{label}</div>
       <div>{children}</div>
     </div>
