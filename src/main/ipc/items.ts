@@ -312,7 +312,7 @@ export function registerItemsIPC(db: DB) {
     contentType?: string
     language?: string
     watchedState?: 'unread' | 'inProgress' | 'completed'
-    fileState?: 'missing'
+    fileState?: 'normal' | 'missing'
     sortBy?: string
     sortDir?: 'asc' | 'desc'
     page?: number
@@ -369,7 +369,7 @@ export function registerItemsIPC(db: DB) {
     }
     const offset = (page - 1) * perPage
 
-    if (fileState !== 'missing') {
+    if (!fileState) {
       const totalRow = db.select({ count: sql<number>`count(*)` })
         .from(items)
         .where(whereClause)
@@ -402,7 +402,9 @@ export function registerItemsIPC(db: DB) {
       fileExists: fs.existsSync(path.join(item.filePath, item.fileName + (item.fileExtension ? '.' + item.fileExtension : '')))
     }))
 
-    const filteredByFileState = withFileState.filter((item) => item.fileExists === false)
+    const filteredByFileState = withFileState.filter((item) => fileState === 'missing'
+      ? item.fileExists === false
+      : item.fileExists === true)
     const total = filteredByFileState.length
     const result = filteredByFileState.slice(offset, offset + perPage)
 

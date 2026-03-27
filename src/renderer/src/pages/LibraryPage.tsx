@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Item } from '../types'
 import Modal from '../components/Modal'
@@ -228,19 +228,30 @@ function ItemCard({ item, thumbnailUrl, onClick }: CardProps) {
   )
 }
 
+const SEARCH_STATE_KEY = 'library.searchState'
+
+function readSavedSearch() {
+  try {
+    const raw = sessionStorage.getItem(SEARCH_STATE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
 export default function LibraryPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id?: string }>()
   const [items, setItems] = useState<Item[]>([])
   const [total, setTotal] = useState(0)
-  const [search, setSearch] = useState('')
-  const [contentType, setContentType] = useState('')
-  const [language, setLanguage] = useState('')
-  const [watchedState, setWatchedState] = useState<'all' | 'unread' | 'inProgress' | 'completed'>('all')
-  const [fileState, setFileState] = useState<'all' | 'missing'>('all')
-  const [sortBy, setSortBy] = useState('createdAt')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-  const [page, setPage] = useState(1)
+  const [search, setSearch] = useState<string>(() => readSavedSearch()?.search ?? '')
+  const [contentType, setContentType] = useState<string>(() => readSavedSearch()?.contentType ?? '')
+  const [language, setLanguage] = useState<string>(() => readSavedSearch()?.language ?? '')
+  const [watchedState, setWatchedState] = useState<'all' | 'unread' | 'inProgress' | 'completed'>(() => readSavedSearch()?.watchedState ?? 'all')
+  const [fileState, setFileState] = useState<'all' | 'normal' | 'missing'>(() => readSavedSearch()?.fileState ?? 'all')
+  const [sortBy, setSortBy] = useState<string>(() => readSavedSearch()?.sortBy ?? 'createdAt')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => readSavedSearch()?.sortDir ?? 'desc')
+  const [page, setPage] = useState<number>(() => readSavedSearch()?.page ?? 1)
   const [thumbnails, setThumbnails] = useState<Record<number, string>>({})
   const loadedThumbnailIds = useRef<Set<number>>(new Set())
   const [duplicateModal, setDuplicateModal] = useState<{ fileName: string } | null>(null)
@@ -306,6 +317,24 @@ export default function LibraryPage() {
       setLoading(false)
     }
   }, [search, contentType, language, watchedState, fileState, sortBy, sortDir, page])
+
+  useEffect(() => {
+    sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify({
+      search, contentType, language, watchedState, fileState, sortBy, sortDir, page,
+    }))
+  }, [search, contentType, language, watchedState, fileState, sortBy, sortDir, page])
+
+  const handleResetSearch = () => {
+    setSearch('')
+    setContentType('')
+    setLanguage('')
+    setWatchedState('all')
+    setFileState('all')
+    setSortBy('createdAt')
+    setSortDir('desc')
+    setPage(1)
+    sessionStorage.removeItem(SEARCH_STATE_KEY)
+  }
 
   useEffect(() => {
     loadItems()
@@ -850,6 +879,7 @@ export default function LibraryPage() {
 
             <select value={fileState} onChange={e => { setFileState(e.target.value as any); setPage(1) }}>
               <option value="all">{tr('filters.file.all')}</option>
+              <option value="normal">{tr('filters.file.normal')}</option>
               <option value="missing">{tr('filters.file.missing')}</option>
             </select>
           </div>
@@ -869,6 +899,16 @@ export default function LibraryPage() {
             >
               {sortDir === 'asc' ? 'ASC' : 'DESC'}
             </button>
+
+            {(search !== '' || contentType !== '' || language !== '' || watchedState !== 'all' || fileState !== 'all' || sortBy !== 'createdAt' || sortDir !== 'desc') && (
+              <button
+                className="btn-secondary"
+                onClick={handleResetSearch}
+                style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}
+              >
+                {tr('filters.resetSearch')}
+              </button>
+            )}
           </div>
         </div>
 
