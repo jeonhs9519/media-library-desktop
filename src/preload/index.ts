@@ -45,6 +45,7 @@ const api = {
     checkExists: (filePath: string) => ipcRenderer.invoke('file:check-exists', { filePath }),
     readStat: (filePath: string) => ipcRenderer.invoke('file:read-stat', { filePath }),
     openExternal: (filePath: string) => ipcRenderer.invoke('file:open-external', { filePath }),
+    showInFolder: (filePath: string) => ipcRenderer.invoke('file:show-in-folder', { filePath }),
     getPathForFile: (file: any) => webUtils.getPathForFile(file),
   },
   pdf: {
@@ -64,6 +65,7 @@ const api = {
     zoomIn: () => ipcRenderer.invoke('app:zoomIn'),
     zoomOut: () => ipcRenderer.invoke('app:zoomOut'),
     zoomReset: () => ipcRenderer.invoke('app:zoomReset'),
+    isCursorInsideWindow: () => ipcRenderer.invoke('app:isCursorInsideWindow'),
   },
 }
 

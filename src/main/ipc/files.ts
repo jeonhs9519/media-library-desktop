@@ -49,4 +49,8 @@ export function registerFilesIPC() {
     }
     await shell.openPath(filePath)
   })
+
+  ipcMain.handle('file:show-in-folder', (_event, { filePath }: { filePath: string }) => {
+    shell.showItemInFolder(filePath)
+  })
 }

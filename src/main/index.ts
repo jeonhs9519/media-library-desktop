@@ -1,7 +1,7 @@
-import { app, BrowserWindow, session, protocol, net, ipcMain } from 'electron'
+import { app, BrowserWindow, session, protocol, ipcMain, screen } from 'electron'
 import path from 'path'
-import { pathToFileURL } from 'url'
 import fs from 'fs'
+import { Readable } from 'stream'
 import { createDatabase, ensureRuntimeSchema, runMigrations } from './db/migrate'
 import { registerItemsIPC } from './ipc/items'
 import { registerTagsIPC } from './ipc/tags'
@@ -77,6 +77,16 @@ function getMigrationsPath() {
     return path.join(process.cwd(), 'src/main/db/migrations')
   }
   return path.join(process.resourcesPath, 'migrations')
+}
+
+function getVideoContentType(filePath: string) {
+  const ext = path.extname(filePath).toLowerCase()
+  if (ext === '.mp4' || ext === '.m4v') return 'video/mp4'
+  if (ext === '.webm') return 'video/webm'
+  if (ext === '.mov') return 'video/quicktime'
+  if (ext === '.avi') return 'video/x-msvideo'
+  if (ext === '.mkv') return 'video/x-matroska'
+  return 'application/octet-stream'
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -200,6 +210,18 @@ app.whenReady().then(async () => {
     mainWindow?.webContents.setZoomFactor(1)
   })
 
+  ipcMain.handle('app:isCursorInsideWindow', async () => {
+    if (!mainWindow) return true
+    const point = screen.getCursorScreenPoint()
+    const bounds = mainWindow.getBounds()
+    return (
+      point.x >= bounds.x
+      && point.x < bounds.x + bounds.width
+      && point.y >= bounds.y
+      && point.y < bounds.y + bounds.height
+    )
+  })
+
   protocol.handle('local-media', async (request) => {
     const url = new URL(request.url)
     const encodedPath = url.searchParams.get('path')
@@ -214,9 +236,57 @@ app.whenReady().then(async () => {
       return new Response('File not found', { status: 404 })
     }
 
-    return net.fetch(pathToFileURL(normalizedPath).toString(), {
-      method: request.method,
-      headers: request.headers,
+    const stat = fs.statSync(normalizedPath)
+    const totalSize = stat.size
+    const contentType = getVideoContentType(normalizedPath)
+    const range = request.headers.get('range')
+
+    if (!range) {
+      const fullStream = fs.createReadStream(normalizedPath)
+      return new Response(Readable.toWeb(fullStream) as ReadableStream, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': String(totalSize),
+          'Accept-Ranges': 'bytes',
+        },
+      })
+    }
+
+    const match = /^bytes=(\d*)-(\d*)$/i.exec(range.trim())
+    if (!match) {
+      return new Response('Invalid Range', {
+        status: 416,
+        headers: {
+          'Content-Range': `bytes */${totalSize}`,
+        },
+      })
+    }
+
+    let start = match[1] ? Number.parseInt(match[1], 10) : 0
+    let end = match[2] ? Number.parseInt(match[2], 10) : totalSize - 1
+
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || start >= totalSize) {
+      return new Response('Range Not Satisfiable', {
+        status: 416,
+        headers: {
+          'Content-Range': `bytes */${totalSize}`,
+        },
+      })
+    }
+
+    end = Math.min(end, totalSize - 1)
+    const chunkSize = end - start + 1
+    const stream = fs.createReadStream(normalizedPath, { start, end })
+
+    return new Response(Readable.toWeb(stream) as ReadableStream, {
+      status: 206,
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': String(chunkSize),
+        'Accept-Ranges': 'bytes',
+        'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+      },
     })
   })
 
