@@ -16,7 +16,7 @@ import {
   VolumeHighIcon,
   VolumeLowIcon,
   VolumeMuteIcon,
-} from '../components/PlayerIcons'
+} from '../components/icons'
 import ContextMenu, { ContextMenuEntry } from '../components/ContextMenu'
 
 function formatTime(seconds: number): string {

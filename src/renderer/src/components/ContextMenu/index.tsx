@@ -1,15 +1,25 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
-export type ContextMenuItem = {
+export type ContextMenuItemBase = {
   key: string
   label: string
+  description?: string
   icon?: React.ReactNode
   shortcut?: string
-  onSelect: () => void | Promise<void>
   tone?: 'default' | 'accent' | 'danger'
   disabled?: boolean
   checked?: boolean
 }
+
+export type ContextMenuActionItem = ContextMenuItemBase & {
+  onSelect: () => void | Promise<void>
+}
+
+export type ContextMenuSubmenuItem = ContextMenuItemBase & {
+  children: ContextMenuEntry[]
+}
+
+export type ContextMenuItem = ContextMenuActionItem | ContextMenuSubmenuItem
 
 export type ContextMenuSeparator = {
   key: string
@@ -28,6 +38,14 @@ type ContextMenuProps = {
 
 function isSeparator(item: ContextMenuEntry): item is ContextMenuSeparator {
   return (item as ContextMenuSeparator).type === 'separator'
+}
+
+function hasChildren(item: ContextMenuItem): item is ContextMenuSubmenuItem {
+  return Array.isArray((item as ContextMenuSubmenuItem).children)
+}
+
+function isActionItem(item: ContextMenuItem): item is ContextMenuActionItem {
+  return typeof (item as ContextMenuActionItem).onSelect === 'function'
 }
 
 const menuTokens = {
@@ -63,6 +81,14 @@ function CheckIcon() {
   )
 }
 
+function SubmenuChevronIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M9 6.5L14.5 12 9 17.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export default function ContextMenu({
   id,
   position,
@@ -72,22 +98,69 @@ export default function ContextMenu({
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const submenuItemRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const [safePosition, setSafePosition] = useState(position)
   const [hoveredKey, setHoveredKey] = useState<string | null>(null)
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const [focusedKey, setFocusedKey] = useState<string | null>(null)
+  const [submenuKey, setSubmenuKey] = useState<string | null>(null)
+  const [submenuPosition, setSubmenuPosition] = useState<{ x: number; y: number } | null>(null)
+  const [submenuFocusedKey, setSubmenuFocusedKey] = useState<string | null>(null)
+
   const shortcutMinWidth = useMemo(() => getShortcutMinWidth(items), [items])
   const actionableItems = useMemo(
     () => items.filter((item): item is ContextMenuItem => !isSeparator(item) && !item.disabled),
     [items],
   )
 
+  const submenuItems = useMemo(() => {
+    if (!submenuKey) return []
+    const parent = items.find((entry): entry is ContextMenuItem => !isSeparator(entry) && entry.key === submenuKey)
+    if (!parent || !hasChildren(parent)) return []
+    return parent.children
+  }, [submenuKey, items])
+
+  const submenuActionableItems = useMemo(
+    () => submenuItems.filter((item): item is ContextMenuItem => !isSeparator(item) && !item.disabled),
+    [submenuItems],
+  )
+
+  const closeSubmenu = () => {
+    setSubmenuKey(null)
+    setSubmenuPosition(null)
+    setSubmenuFocusedKey(null)
+  }
+
   const activateItem = async (key: string | null) => {
     if (!key) return
-    const item = items.find((entry) => !isSeparator(entry) && entry.key === key)
-    if (!item || item.disabled) return
+    const item = items.find((entry): entry is ContextMenuItem => !isSeparator(entry) && entry.key === key)
+    if (!item || item.disabled || !isActionItem(item)) return
     await item.onSelect()
     onClose()
+  }
+
+  const activateSubmenuItem = async (key: string | null) => {
+    if (!key) return
+    const item = submenuItems.find((entry): entry is ContextMenuItem => !isSeparator(entry) && entry.key === key)
+    if (!item || item.disabled || !isActionItem(item)) return
+    await item.onSelect()
+    onClose()
+  }
+
+  const openSubmenu = (item: ContextMenuItem, anchorEl: HTMLElement | null) => {
+    if (!hasChildren(item)) {
+      closeSubmenu()
+      return
+    }
+
+    const rect = anchorEl?.getBoundingClientRect()
+    const x = Math.max(8, Math.min((rect?.right || safePosition.x) + 6, window.innerWidth - 280))
+    const y = Math.max(8, Math.min((rect?.top || safePosition.y) - 4, window.innerHeight - 220))
+    setSubmenuKey(item.key)
+    setSubmenuPosition({ x, y })
+
+    const firstSubmenuKey = item.children.find((entry): entry is ContextMenuItem => !isSeparator(entry) && !entry.disabled)?.key || null
+    setSubmenuFocusedKey(firstSubmenuKey)
   }
 
   useLayoutEffect(() => {
@@ -118,6 +191,16 @@ export default function ContextMenu({
     menuRef.current?.focus()
   }, [actionableItems])
 
+  useEffect(() => {
+    if (!submenuKey) return
+    const nextKey = submenuActionableItems[0]?.key || null
+    setSubmenuFocusedKey((prev) => {
+      if (prev && submenuActionableItems.some((item) => item.key === prev)) return prev
+      return nextKey
+    })
+    if (nextKey) submenuItemRefs.current[nextKey]?.focus()
+  }, [submenuKey, submenuActionableItems])
+
   const moveFocus = (direction: 1 | -1) => {
     if (actionableItems.length === 0) return
     const currentIndex = focusedKey
@@ -128,9 +211,19 @@ export default function ContextMenu({
     const nextKey = actionableItems[nextIndex]?.key || null
     setFocusedKey(nextKey)
     setHoveredKey(nextKey)
-    if (nextKey) {
-      itemRefs.current[nextKey]?.focus()
-    }
+    if (nextKey) itemRefs.current[nextKey]?.focus()
+  }
+
+  const moveSubmenuFocus = (direction: 1 | -1) => {
+    if (submenuActionableItems.length === 0) return
+    const currentIndex = submenuFocusedKey
+      ? submenuActionableItems.findIndex((item) => item.key === submenuFocusedKey)
+      : -1
+    const baseIndex = currentIndex >= 0 ? currentIndex : direction === 1 ? -1 : 0
+    const nextIndex = (baseIndex + direction + submenuActionableItems.length) % submenuActionableItems.length
+    const nextKey = submenuActionableItems[nextIndex]?.key || null
+    setSubmenuFocusedKey(nextKey)
+    if (nextKey) submenuItemRefs.current[nextKey]?.focus()
   }
 
   const onMenuKeyDown = async (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -162,6 +255,11 @@ export default function ContextMenu({
     }
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
+      const focusedItem = actionableItems.find((item) => item.key === focusedKey)
+      if (focusedItem && hasChildren(focusedItem)) {
+        openSubmenu(focusedItem, itemRefs.current[focusedItem.key])
+        return
+      }
       await activateItem(focusedKey)
       return
     }
@@ -178,136 +276,321 @@ export default function ContextMenu({
     if (e.key === 'ArrowLeft') {
       e.preventDefault()
       e.stopPropagation()
+      closeSubmenu()
+      return
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      const focusedItem = actionableItems.find((item) => item.key === focusedKey)
+      if (focusedItem && hasChildren(focusedItem)) {
+        openSubmenu(focusedItem, itemRefs.current[focusedItem.key])
+      }
+      return
+    }
+  }
+
+  const onSubmenuKeyDown = async (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      moveSubmenuFocus(1)
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      moveSubmenuFocus(-1)
+      return
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      await activateSubmenuItem(submenuFocusedKey)
+      return
+    }
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      closeSubmenu()
+      if (focusedKey) itemRefs.current[focusedKey]?.focus()
+      return
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      onClose()
     }
   }
 
   return (
-    <div
-      id={id}
-      ref={menuRef}
-      role="menu"
-      tabIndex={-1}
-      style={{
-        position: 'fixed',
-        top: safePosition.y,
-        left: safePosition.x,
-        background: menuTokens.menuBg,
-        border: `1px solid ${menuTokens.menuBorder}`,
-        borderRadius: 10,
-        boxShadow: menuTokens.menuShadow,
-        zIndex: 1000,
-        minWidth,
-        width: 'max-content',
-        maxWidth: 'min(92vw, 460px)',
-        padding: '4px',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        fontFamily: 'Segoe UI, Noto Sans KR, system-ui, sans-serif',
-        fontSize: 13,
-      }}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={onMenuKeyDown}
-    >
-      {items.map((item) => {
-        if (isSeparator(item)) {
-          return <div key={item.key} style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
-        }
+    <>
+      <div
+        id={id}
+        ref={menuRef}
+        role="menu"
+        tabIndex={-1}
+        style={{
+          position: 'fixed',
+          top: safePosition.y,
+          left: safePosition.x,
+          background: menuTokens.menuBg,
+          border: `1px solid ${menuTokens.menuBorder}`,
+          borderRadius: 10,
+          boxShadow: menuTokens.menuShadow,
+          zIndex: 1000,
+          minWidth,
+          width: 'max-content',
+          maxWidth: 'min(92vw, 460px)',
+          padding: '4px',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          fontFamily: 'Segoe UI, Noto Sans KR, system-ui, sans-serif',
+          fontSize: 13,
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={onMenuKeyDown}
+      >
+        {items.map((item) => {
+          if (isSeparator(item)) {
+            return <div key={item.key} style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
+          }
 
-        const baseColor = item.tone === 'danger'
-          ? menuTokens.dangerColor
-          : item.tone === 'accent'
-            ? '#4a9eff'
-            : 'var(--text-primary)'
-        const resolvedColor = item.disabled ? menuTokens.disabledColor : baseColor
-        const isHovered = hoveredKey === item.key
-        const isActive = activeKey === item.key
-        const isFocused = focusedKey === item.key
-        const background = isActive
-          ? menuTokens.itemActiveBg
-          : isHovered
-            ? menuTokens.itemHoverBg
-            : isFocused
-              ? menuTokens.itemFocusBg
-            : 'none'
-        const itemIcon = item.icon ?? (item.checked ? <CheckIcon /> : null)
-        const itemRole = typeof item.checked === 'boolean' ? 'menuitemcheckbox' : 'menuitem'
+          const baseColor = item.tone === 'danger'
+            ? menuTokens.dangerColor
+            : item.tone === 'accent'
+              ? '#4a9eff'
+              : 'var(--text-primary)'
+          const resolvedColor = item.disabled ? menuTokens.disabledColor : baseColor
+          const isHovered = hoveredKey === item.key
+          const isActive = activeKey === item.key
+          const isFocused = focusedKey === item.key
+          const isSubmenuItem = hasChildren(item)
+          const background = isActive
+            ? menuTokens.itemActiveBg
+            : isHovered
+              ? menuTokens.itemHoverBg
+              : isFocused
+                ? menuTokens.itemFocusBg
+                : 'none'
+          const itemIcon = item.icon ?? (item.checked ? <CheckIcon /> : null)
+          const itemRole = typeof item.checked === 'boolean' ? 'menuitemcheckbox' : 'menuitem'
 
-        return (
-          <button
-            key={item.key}
-            ref={(el) => {
-              itemRefs.current[item.key] = el
-            }}
-            role={itemRole}
-            aria-checked={typeof item.checked === 'boolean' ? item.checked : undefined}
-            aria-disabled={item.disabled ? true : undefined}
-            tabIndex={-1}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '20px 1fr auto',
-              alignItems: 'center',
-              columnGap: 12,
-              width: '100%',
-              textAlign: 'left',
-              padding: '7px 10px',
-              background,
-              border: 'none',
-              cursor: item.disabled ? 'not-allowed' : 'pointer',
-              color: resolvedColor,
-              fontSize: 12.5,
-              opacity: item.disabled ? 0.72 : 1,
-              transition: 'background-color 0.12s ease',
-              outline: isFocused ? `1px solid ${menuTokens.itemFocusRing}` : 'none',
-              outlineOffset: -1,
-              borderRadius: 7,
-              fontFamily: 'inherit',
-            }}
-            onClick={async () => {
-              if (item.disabled) return
-              await item.onSelect()
-              onClose()
-            }}
-            onMouseEnter={() => {
-              setHoveredKey(item.key)
-              setFocusedKey(item.key)
-            }}
-            onMouseLeave={() => {
-              setHoveredKey((prev) => (prev === item.key ? null : prev))
-              setActiveKey((prev) => (prev === item.key ? null : prev))
-            }}
-            onMouseDown={() => setActiveKey(item.key)}
-            onMouseUp={() => setActiveKey((prev) => (prev === item.key ? null : prev))}
-            onFocus={() => setFocusedKey(item.key)}
-          >
-            <span
+          return (
+            <button
+              key={item.key}
+              ref={(el) => {
+                itemRefs.current[item.key] = el
+              }}
+              role={itemRole}
+              aria-checked={typeof item.checked === 'boolean' ? item.checked : undefined}
+              aria-disabled={item.disabled ? true : undefined}
+              tabIndex={-1}
               style={{
-                width: 20,
-                display: 'inline-flex',
-                justifyContent: 'center',
+                display: 'grid',
+                gridTemplateColumns: isSubmenuItem ? '20px 1fr auto 14px' : '20px 1fr auto',
                 alignItems: 'center',
-                lineHeight: 1,
+                columnGap: 12,
+                width: '100%',
+                textAlign: 'left',
+                padding: '7px 10px',
+                background,
+                border: 'none',
+                cursor: item.disabled ? 'not-allowed' : 'pointer',
                 color: resolvedColor,
+                fontSize: 12.5,
+                opacity: item.disabled ? 0.72 : 1,
+                transition: 'background-color 0.12s ease',
+                outline: isFocused ? `1px solid ${menuTokens.itemFocusRing}` : 'none',
+                outlineOffset: -1,
+                borderRadius: 7,
+                fontFamily: 'inherit',
+              }}
+              onClick={async () => {
+                if (item.disabled) return
+                if (isSubmenuItem) {
+                  openSubmenu(item, itemRefs.current[item.key])
+                  return
+                }
+                if (!isActionItem(item)) return
+                await item.onSelect()
+                onClose()
+              }}
+              onMouseEnter={() => {
+                setHoveredKey(item.key)
+                setFocusedKey(item.key)
+                if (isSubmenuItem) {
+                  openSubmenu(item, itemRefs.current[item.key])
+                } else {
+                  closeSubmenu()
+                }
+              }}
+              onMouseLeave={() => {
+                setHoveredKey((prev) => (prev === item.key ? null : prev))
+                setActiveKey((prev) => (prev === item.key ? null : prev))
+              }}
+              onMouseDown={() => setActiveKey(item.key)}
+              onMouseUp={() => setActiveKey((prev) => (prev === item.key ? null : prev))}
+              onFocus={() => {
+                setFocusedKey(item.key)
+                if (!isSubmenuItem) closeSubmenu()
               }}
             >
-              {itemIcon}
-            </span>
-            <span style={{ whiteSpace: 'nowrap', color: resolvedColor, fontWeight: 500 }}>{item.label}</span>
-            <span
-              style={{
-                minWidth: shortcutMinWidth,
-                textAlign: 'right',
-                color: 'var(--text-secondary)',
-                fontSize: 11.5,
-                letterSpacing: 0.15,
-                whiteSpace: 'nowrap',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-              }}
-            >
-              {item.shortcut || ''}
-            </span>
-          </button>
-        )
-      })}
-    </div>
+              <span
+                style={{
+                  width: 20,
+                  display: 'inline-flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  lineHeight: 1,
+                  color: resolvedColor,
+                }}
+              >
+                {itemIcon}
+              </span>
+              <span style={{ display: 'inline-flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
+                <span style={{ whiteSpace: 'nowrap', color: resolvedColor, fontWeight: 500 }}>{item.label}</span>
+                {item.description && (
+                  <span style={{ whiteSpace: 'nowrap', color: resolvedColor, fontSize: 10, lineHeight: 1.1, opacity: 0.6 }}>
+                    {item.description}
+                  </span>
+                )}
+              </span>
+              <span
+                style={{
+                  minWidth: shortcutMinWidth,
+                  textAlign: 'right',
+                  color: 'var(--text-secondary)',
+                  fontSize: 11.5,
+                  letterSpacing: 0.15,
+                  whiteSpace: 'nowrap',
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                }}
+              >
+                {item.shortcut || ''}
+              </span>
+              {isSubmenuItem && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                  <SubmenuChevronIcon />
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {submenuKey && submenuPosition && submenuItems.length > 0 && (
+        <div
+          role="menu"
+          tabIndex={-1}
+          style={{
+            position: 'fixed',
+            top: submenuPosition.y,
+            left: submenuPosition.x,
+            background: menuTokens.menuBg,
+            border: `1px solid ${menuTokens.menuBorder}`,
+            borderRadius: 10,
+            boxShadow: menuTokens.menuShadow,
+            zIndex: 1001,
+            minWidth: 250,
+            width: 'max-content',
+            maxWidth: 'min(88vw, 420px)',
+            padding: '4px',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            fontFamily: 'Segoe UI, Noto Sans KR, system-ui, sans-serif',
+            fontSize: 13,
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={onSubmenuKeyDown}
+          onMouseLeave={closeSubmenu}
+        >
+          {submenuItems.map((item) => {
+            if (isSeparator(item)) {
+              return <div key={item.key} style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
+            }
+
+            const baseColor = item.tone === 'danger'
+              ? menuTokens.dangerColor
+              : item.tone === 'accent'
+                ? '#4a9eff'
+                : 'var(--text-primary)'
+            const resolvedColor = item.disabled ? menuTokens.disabledColor : baseColor
+            const isFocused = submenuFocusedKey === item.key
+            const itemIcon = item.icon ?? (item.checked ? <CheckIcon /> : null)
+            const itemRole = typeof item.checked === 'boolean' ? 'menuitemcheckbox' : 'menuitem'
+
+            return (
+              <button
+                key={item.key}
+                ref={(el) => {
+                  submenuItemRefs.current[item.key] = el
+                }}
+                role={itemRole}
+                aria-checked={typeof item.checked === 'boolean' ? item.checked : undefined}
+                aria-disabled={item.disabled ? true : undefined}
+                tabIndex={-1}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '20px 1fr auto',
+                  alignItems: 'center',
+                  columnGap: 12,
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '7px 10px',
+                  background: isFocused ? menuTokens.itemFocusBg : 'none',
+                  border: 'none',
+                  cursor: item.disabled ? 'not-allowed' : 'pointer',
+                  color: resolvedColor,
+                  fontSize: 12.5,
+                  opacity: item.disabled ? 0.72 : 1,
+                  transition: 'background-color 0.12s ease',
+                  outline: isFocused ? `1px solid ${menuTokens.itemFocusRing}` : 'none',
+                  outlineOffset: -1,
+                  borderRadius: 7,
+                  fontFamily: 'inherit',
+                }}
+                onClick={async () => {
+                  if (item.disabled || !isActionItem(item)) return
+                  await item.onSelect()
+                  onClose()
+                }}
+                onMouseEnter={() => setSubmenuFocusedKey(item.key)}
+                onFocus={() => setSubmenuFocusedKey(item.key)}
+              >
+                <span
+                  style={{
+                    width: 20,
+                    display: 'inline-flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    lineHeight: 1,
+                    color: resolvedColor,
+                  }}
+                >
+                  {itemIcon}
+                </span>
+                <span style={{ display: 'inline-flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
+                  <span style={{ whiteSpace: 'nowrap', color: resolvedColor, fontWeight: 500 }}>{item.label}</span>
+                  {item.description && (
+                    <span style={{ whiteSpace: 'nowrap', color: resolvedColor, fontSize: 10, lineHeight: 1.1, opacity: 0.6 }}>
+                      {item.description}
+                    </span>
+                  )}
+                </span>
+                <span
+                  style={{
+                    minWidth: 56,
+                    textAlign: 'right',
+                    color: 'var(--text-secondary)',
+                    fontSize: 11.5,
+                    letterSpacing: 0.15,
+                    whiteSpace: 'nowrap',
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                  }}
+                >
+                  {item.shortcut || ''}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </>
   )
 }
