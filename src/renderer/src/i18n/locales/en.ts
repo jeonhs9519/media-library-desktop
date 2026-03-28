@@ -174,6 +174,7 @@ export const enMessages: Record<string, string> = {
 
   'viewer.setThumbnail': 'Set Thumbnail',
   'viewer.thumbnailUpdated': 'Thumbnail updated.',
+  'viewer.currentPrefix': 'Current: ',
   'viewer.pdf.loading': 'Loading PDF...',
   'viewer.cbz.loading': 'Loading CBZ...',
   'viewer.cbz.loadingPage': 'Loading page {page}...',

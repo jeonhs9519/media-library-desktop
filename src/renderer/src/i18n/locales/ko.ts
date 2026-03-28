@@ -174,6 +174,7 @@ export const koMessages: Record<string, string> = {
 
   'viewer.setThumbnail': '썸네일 설정',
   'viewer.thumbnailUpdated': '썸네일이 업데이트되었습니다.',
+  'viewer.currentPrefix': '현재: ',
   'viewer.pdf.loading': 'PDF 불러오는 중...',
   'viewer.cbz.loading': 'CBZ 불러오는 중...',
   'viewer.cbz.loadingPage': '{page}페이지 불러오는 중...',

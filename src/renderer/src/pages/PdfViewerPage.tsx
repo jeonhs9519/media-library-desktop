@@ -1,14 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import * as pdfjsLib from 'pdfjs-dist'
 import { useI18n } from '../useI18n'
+import { api } from '../api'
+import BookViewerOverlay, { useBookViewerViewMode } from '../components/BookViewerOverlay/index'
+import { useBookViewerOverlayUx } from '../components/BookViewerOverlay/useBookViewerOverlayUx.ts'
+import { useBookViewerKeyboard } from '../components/BookViewerOverlay/useBookViewerKeyboard.ts'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
   import.meta.url
 ).toString()
 
-type PdfViewMode = 'single' | 'double-ltr' | 'double-rtl'
+const PDF_VIEW_MODE_SETTING_KEY = 'pdf.viewMode'
 
 function clampPage(page: number, max: number): number {
   if (max <= 0) return 1
@@ -23,26 +27,48 @@ export default function PdfViewerPage() {
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageCount, setPageCount] = useState(0)
-  const [viewMode, setViewMode] = useState<PdfViewMode>('single')
   const [loading, setLoading] = useState(true)
   const [item, setItem] = useState<any>(null)
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 })
-  const viewportRef = React.useRef<HTMLDivElement>(null)
-  const leftCanvasRef = React.useRef<HTMLCanvasElement>(null)
-  const rightCanvasRef = React.useRef<HTMLCanvasElement>(null)
-  const leftRenderTaskRef = React.useRef<pdfjsLib.RenderTask | null>(null)
-  const rightRenderTaskRef = React.useRef<pdfjsLib.RenderTask | null>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const leftCanvasRef = useRef<HTMLCanvasElement>(null)
+  const rightCanvasRef = useRef<HTMLCanvasElement>(null)
+  const leftRenderTaskRef = useRef<pdfjsLib.RenderTask | null>(null)
+  const rightRenderTaskRef = useRef<pdfjsLib.RenderTask | null>(null)
   const { tr } = useI18n()
+  const {
+    containerRef,
+    isTopOverlayVisible,
+    isFullscreen,
+    isContextMenuOpen,
+    contextMenu,
+    toggleFullscreen,
+    showTopOverlay,
+    hideTopOverlayWithDelay,
+    handleContextMenu,
+    closeContextMenu,
+  } = useBookViewerOverlayUx()
+  const {
+    viewMode,
+    setViewMode,
+    hydrateViewMode,
+  } = useBookViewerViewMode(PDF_VIEW_MODE_SETTING_KEY)
+
+  const getFullPath = useCallback((itemData: any) => {
+    return itemData.filePath + '/' + itemData.fileName +
+      (itemData.fileExtension ? '.' + itemData.fileExtension : '')
+  }, [])
 
   useEffect(() => {
     const load = async () => {
-      const itemData = await window.api.items.getById(itemId)
+      const itemData = await api.items.getById(itemId)
       setItem(itemData)
 
-      const fullPath = itemData.filePath + '/' + itemData.fileName +
-        (itemData.fileExtension ? '.' + itemData.fileExtension : '')
+      await hydrateViewMode()
 
-      const base64 = await window.api.pdf.readFile(fullPath)
+      const fullPath = getFullPath(itemData)
+
+      const base64 = await api.pdf.readFile(fullPath)
       const data = atob(base64)
       const bytes = new Uint8Array(data.length)
       for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i)
@@ -53,7 +79,7 @@ export default function PdfViewerPage() {
 
       // Save totalContent if not already saved
       if (!itemData.totalContent) {
-        await window.api.items.update(itemId, { totalContent: doc.numPages })
+        await api.items.update(itemId, { totalContent: doc.numPages })
       }
 
       const startPage = itemData.lastPageIndex ? itemData.lastPageIndex + 1 : 1
@@ -61,7 +87,7 @@ export default function PdfViewerPage() {
       setLoading(false)
     }
     load().catch(console.error)
-  }, [itemId])
+  }, [itemId, getFullPath, hydrateViewMode])
 
   const renderPageToCanvas = useCallback(async (
     pageNum: number,
@@ -173,113 +199,71 @@ export default function PdfViewerPage() {
 
   useEffect(() => {
     if (pageCount <= 0) return
-    const shownPage = viewMode === 'single'
-      ? currentPage
-      : Math.min(pageCount, currentPage + 1)
-
-    const progress = shownPage / pageCount
-    window.api.items.update(itemId, {
-      lastPageIndex: shownPage - 1,
+    const progress = currentPage / pageCount
+    api.items.update(itemId, {
+      lastPageIndex: currentPage - 1,
       progress,
     }).catch(console.error)
-  }, [currentPage, pageCount, itemId, viewMode])
+  }, [currentPage, pageCount, itemId])
 
-  useEffect(() => {
-    const step = viewMode === 'single' ? 1 : 2
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        setCurrentPage(p => clampPage(p - step, pageCount))
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-        setCurrentPage(p => clampPage(p + step, pageCount))
-      } else if (e.key === 'Home') {
-        setCurrentPage(1)
-      } else if (e.key === 'Escape') {
-        navigate(`/items/${itemId}`)
-      }
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [viewMode, pageCount, itemId, navigate])
+  useBookViewerKeyboard({
+    viewMode,
+    isContextMenuOpen,
+    onViewModeChange: setViewMode,
+    onPrevPage: (step) => setCurrentPage((p) => clampPage(p - step, pageCount)),
+    onNextPage: (step) => setCurrentPage((p) => clampPage(p + step, pageCount)),
+    onGoHome: () => setCurrentPage(1),
+    onToggleFullscreen: toggleFullscreen,
+    onExitViewer: () => navigate(`/items/${itemId}`),
+  })
 
   const handleSetThumbnail = async () => {
-    if (!leftCanvasRef.current || leftCanvasRef.current.width === 0 || leftCanvasRef.current.height === 0) return
-    const base64 = leftCanvasRef.current.toDataURL('image/jpeg', 0.8).split(',')[1]
-    await window.api.thumbnail.setFromImageData(itemId, base64)
+    const activeCanvas = viewMode === 'double-rtl' ? rightCanvasRef.current : leftCanvasRef.current
+    if (!activeCanvas || activeCanvas.width === 0 || activeCanvas.height === 0) return
+    const base64 = activeCanvas.toDataURL('image/jpeg', 0.8).split(',')[1]
+    await api.thumbnail.setFromImageData(itemId, base64)
     alert(tr('viewer.thumbnailUpdated'))
   }
 
-  const step = viewMode === 'single' ? 1 : 2
-  const rightPage = Math.min(pageCount, currentPage + 1)
-  const pageLabel = viewMode === 'single' || currentPage === rightPage
+  const handleShowInFolder = async () => {
+    if (!item) return
+    await api.file.showInFolder(getFullPath(item))
+  }
+
+  const pageStep = viewMode === 'single' ? 1 : 2
+  const rightPageDisplay = Math.min(pageCount, currentPage + 1)
+  const pageLabel = viewMode === 'single' || currentPage === rightPageDisplay
     ? `${currentPage} / ${pageCount}`
-    : `${currentPage}-${rightPage} / ${pageCount}`
+    : `${currentPage}-${rightPageDisplay} / ${pageCount}`
 
-  if (loading) return <div style={{ padding: 24, color: 'var(--text-primary)' }}>{tr('viewer.pdf.loading')}</div>
+  const goToPrevPage = () => {
+    setCurrentPage(p => clampPage(p - pageStep, pageCount))
+  }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-primary)' }}>
-      <div
-        style={{
-          height: 32,
-          flexShrink: 0,
-          background: 'var(--bg-secondary)',
-          borderBottom: '1px solid var(--border)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-start',
-          padding: '0 12px',
-          paddingRight: 150,
-          WebkitAppRegion: 'drag' as any,
-        } as any}
-      >
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: 0.2 }}>{tr('app.title')}</span>
-      </div>
+  const goToNextPage = () => {
+    setCurrentPage(p => clampPage(p + pageStep, pageCount))
+  }
 
-      <div style={{
-        background: 'var(--bg-secondary)', padding: '8px 16px',
-        display: 'flex', gap: 12, alignItems: 'center',
-        borderBottom: '1px solid var(--border)', flexShrink: 0,
-      }}>
-        <button className="btn-secondary" onClick={() => navigate(`/items/${itemId}`)}>{tr('common.back')}</button>
-        <span style={{ fontWeight: 'bold', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {item?.title}
-        </span>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto' }}>
-          {(['single', 'double-ltr', 'double-rtl'] as PdfViewMode[]).map(mode => (
-            <button
-              key={mode}
-              className={viewMode === mode ? 'btn-primary' : 'btn-secondary'}
-              onClick={() => setViewMode(mode)}
-              style={{ fontSize: 12, padding: '4px 8px' }}
-            >
-              {mode === 'single'
-                ? `□ ${tr('viewer.cbz.mode.single')}`
-                : mode === 'double-ltr'
-                  ? `□□→ ${tr('viewer.cbz.mode.doubleLtr')}`
-                  : `←□□ ${tr('viewer.cbz.mode.doubleRtl')}`}
-            </button>
-          ))}
+  const renderContent = () => {
+    if (viewMode === 'single') {
+      return (
+        <canvas
+          ref={leftCanvasRef}
+          style={{
+            width: 'auto',
+            height: 'auto',
+            maxWidth: '100%',
+            maxHeight: '100%',
+            display: 'block',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+          }}
+        />
+      )
+    }
 
-          <button className="btn-secondary" onClick={() => setCurrentPage(p => clampPage(p - step, pageCount))} disabled={currentPage <= 1}>◀</button>
-          <input
-            type="number"
-            value={currentPage}
-            min={1}
-            max={pageCount}
-            onChange={e => {
-              const v = parseInt(e.target.value)
-              if (!isNaN(v) && v >= 1 && v <= pageCount) setCurrentPage(clampPage(v, pageCount))
-            }}
-            style={{ width: 60, textAlign: 'center' }}
-          />
-          <span>{pageLabel}</span>
-          <button className="btn-secondary" onClick={() => setCurrentPage(p => clampPage(p + step, pageCount))} disabled={currentPage >= pageCount}>▶</button>
-          <button className="btn-secondary" onClick={handleSetThumbnail}>📷 {tr('viewer.setThumbnail')}</button>
-        </div>
-      </div>
-
-      <div ref={viewportRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 16 }}>
-        {viewMode === 'single' ? (
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', minWidth: 0 }}>
           <canvas
             ref={leftCanvasRef}
             style={{
@@ -291,37 +275,53 @@ export default function PdfViewerPage() {
               boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
             }}
           />
-        ) : (
-          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', minWidth: 0 }}>
-              <canvas
-                ref={leftCanvasRef}
-                style={{
-                  width: 'auto',
-                  height: 'auto',
-                  maxWidth: '100%',
-                  maxHeight: '100%',
-                  display: 'block',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-                }}
-              />
-            </div>
-            <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start', alignItems: 'center', minWidth: 0 }}>
-              <canvas
-                ref={rightCanvasRef}
-                style={{
-                  width: 'auto',
-                  height: 'auto',
-                  maxWidth: '100%',
-                  maxHeight: '100%',
-                  display: 'block',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-                }}
-              />
-            </div>
-          </div>
-        )}
+        </div>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start', alignItems: 'center', minWidth: 0 }}>
+          <canvas
+            ref={rightCanvasRef}
+            style={{
+              width: 'auto',
+              height: 'auto',
+              maxWidth: '100%',
+              maxHeight: '100%',
+              display: 'block',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+            }}
+          />
+        </div>
       </div>
-    </div>
+    )
+  }
+
+  if (loading) return <div style={{ padding: 24, color: 'var(--text-primary)' }}>{tr('viewer.pdf.loading')}</div>
+
+  return (
+    <BookViewerOverlay
+      containerRef={containerRef}
+      isTopOverlayVisible={isTopOverlayVisible}
+      onMouseEnter={showTopOverlay}
+      onMouseMove={showTopOverlay}
+      onMouseLeave={hideTopOverlayWithDelay}
+      onContextMenu={handleContextMenu}
+      onBack={() => navigate(`/items/${itemId}`)}
+      itemTitle={item?.title}
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      pageLabel={pageLabel}
+      onPrevPage={goToPrevPage}
+      onNextPage={goToNextPage}
+      onSetThumbnail={handleSetThumbnail}
+      isFullscreen={isFullscreen}
+      onToggleFullscreen={toggleFullscreen}
+      onShowInFolder={handleShowInFolder}
+      onExitViewer={() => navigate(`/items/${itemId}`)}
+      contextMenu={contextMenu}
+      onCloseContextMenu={closeContextMenu}
+      contextMenuId="pdf-context-menu"
+    >
+      <div ref={viewportRef} style={{ height: '100%', overflow: 'hidden', padding: 8, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        {renderContent()}
+      </div>
+    </BookViewerOverlay>
   )
 }

@@ -174,6 +174,7 @@ export const zhMessages: Record<string, string> = {
 
   'viewer.setThumbnail': '设置缩略图',
   'viewer.thumbnailUpdated': '缩略图已更新。',
+  'viewer.currentPrefix': '当前: ',
   'viewer.pdf.loading': '正在加载 PDF...',
   'viewer.cbz.loading': '正在加载 CBZ...',
   'viewer.cbz.loadingPage': '正在加载第 {page} 页...',

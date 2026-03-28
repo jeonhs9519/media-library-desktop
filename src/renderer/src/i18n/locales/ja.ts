@@ -174,6 +174,7 @@ export const jaMessages: Record<string, string> = {
 
   'viewer.setThumbnail': 'サムネイル設定',
   'viewer.thumbnailUpdated': 'サムネイルを更新しました。',
+  'viewer.currentPrefix': '現在: ',
   'viewer.pdf.loading': 'PDFを読み込み中...',
   'viewer.cbz.loading': 'CBZを読み込み中...',
   'viewer.cbz.loadingPage': '{page}ページを読み込み中...',
