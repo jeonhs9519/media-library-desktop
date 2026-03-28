@@ -48,13 +48,6 @@ jobs:
         run: npx electron-builder --win zip --x64 --publish never
         shell: pwsh
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-windows-latest
-          path: dist/*.zip
-          if-no-files-found: error
-
       - name: Publish or Update GitHub Release (ZIP)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
