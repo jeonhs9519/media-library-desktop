@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { api } from './api'
 import { isLanguageSetting, LanguageSetting, Locale, resolveLocale, t } from './i18n'
 
 export function useI18n() {
@@ -6,7 +7,7 @@ export function useI18n() {
   const [locale, setLocale] = useState<Locale>(resolveLocale('system'))
 
   useEffect(() => {
-    window.api.settings.get('ui.language').then((v: string | undefined) => {
+    api.settings.get('ui.language').then((v: string | undefined) => {
       const nextSetting: LanguageSetting = isLanguageSetting(v) ? v : 'system'
       setLanguageSetting(nextSetting)
       setLocale(resolveLocale(nextSetting))
@@ -22,7 +23,7 @@ export function useI18n() {
   const changeLanguageSetting = useCallback(async (value: LanguageSetting) => {
     setLanguageSetting(value)
     setLocale(resolveLocale(value))
-    await window.api.settings.set('ui.language', value)
+    await api.settings.set('ui.language', value)
   }, [])
 
   return {

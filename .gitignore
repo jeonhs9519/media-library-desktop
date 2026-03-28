@@ -149,6 +149,7 @@ test-cert.pfx.base64
 media-library.db
 media-library.db-shm
 media-library.db-wal
+.data/
 
 # Local HDT files
 *.hdt

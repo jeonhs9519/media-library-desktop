@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { api } from '../api'
 import { Tag } from '../types'
 import Modal from '../components/Modal'
 import StarRating from '../components/StarRating'
@@ -73,7 +74,7 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
 
   useEffect(() => {
     const load = async () => {
-      const data = await window.api.items.getById(itemId)
+      const data = await api.items.getById(itemId)
       setItem(data)
       setEditForm({
         title: data?.title || '',
@@ -87,11 +88,11 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
       if (data?.review) {
         setReviewForm({ rating: data.review.rating, comment: data.review.comment || '' })
       }
-      const thumb = await window.api.thumbnail.get(itemId)
+      const thumb = await api.thumbnail.get(itemId)
       if (thumb) setThumbnail(`data:image/jpeg;base64,${thumb}`)
     }
     load()
-    window.api.tags.getAll().then(setAllTags)
+    api.tags.getAll().then(setAllTags)
   }, [itemId])
 
   if (!item) {
@@ -101,27 +102,27 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
   const fullPath = item.filePath + '/' + item.fileName + (item.fileExtension ? '.' + item.fileExtension : '')
 
   const handleSave = async () => {
-    await window.api.items.update(itemId, {
+    await api.items.update(itemId, {
       ...editForm,
       watched: editForm.watched ? 1 : 0,
     })
     setEditing(false)
-    const data = await window.api.items.getById(itemId)
+    const data = await api.items.getById(itemId)
     setItem(data)
   }
 
   const handleDelete = async () => {
     if (confirm(tr('detail.confirmDelete'))) {
-      await window.api.items.delete(itemId)
+      await api.items.delete(itemId)
       onClose()
     }
   }
 
   const handleRelink = async () => {
     try {
-      const paths = await window.api.file.openDialog()
+      const paths = await api.file.openDialog()
       if (paths.length > 0) {
-        const result = await window.api.items.relink(itemId, paths[0])
+        const result = await api.items.relink(itemId, paths[0])
 
         if (result?.ok === false && result?.reason === 'duplicate') {
           const dup = result.duplicate
@@ -138,7 +139,7 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
           setRelinkErrorMessage(String(result?.message || ''))
           setRelinkErrorOpen(true)
         } else {
-          const data = await window.api.items.getById(itemId)
+          const data = await api.items.getById(itemId)
           setItem(data)
         }
       }
@@ -164,10 +165,10 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
 
     if (!tag) {
       try {
-        tag = await window.api.tags.create(trimmed)
+        tag = await api.tags.create(trimmed)
         setAllTags(prev => [...prev, tag!])
       } catch {
-        const refreshedTags = await window.api.tags.getAll()
+        const refreshedTags = await api.tags.getAll()
         setAllTags(refreshedTags)
         tag = refreshedTags.find((t: Tag) => t.name === trimmed)
       }
@@ -175,9 +176,9 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
 
     if (!tag) return
 
-    await window.api.tags.assignToItem(itemId, tag.id)
+    await api.tags.assignToItem(itemId, tag.id)
     setNewTagName('')
-    const data = await window.api.items.getById(itemId)
+    const data = await api.items.getById(itemId)
     setItem(data)
   }
 
@@ -189,15 +190,15 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
   }
 
   const handleRemoveTag = async (tagId: number) => {
-    await window.api.tags.removeFromItem(itemId, tagId)
-    const data = await window.api.items.getById(itemId)
+    await api.tags.removeFromItem(itemId, tagId)
+    const data = await api.items.getById(itemId)
     setItem(data)
   }
 
   const handleReviewSave = async () => {
-    await window.api.reviews.upsert(itemId, reviewForm.rating, reviewForm.comment)
+    await api.reviews.upsert(itemId, reviewForm.rating, reviewForm.comment)
     setReviewModal(false)
-    const data = await window.api.items.getById(itemId)
+    const data = await api.items.getById(itemId)
     setItem(data)
   }
 
@@ -233,7 +234,7 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
             <button className="btn-primary" style={{ width: 128 }} onClick={handleOpenViewer} disabled={item.fileExists === false}>
               {tr('detail.openViewer')}
             </button>
-            <button className="btn-secondary" style={{ width: 128 }} onClick={() => window.api.file.openExternal(fullPath)}>
+            <button className="btn-secondary" style={{ width: 128 }} onClick={() => api.file.openExternal(fullPath)}>
               {tr('detail.openExternal')}
             </button>
           </div>
@@ -300,7 +301,7 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
                           title={item.sourceUrl}
                           onClick={(e) => {
                             e.preventDefault()
-                            void window.api.file.openExternal(item.sourceUrl as string)
+                            void api.file.openExternal(item.sourceUrl as string)
                           }}
                         >
                           {item.sourceUrl}

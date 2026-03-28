@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { api } from '../api'
 import { useI18n } from '../useI18n'
 import {
   CaretLeftIcon,
@@ -62,7 +63,7 @@ export default function VideoPlayerPage() {
   const debounceSaveVolume = (vol: number) => {
     clearTimeout(volumeSaveTimer.current)
     volumeSaveTimer.current = setTimeout(() => {
-      window.api.settings.set('video.volume', String(vol))
+      api.settings.set('video.volume', String(vol))
     }, 1000)
   }
 
@@ -89,10 +90,10 @@ export default function VideoPlayerPage() {
 
   useEffect(() => {
     const load = async () => {
-      const itemData = await window.api.items.getById(itemId)
+      const itemData = await api.items.getById(itemId)
       setItem(itemData)
 
-      const savedVolume = await window.api.settings.get('video.volume')
+      const savedVolume = await api.settings.get('video.volume')
       if (savedVolume !== null) {
         const parsed = parseFloat(savedVolume)
         if (!Number.isNaN(parsed) && parsed >= 0 && parsed <= 1) {
@@ -103,7 +104,7 @@ export default function VideoPlayerPage() {
       const fullPath =
         itemData.filePath + '/' + itemData.fileName +
         (itemData.fileExtension ? '.' + itemData.fileExtension : '')
-      const url = await window.api.video.getLocalUrl(fullPath)
+      const url = await api.video.getLocalUrl(fullPath)
       setVideoUrl(url)
     }
     load().catch(console.error)
@@ -231,7 +232,7 @@ export default function VideoPlayerPage() {
       if (!video || video.paused) return
 
       try {
-        const isCursorInsideWindow = await window.api.app.isCursorInsideWindow()
+        const isCursorInsideWindow = await api.app.isCursorInsideWindow()
         if (!isCursorInsideWindow) {
           setIsControlsVisible(false)
         }
@@ -255,7 +256,7 @@ export default function VideoPlayerPage() {
     video.volume = volume
 
     if (!item.totalContent && video.duration > 0) {
-      await window.api.items.update(itemId, { totalContent: video.duration })
+      await api.items.update(itemId, { totalContent: video.duration })
     }
 
     const total = video.duration || item.totalContent || 0
@@ -278,7 +279,7 @@ export default function VideoPlayerPage() {
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
       const progress = video.currentTime / video.duration
-      await window.api.items.update(itemId, {
+      await api.items.update(itemId, {
         lastPositionSeconds: video.currentTime,
         progress,
       })
@@ -288,7 +289,7 @@ export default function VideoPlayerPage() {
   const handleEnded = async () => {
     const video = videoRef.current
     if (isLoopingRef.current) {
-      await window.api.items.update(itemId, { watched: 1 })
+      await api.items.update(itemId, { watched: 1 })
       if (video) {
         video.currentTime = 0
         video.play()
@@ -296,7 +297,7 @@ export default function VideoPlayerPage() {
       return
     }
 
-    await window.api.items.update(itemId, {
+    await api.items.update(itemId, {
       watched: 1,
       progress: 1,
       lastPositionSeconds: video?.duration ?? 0,
@@ -404,7 +405,7 @@ export default function VideoPlayerPage() {
 
     ctx.drawImage(video, 0, 0)
     const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1]
-    await window.api.thumbnail.setFromImageData(itemId, base64)
+    await api.thumbnail.setFromImageData(itemId, base64)
     alert(tr('viewer.thumbnailUpdated'))
   }
 
@@ -413,7 +414,7 @@ export default function VideoPlayerPage() {
     const fullPath =
       item.filePath + '/' + item.fileName +
       (item.fileExtension ? '.' + item.fileExtension : '')
-    await window.api.file.openExternal(fullPath)
+    await api.file.openExternal(fullPath)
   }
 
   const handleShowInFolder = async () => {
@@ -421,7 +422,7 @@ export default function VideoPlayerPage() {
     const fullPath =
       item.filePath + '/' + item.fileName +
       (item.fileExtension ? '.' + item.fileExtension : '')
-    await window.api.file.showInFolder(fullPath)
+    await api.file.showInFolder(fullPath)
   }
 
   const handleVideoError = () => {

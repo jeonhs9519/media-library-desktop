@@ -16,6 +16,39 @@ import { registerThumbnailsIPC } from './ipc/thumbnails'
 const isDev = !app.isPackaged
 const isWindows = process.platform === 'win32'
 const shouldAutoOpenDevTools = process.env['OPEN_DEVTOOLS'] === '1'
+const defaultUserDataPath = app.getPath('userData')
+
+function getPortableAppDataRoot() {
+  if (isDev) {
+    return path.join(process.cwd(), '.data')
+  }
+
+  const portableExecutableDir = process.env['PORTABLE_EXECUTABLE_DIR']
+  if (portableExecutableDir) {
+    return path.join(portableExecutableDir, '.data')
+  }
+
+  return path.join(path.dirname(process.execPath), '.data')
+}
+
+function configurePortableAppPaths() {
+  const appDataRoot = getPortableAppDataRoot()
+  const userDataPath = path.join(appDataRoot, 'user-data')
+  const sessionDataPath = path.join(appDataRoot, 'session-data')
+  const logsPath = path.join(appDataRoot, 'logs')
+  const crashDumpsPath = path.join(appDataRoot, 'crash-dumps')
+
+  for (const targetPath of [appDataRoot, userDataPath, sessionDataPath, logsPath, crashDumpsPath]) {
+    fs.mkdirSync(targetPath, { recursive: true })
+  }
+
+  app.setPath('userData', userDataPath)
+  app.setPath('sessionData', sessionDataPath)
+  app.setPath('logs', logsPath)
+  app.setPath('crashDumps', crashDumpsPath)
+}
+
+configurePortableAppPaths()
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
@@ -51,7 +84,7 @@ function getDbPath() {
 }
 
 function migrateLegacyDbIfNeeded(dbPath: string) {
-  const legacyDbPath = path.join(app.getPath('userData'), 'media-library.db')
+  const legacyDbPath = path.join(defaultUserDataPath, 'media-library.db')
 
   if (path.resolve(legacyDbPath) === path.resolve(dbPath)) {
     return
