@@ -1,0 +1,86 @@
+name: Check Artifact Storage Usage
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  actions: read
+
+jobs:
+  check-storage:
+    name: Artifact Storage & Quota Report
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+
+    steps:
+      - name: List all artifacts and calculate total size
+        run: |
+          echo "======================================================"
+          echo "  Artifact Storage Usage — ${REPO}"
+          echo "======================================================"
+          echo ""
+
+          # Collect all artifacts (paginated)
+          ALL_ARTIFACTS='[]'
+          PAGE=1
+          while true; do
+            PAGE_DATA=$(gh api "/repos/${REPO}/actions/artifacts?per_page=100&page=${PAGE}")
+            COUNT=$(echo "$PAGE_DATA" | jq '.artifacts | length')
+            if [ "$COUNT" -eq 0 ]; then break; fi
+            PAGE_ITEMS=$(echo "$PAGE_DATA" | jq '.artifacts')
+            ALL_ARTIFACTS=$(jq -n --argjson a "$ALL_ARTIFACTS" --argjson b "$PAGE_ITEMS" '$a + $b')
+            PAGE=$((PAGE + 1))
+          done
+
+          TOTAL_COUNT=$(echo "$ALL_ARTIFACTS" | jq 'length')
+          TOTAL_BYTES=$(echo "$ALL_ARTIFACTS" | jq '[.[].size_in_bytes] | add // 0')
+          TOTAL_MB=$(echo "scale=2; $TOTAL_BYTES / 1048576" | bc)
+          TOTAL_GB=$(echo "scale=3; $TOTAL_BYTES / 1073741824" | bc)
+
+          echo "총 아티팩트 수 (Total artifacts): $TOTAL_COUNT"
+          echo "전체 사용 용량 (Total used):       ${TOTAL_BYTES} bytes  (${TOTAL_MB} MB / ${TOTAL_GB} GB)"
+          echo ""
+
+          if [ "$TOTAL_COUNT" -gt 0 ]; then
+            echo "--- 아티팩트 목록 (용량 큰 순) ---"
+            echo "$ALL_ARTIFACTS" | jq -r \
+              'sort_by(-.size_in_bytes)[] |
+               "[\(.size_in_bytes / 1048576 | floor) MB]  \(.name)  (생성: \(.created_at | split("T")[0])  만료: \(.expires_at | split("T")[0]))"'
+          else
+            echo "(현재 저장된 아티팩트가 없습니다)"
+          fi
+
+      - name: Check billing storage info
+        run: |
+          echo ""
+          echo "======================================================"
+          echo "  Billing Storage Info"
+          echo "======================================================"
+          echo ""
+
+          # Try user billing first, then org billing
+          BILLING=$(gh api "/users/${OWNER}/settings/billing/storage" 2>/dev/null \
+                    || gh api "/orgs/${OWNER}/settings/billing/storage" 2>/dev/null \
+                    || echo "null")
+
+          if [ "$BILLING" != "null" ] && [ -n "$BILLING" ]; then
+            echo "$BILLING" | jq -r '"빌링 주기 남은 일수 (Days left in billing cycle):  \(.days_left_in_billing_cycle) 일\n이번 달 예상 사용량 (Estimated storage for month):  \(.estimated_storage_for_month) GB\n유료 초과 예상량 (Estimated paid storage):           \(.estimated_paid_storage_for_month) GB"'
+          else
+            echo "(빌링 정보를 가져올 수 없습니다. 관리자 토큰이 필요할 수 있습니다.)"
+          fi
+
+          echo ""
+          echo "======================================================"
+          echo "  Quota 재계산 안내"
+          echo "======================================================"
+          echo ""
+          echo "GitHub는 아티팩트 스토리지 quota를 6~12시간마다 재계산합니다."
+          echo "Quota 초과 오류가 발생했다면, 재계산까지 기다리거나 아래 방법으로"
+          echo "아티팩트를 삭제해 여유 공간을 확보하세요."
+          echo ""
+          echo "  • 웹 UI: Actions 탭 → 해당 워크플로우 실행 → Artifacts 섹션 → 삭제 아이콘"
+          echo "  • gh CLI: gh api --method DELETE /repos/${REPO}/actions/artifacts/<artifact_id>"
+          echo "  • 아티팩트 목록 조회: gh api /repos/${REPO}/actions/artifacts | jq '.artifacts[] | {id, name, size_in_bytes, created_at}'"
