@@ -26,6 +26,11 @@ npm run db:migrate
 npm run dev
 ```
 
+### Codex Desktop 실행 메모
+
+- Codex Desktop의 기본 샌드박스에서는 `npm.cmd run dev`가 `spawn EPERM`으로 실패할 수 있습니다.
+- 개발 앱 실행 요청을 받으면 샌드박스 내부 실행을 먼저 반복하지 말고, 승인된 `npm.cmd run dev` 방식으로 바로 실행합니다.
+
 ## 빌드
 
 ```bash

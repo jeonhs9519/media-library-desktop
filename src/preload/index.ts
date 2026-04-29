@@ -1,6 +1,19 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 const api = {
+  startup: {
+    getStatus: () => ipcRenderer.invoke('startup:getStatus'),
+    onStatus: (callback: (status: any) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, status: any) => callback(status)
+      ipcRenderer.on('startup:status', listener)
+      return () => ipcRenderer.removeListener('startup:status', listener)
+    },
+    onReady: (callback: (status: any) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, status: any) => callback(status)
+      ipcRenderer.on('startup:ready', listener)
+      return () => ipcRenderer.removeListener('startup:ready', listener)
+    },
+  },
   items: {
     getAll: (params?: any) => ipcRenderer.invoke('items:getAll', params),
     getById: (id: number) => ipcRenderer.invoke('items:getById', { id }),

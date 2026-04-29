@@ -16,3 +16,7 @@
 - 문서 스타일 가이드(`docs/doc-style-guide.md`) 추가
 - 루트 `README.md`를 간결한 진입 문서로 재작성
 - 기존 `README.CI.md`, `TODO.md` 내용을 `docs/`로 이관
+- Codex Desktop에서 개발 앱 실행 시 `npm.cmd run dev`를 승인된 방식으로 바로 실행하도록 운영 메모 추가
+- 앱 실행 시 창을 먼저 표시하고 startup 상태 화면에서 DB/IPC 준비 단계를 보여주도록 변경
+- startup 단계별 `performance.now()` 기반 console 로그 추가
+- 개발 앱 실행 정상 동작 확인. 단, 캐시가 따뜻한 상태라 startup 화면은 매우 짧게 지나가 직접 확인이 어려웠음

@@ -2,6 +2,7 @@ import { app, BrowserWindow, session, protocol, ipcMain, screen } from 'electron
 import path from 'path'
 import fs from 'fs'
 import { Readable } from 'stream'
+import { performance } from 'perf_hooks'
 import { createDatabase, ensureRuntimeSchema, runMigrations } from './db/migrate'
 import { registerItemsIPC } from './ipc/items'
 import { registerTagsIPC } from './ipc/tags'
@@ -124,6 +125,117 @@ function getVideoContentType(filePath: string) {
 
 let mainWindow: BrowserWindow | null = null
 
+type StartupStatus = {
+  ready: boolean
+  phase: string
+  label: string
+  detail?: string
+  startedAt: number
+  updatedAt: number
+  completedAt?: number
+  elapsedMs?: number
+  steps: Array<{
+    phase: string
+    label: string
+    status: 'pending' | 'running' | 'done' | 'error'
+    durationMs?: number
+    detail?: string
+  }>
+  error?: string
+}
+
+const startupStartedAt = performance.now()
+const startupStatus: StartupStatus = {
+  ready: false,
+  phase: 'boot',
+  label: 'Starting app',
+  startedAt: startupStartedAt,
+  updatedAt: startupStartedAt,
+  steps: [],
+}
+
+function sendStartupStatus() {
+  mainWindow?.webContents.send('startup:status', startupStatus)
+}
+
+function setStartupPhase(phase: string, label: string, detail?: string) {
+  const now = performance.now()
+  startupStatus.phase = phase
+  startupStatus.label = label
+  startupStatus.detail = detail
+  startupStatus.updatedAt = now
+  startupStatus.elapsedMs = now - startupStatus.startedAt
+
+  const existing = startupStatus.steps.find(step => step.phase === phase)
+  if (existing) {
+    existing.status = 'running'
+    existing.label = label
+    existing.detail = detail
+  } else {
+    startupStatus.steps.push({ phase, label, detail, status: 'running' })
+  }
+
+  console.log(`[startup] ${phase} start${detail ? ` - ${detail}` : ''}`)
+  sendStartupStatus()
+}
+
+function completeStartupPhase(phase: string, durationMs: number, detail?: string) {
+  const now = performance.now()
+  const existing = startupStatus.steps.find(step => step.phase === phase)
+  if (existing) {
+    existing.status = 'done'
+    existing.durationMs = durationMs
+    if (detail) existing.detail = detail
+  }
+
+  startupStatus.updatedAt = now
+  startupStatus.elapsedMs = now - startupStatus.startedAt
+  console.log(`[startup] ${phase} done ${durationMs.toFixed(1)}ms${detail ? ` - ${detail}` : ''}`)
+  sendStartupStatus()
+}
+
+async function measureStartupPhase<T>(phase: string, label: string, task: () => T | Promise<T>, detail?: string): Promise<T> {
+  setStartupPhase(phase, label, detail)
+  const started = performance.now()
+  try {
+    const result = await task()
+    completeStartupPhase(phase, performance.now() - started)
+    return result
+  } catch (error) {
+    const durationMs = performance.now() - started
+    const existing = startupStatus.steps.find(step => step.phase === phase)
+    if (existing) {
+      existing.status = 'error'
+      existing.durationMs = durationMs
+      existing.detail = String((error as Error)?.message || error)
+    }
+    startupStatus.error = String((error as Error)?.message || error)
+    startupStatus.updatedAt = performance.now()
+    startupStatus.elapsedMs = startupStatus.updatedAt - startupStatus.startedAt
+    console.error(`[startup] ${phase} failed ${durationMs.toFixed(1)}ms`, error)
+    sendStartupStatus()
+    throw error
+  }
+}
+
+function markStartupReady() {
+  const now = performance.now()
+  startupStatus.ready = true
+  startupStatus.phase = 'ready'
+  startupStatus.label = 'Ready'
+  startupStatus.detail = undefined
+  startupStatus.updatedAt = now
+  startupStatus.completedAt = now
+  startupStatus.elapsedMs = now - startupStatus.startedAt
+  console.log(`[startup] ready ${startupStatus.elapsedMs.toFixed(1)}ms`)
+  sendStartupStatus()
+  mainWindow?.webContents.send('startup:ready', startupStatus)
+}
+
+function registerStartupIPC() {
+  ipcMain.handle('startup:getStatus', async () => startupStatus)
+}
+
 process.on('uncaughtException', (error) => {
   console.error('Uncaught exception in main process:', error)
 })
@@ -165,7 +277,7 @@ async function createWindow() {
   }
 
   mainWindow.once('ready-to-show', () => {
-    console.log('[main] window ready-to-show')
+    console.log(`[startup] window:ready-to-show ${(performance.now() - startupStartedAt).toFixed(1)}ms`)
     if (!mainWindow) return
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.center()
@@ -186,6 +298,11 @@ async function createWindow() {
     console.error('Renderer failed to load:', { errorCode, errorDescription, validatedURL })
   })
 
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log(`[startup] window:did-finish-load ${(performance.now() - startupStartedAt).toFixed(1)}ms`)
+    sendStartupStatus()
+  })
+
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     console.error('Renderer process gone:', details)
   })
@@ -200,12 +317,12 @@ async function createWindow() {
   })
 
   if (isDev) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] || 'http://localhost:5173')
+    await mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] || 'http://localhost:5173')
     if (shouldAutoOpenDevTools) {
       mainWindow.webContents.openDevTools()
     }
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+    await mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 }
 
@@ -218,6 +335,8 @@ app.on('second-instance', () => {
 
 app.whenReady().then(async () => {
   try {
+  registerStartupIPC()
+
   ipcMain.handle('app:reload', async () => {
     mainWindow?.webContents.reloadIgnoringCache()
   })
@@ -323,34 +442,48 @@ app.whenReady().then(async () => {
     })
   })
 
+  await measureStartupPhase('window:create', 'Opening window', async () => {
+    await createWindow()
+  })
+
   const dbPath = getDbPath()
   const migrationsPath = getMigrationsPath()
 
   console.log(`[main] DB path: ${dbPath} (mode=${isDev ? 'dev' : 'packaged'})`)
 
-  migrateLegacyDbIfNeeded(dbPath)
+  await measureStartupPhase('paths:legacy-db', 'Checking existing library data', () => {
+    migrateLegacyDbIfNeeded(dbPath)
+  }, dbPath)
 
-  const { db, sqlite } = createDatabase(dbPath)
+  const { db, sqlite } = await measureStartupPhase('db:open', 'Opening library database', () => {
+    return createDatabase(dbPath)
+  })
 
-  try {
-    runMigrations(db, migrationsPath)
-  } catch (e) {
-    console.error('Migration error (may be OK on first run):', e)
-  }
+  await measureStartupPhase('db:migrate', 'Checking database schema', () => {
+    try {
+      runMigrations(db, migrationsPath)
+    } catch (e) {
+      console.error('Migration error (may be OK on first run):', e)
+    }
+  }, migrationsPath)
 
-  ensureRuntimeSchema(sqlite)
+  await measureStartupPhase('db:runtime-schema', 'Verifying runtime schema', () => {
+    ensureRuntimeSchema(sqlite)
+  })
 
-  registerItemsIPC(db)
-  registerTagsIPC(db)
-  registerReviewsIPC(db)
-  registerSettingsIPC(db)
-  registerFilesIPC()
-  registerPdfIPC()
-  registerCbzIPC()
-  registerVideoIPC()
-  registerThumbnailsIPC(db)
+  await measureStartupPhase('ipc:register', 'Preparing app features', () => {
+    registerItemsIPC(db)
+    registerTagsIPC(db)
+    registerReviewsIPC(db)
+    registerSettingsIPC(db)
+    registerFilesIPC()
+    registerPdfIPC()
+    registerCbzIPC()
+    registerVideoIPC()
+    registerThumbnailsIPC(db)
+  })
 
-  await createWindow()
+  markStartupReady()
 
   app.on('activate', async () => {
     if (BrowserWindow.getAllWindows().length === 0) {

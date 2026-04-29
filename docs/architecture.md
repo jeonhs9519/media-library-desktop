@@ -36,10 +36,20 @@ Last updated: 2026-04-29
 
 1. Electron 앱 시작
 2. 포터블 경로 및 userData/sessionData 경로 설정
-3. SQLite DB 열기 및 마이그레이션 실행
-4. IPC 핸들러 등록
-5. 브라우저 창 생성
-6. 렌더러에서 `window.api`를 통해 IPC 호출
+3. startup 상태 IPC 등록
+4. 브라우저 창 생성 및 startup 화면 표시
+5. SQLite DB 열기 및 마이그레이션 실행
+6. IPC 핸들러 등록
+7. startup ready 이벤트 전송
+8. 렌더러에서 라이브러리 화면 mount 후 `window.api`를 통해 IPC 호출
+
+## Startup 흐름
+
+- `src/main/index.ts`는 startup 단계별 상태를 저장하고 renderer에 `startup:status`, `startup:ready` 이벤트로 전달합니다.
+- 각 단계는 `performance.now()` 기준으로 소요 시간을 console에 남깁니다.
+- `src/preload/index.ts`는 `window.api.startup` 아래에 `getStatus`, `onStatus`, `onReady`를 노출합니다.
+- `src/renderer/src/App.tsx`의 `StartupGate`는 ready 전까지 startup 화면을 보여주며, ready 이후에만 라우터와 라이브러리 화면을 mount합니다.
+- 현재 단계는 창 생성, 레거시 DB 확인, DB 열기, 마이그레이션, 런타임 스키마 확인, IPC 등록입니다.
 
 ## 핵심 도메인
 
