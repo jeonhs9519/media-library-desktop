@@ -13,6 +13,7 @@ interface Props {
   thumbnails: Record<number, string>
   total: number
   loading: boolean
+  filterSummary: string
   page: number
   perPage: number
   setPage: React.Dispatch<React.SetStateAction<number>>
@@ -66,6 +67,7 @@ export default function LibraryGrid({
   thumbnails,
   total,
   loading,
+  filterSummary,
   page,
   perPage,
   setPage,
@@ -245,7 +247,13 @@ export default function LibraryGrid({
 
   return (
     <>
-      <div style={{ padding: '8px 16px', fontSize: 12, color: '#a0a0b0', flexShrink: 0 }}>
+      <div className="library-active-filters" title={filterSummary}>
+        {filterSummary.split(' / ').map((part) => (
+          <span key={part} className="library-active-filter-item">{part}</span>
+        ))}
+      </div>
+
+      <div className="library-count-row">
         {tr('library.items', { count: total })} {loading && tr('library.loading')}
       </div>
 

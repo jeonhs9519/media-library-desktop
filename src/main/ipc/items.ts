@@ -5,6 +5,7 @@ import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import * as schema from '../db/schema'
 import { normalizeTitle, detectContentType, detectContainerType } from '../utils/titleNormalizer'
 import { generateThumbnailFromCbz, resizeToThumbnail } from '../utils/thumbnail'
+import { cleanupUnusedTags } from '../services/tagMaintenance'
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
@@ -313,18 +314,25 @@ export function registerItemsIPC(db: DB) {
     language?: string
     watchedState?: 'unread' | 'inProgress' | 'completed'
     fileState?: 'normal' | 'missing'
+    tagIds?: number[]
+    untagged?: boolean
     sortBy?: string
     sortDir?: 'asc' | 'desc'
     page?: number
     perPage?: number
   } = {}) => {
-    const { search, contentType, language, watchedState, fileState, sortBy = 'createdAt', sortDir = 'desc', page = 1, perPage = 50 } = params
+    const { search, contentType, language, watchedState, fileState, tagIds = [], untagged = false, sortBy = 'createdAt', sortDir = 'desc', page = 1, perPage = 50 } = params
 
     const conditions: ReturnType<typeof eq>[] = []
+    const normalizedTagIds = Array.from(new Set(
+      tagIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    ))
 
     if (search) {
       conditions.push(
-        sql`(${items.title} LIKE ${'%' + search + '%'} OR ${items.fileName} LIKE ${'%' + search + '%'} OR ${items.author} LIKE ${'%' + search + '%'} OR ${items.memo} LIKE ${'%' + search + '%'})` as any
+        sql`(${items.title} LIKE ${'%' + search + '%'} OR ${items.fileName} LIKE ${'%' + search + '%'} OR ${items.author} LIKE ${'%' + search + '%'} OR ${items.memo} LIKE ${'%' + search + '%'} OR ${items.sourceUrl} LIKE ${'%' + search + '%'})` as any
       )
     }
     if (contentType) conditions.push(eq(items.contentType, contentType))
@@ -337,6 +345,20 @@ export function registerItemsIPC(db: DB) {
     }
     if (watchedState === 'completed') {
       conditions.push(sql`(${items.watched} = 1 OR coalesce(${items.progress}, 0) >= 0.9)` as any)
+    }
+    if (untagged) {
+      conditions.push(sql`NOT EXISTS (
+        SELECT 1 FROM ${itemTags}
+        WHERE ${itemTags.itemId} = ${items.id}
+      )` as any)
+    } else if (normalizedTagIds.length > 0) {
+      conditions.push(sql`${items.id} IN (
+        SELECT ${itemTags.itemId}
+        FROM ${itemTags}
+        WHERE ${itemTags.tagId} IN (${sql.join(normalizedTagIds.map((id) => sql`${id}`), sql`, `)})
+        GROUP BY ${itemTags.itemId}
+        HAVING count(DISTINCT ${itemTags.tagId}) = ${normalizedTagIds.length}
+      )` as any)
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
@@ -501,6 +523,7 @@ export function registerItemsIPC(db: DB) {
 
   ipcMain.handle('items:delete', async (_event, { id }: { id: number }) => {
     db.delete(items).where(eq(items.id, id)).run()
+    return cleanupUnusedTags(db)
   })
 
   ipcMain.handle('items:relink', async (_event, { id, newFilePath }: { id: number; newFilePath: string }) => {

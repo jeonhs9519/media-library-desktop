@@ -68,11 +68,47 @@ export function RefreshIcon({ size = 16 }: IconProps) {
   )
 }
 
+export function SearchIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
+      <circle cx="10.8" cy="10.8" r="5.8" stroke="currentColor" strokeWidth="1.9" />
+      <path d="M15.1 15.1l4.1 4.1" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function SettingsGearIcon({ size = 16 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
       <path d="M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2z" stroke="currentColor" strokeWidth="1.8" />
       <path d="M19.2 13.1a7.7 7.7 0 0 0 0-2.2l2-1.4-2-3.4-2.4 1a8.2 8.2 0 0 0-1.9-1.1L14.6 3h-5.2L9 6a8.2 8.2 0 0 0-1.9 1.1l-2.4-1-2 3.4 2 1.4a7.7 7.7 0 0 0 0 2.2l-2 1.4 2 3.4 2.4-1a8.2 8.2 0 0 0 1.9 1.1l.4 3h5.2l.4-3a8.2 8.2 0 0 0 1.9-1.1l2.4 1 2-3.4-2.1-1.4z" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function CodeIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
+      <path d="M9.2 7.2L4.8 12l4.4 4.8" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14.8 7.2l4.4 4.8-4.4 4.8" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13.2 5.2l-2.4 13.6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function MinusSquareIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
+      <path d="M6 12h12" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function PlusSquareIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
+      <path d="M6 12h12" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" />
+      <path d="M12 6v12" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" />
     </svg>
   )
 }

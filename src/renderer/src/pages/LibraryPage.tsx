@@ -9,11 +9,13 @@ import DuplicateFileModal from '../components/Library/modals/DuplicateFileModal'
 import FileDropModal from '../components/Library/modals/FileDropModal'
 import HdtImportModal from '../components/Library/modals/HdtImportModal'
 import ItemDetailModal from '../components/Library/modals/ItemDetailModal'
+import SearchFiltersModal from '../components/Library/modals/SearchFiltersModal'
 import SettingsModal from '../components/Library/modals/SettingsModal'
 import { BulkRelinkConfirmModal, BulkRelinkConflictModal, BulkRelinkErrorModal } from '../components/Library/modals/BulkRelinkModals'
 import { useFileImport } from '../components/Library/hooks/useFileImport'
 import { useHdtImport } from '../components/Library/hooks/useHdtImport'
 import { useLibrarySettings } from '../components/Library/hooks/useLibrarySettings'
+import type { TagUsageCount } from '../components/Library/types'
 
 type MetadataFillStatus = {
   running: boolean
@@ -34,6 +36,14 @@ function readSavedSearch() {
   }
 }
 
+function readSavedTagIds() {
+  const value = readSavedSearch()?.selectedTagIds
+  if (!Array.isArray(value)) return []
+  return value
+    .map((id) => Number(id))
+    .filter((id) => Number.isInteger(id) && id > 0)
+}
+
 export default function LibraryPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id?: string }>()
@@ -44,15 +54,19 @@ export default function LibraryPage() {
   const [language, setLanguage] = useState<string>(() => readSavedSearch()?.language ?? '')
   const [watchedState, setWatchedState] = useState<'all' | 'unread' | 'inProgress' | 'completed'>(() => readSavedSearch()?.watchedState ?? 'all')
   const [fileState, setFileState] = useState<'all' | 'normal' | 'missing'>(() => readSavedSearch()?.fileState ?? 'all')
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>(() => readSavedTagIds())
+  const [untaggedOnly, setUntaggedOnly] = useState<boolean>(() => readSavedSearch()?.untaggedOnly === true)
+  const [tagUsageCounts, setTagUsageCounts] = useState<TagUsageCount[]>([])
   const [sortBy, setSortBy] = useState<string>(() => readSavedSearch()?.sortBy ?? 'createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => readSavedSearch()?.sortDir ?? 'desc')
   const [page, setPage] = useState<number>(() => readSavedSearch()?.page ?? 1)
   const [thumbnails, setThumbnails] = useState<Record<number, string>>({})
   const loadedThumbnailIds = useRef<Set<number>>(new Set())
   const [loading, setLoading] = useState(false)
+  const [searchFiltersOpen, setSearchFiltersOpen] = useState(false)
   const [detailItemId, setDetailItemId] = useState<number | null>(null)
   const [libraryFocusRequest, setLibraryFocusRequest] = useState(0)
-  const searchRef = useRef<HTMLInputElement>(null)
+  const searchRef = useRef<HTMLButtonElement>(null)
   const metadataFillStartedRef = useRef(false)
   const metadataFillUpdatedRef = useRef(0)
   const perPage = 100
@@ -61,12 +75,21 @@ export default function LibraryPage() {
   const loadItems = useCallback(async () => {
     setLoading(true)
     try {
+      const nextTagUsageCounts = await api.tags.getUsageCounts() as TagUsageCount[]
+      setTagUsageCounts(nextTagUsageCounts)
+      const availableTagIds = new Set(nextTagUsageCounts.map((tag) => tag.id))
+      const activeTagIds = selectedTagIds.filter((tagId) => availableTagIds.has(tagId))
+      if (activeTagIds.length !== selectedTagIds.length) {
+        setSelectedTagIds(activeTagIds)
+      }
       const result = await api.items.getAll({
         search: search || undefined,
         contentType: contentType || undefined,
         language: language || undefined,
         watchedState: watchedState === 'all' ? undefined : watchedState,
         fileState: fileState === 'all' ? undefined : fileState,
+        tagIds: !untaggedOnly && activeTagIds.length > 0 ? activeTagIds : undefined,
+        untagged: untaggedOnly || undefined,
         sortBy,
         sortDir,
         page,
@@ -77,7 +100,7 @@ export default function LibraryPage() {
     } finally {
       setLoading(false)
     }
-  }, [search, contentType, language, watchedState, fileState, sortBy, sortDir, page])
+  }, [search, contentType, language, watchedState, fileState, selectedTagIds, untaggedOnly, sortBy, sortDir, page])
 
   const fileImport = useFileImport({ tr, loadItems })
   const hdtImport = useHdtImport({ tr, loadItems })
@@ -85,9 +108,9 @@ export default function LibraryPage() {
 
   useEffect(() => {
     sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify({
-      search, contentType, language, watchedState, fileState, sortBy, sortDir, page,
+      search, contentType, language, watchedState, fileState, selectedTagIds, untaggedOnly, sortBy, sortDir, page,
     }))
-  }, [search, contentType, language, watchedState, fileState, sortBy, sortDir, page])
+  }, [search, contentType, language, watchedState, fileState, selectedTagIds, untaggedOnly, sortBy, sortDir, page])
 
   const handleResetSearch = () => {
     setSearch('')
@@ -95,6 +118,8 @@ export default function LibraryPage() {
     setLanguage('')
     setWatchedState('all')
     setFileState('all')
+    setSelectedTagIds([])
+    setUntaggedOnly(false)
     setSortBy('createdAt')
     setSortDir('desc')
     setPage(1)
@@ -174,7 +199,7 @@ export default function LibraryPage() {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault()
-        searchRef.current?.focus()
+        setSearchFiltersOpen(true)
       }
     }
     document.addEventListener('keydown', handler)
@@ -194,6 +219,52 @@ export default function LibraryPage() {
     setDetailItemId(itemId)
     navigate(`/items/${itemId}`)
   }
+
+  const handleToggleTag = (tagId: number) => {
+    setUntaggedOnly(false)
+    setSelectedTagIds((current) => current.includes(tagId)
+      ? current.filter((id) => id !== tagId)
+      : [...current, tagId])
+    setPage(1)
+  }
+
+  const handleToggleUntagged = () => {
+    setUntaggedOnly((current) => !current)
+    setSelectedTagIds([])
+    setPage(1)
+  }
+
+  const handleClearTags = () => {
+    setSelectedTagIds([])
+    setUntaggedOnly(false)
+    setPage(1)
+  }
+
+  const handleFilterChange = (callback: () => void) => {
+    callback()
+    setPage(1)
+  }
+
+  const getTagSummary = () => {
+    if (untaggedOnly) return tr('filters.untagged')
+    if (selectedTagIds.length === 0) return tr('filters.all')
+
+    const selectedTags = tagUsageCounts
+      .filter((tag) => selectedTagIds.includes(tag.id))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+
+    return selectedTags.map((tag) => tag.name).join(', ')
+  }
+
+  const filterSummary = [
+    `${tr('filters.summary.keyword')}: ${search.trim() || tr('filters.unspecified')}`,
+    `${tr('filters.summary.type')}: ${contentType ? tr(`filters.type.${contentType}`) : tr('filters.all')}`,
+    `${tr('filters.summary.language')}: ${language ? tr(`filters.language.${language}`) : tr('filters.all')}`,
+    `${tr('filters.summary.progress')}: ${watchedState === 'all' ? tr('filters.all') : tr(`filters.reading.${watchedState}`)}`,
+    `${tr('filters.summary.file')}: ${fileState === 'all' ? tr('filters.all') : tr(`filters.file.${fileState}`)}`,
+    `${tr('filters.summary.sort')}: ${tr(`filters.sort.${sortBy}`)} ${sortDir === 'asc' ? tr('filters.sort.asc') : tr('filters.sort.desc')}`,
+    `${tr('filters.summary.tags')}: ${getTagSummary()}`,
+  ].join(' / ')
 
   const handleCloseDetail = async () => {
     setDetailItemId(null)
@@ -228,21 +299,26 @@ export default function LibraryPage() {
       <LibraryToolbar
         searchRef={searchRef}
         search={search}
-        setSearch={setSearch}
+        setSearch={(value) => handleFilterChange(() => setSearch(value))}
         contentType={contentType}
-        setContentType={setContentType}
+        setContentType={(value) => handleFilterChange(() => setContentType(value))}
         language={language}
-        setLanguage={setLanguage}
+        setLanguage={(value) => handleFilterChange(() => setLanguage(value))}
         watchedState={watchedState}
-        setWatchedState={setWatchedState}
+        setWatchedState={(value) => handleFilterChange(() => setWatchedState(value))}
         fileState={fileState}
-        setFileState={setFileState}
+        setFileState={(value) => handleFilterChange(() => setFileState(value))}
         sortBy={sortBy}
-        setSortBy={setSortBy}
+        setSortBy={(value) => handleFilterChange(() => setSortBy(value))}
         sortDir={sortDir}
         setSortDir={setSortDir}
+        tagUsageCounts={tagUsageCounts}
+        selectedTagIds={selectedTagIds}
+        untaggedOnly={untaggedOnly}
+        onToggleTag={handleToggleTag}
         setPage={setPage}
         onResetSearch={handleResetSearch}
+        onOpenSearchFilters={() => setSearchFiltersOpen(true)}
         onOpenFileUploadModal={fileImport.openFileUploadModal}
         onOpenHdtUploadModal={hdtImport.openHdtUploadModal}
         onReload={() => api.app.reload()}
@@ -255,6 +331,7 @@ export default function LibraryPage() {
         thumbnails={thumbnails}
         total={total}
         loading={loading}
+        filterSummary={filterSummary}
         page={page}
         perPage={perPage}
         setPage={setPage}
@@ -321,6 +398,32 @@ export default function LibraryPage() {
       />
 
       <ItemDetailModal itemId={detailItemId} onClose={handleCloseDetail} />
+
+      <SearchFiltersModal
+        open={searchFiltersOpen}
+        search={search}
+        contentType={contentType}
+        language={language}
+        watchedState={watchedState}
+        fileState={fileState}
+        sortBy={sortBy}
+        sortDir={sortDir}
+        tagUsageCounts={tagUsageCounts}
+        selectedTagIds={selectedTagIds}
+        untaggedOnly={untaggedOnly}
+        onClose={() => setSearchFiltersOpen(false)}
+        onChangeSearch={(value) => handleFilterChange(() => setSearch(value))}
+        onChangeContentType={(value) => handleFilterChange(() => setContentType(value))}
+        onChangeLanguage={(value) => handleFilterChange(() => setLanguage(value))}
+        onChangeWatchedState={(value) => handleFilterChange(() => setWatchedState(value))}
+        onChangeFileState={(value) => handleFilterChange(() => setFileState(value))}
+        onChangeSortBy={(value) => handleFilterChange(() => setSortBy(value))}
+        onChangeSortDir={(value) => handleFilterChange(() => setSortDir(value))}
+        onToggleTag={handleToggleTag}
+        onToggleUntagged={handleToggleUntagged}
+        onResetSearch={handleResetSearch}
+        tr={tr}
+      />
 
       <SettingsModal
         open={librarySettings.settingsModalOpen}

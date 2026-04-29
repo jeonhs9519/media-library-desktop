@@ -1,5 +1,11 @@
 export type Translate = (key: string, params?: Record<string, string | number>) => string
 
+export type TagUsageCount = {
+  id: number
+  name: string
+  count: number
+}
+
 export type HdtPreviewItem = {
   previewId: string
   sourceFile: string

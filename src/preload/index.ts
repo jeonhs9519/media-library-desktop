@@ -39,6 +39,8 @@ const api = {
   },
   tags: {
     getAll: () => ipcRenderer.invoke('tags:getAll'),
+    cleanupUnused: () => ipcRenderer.invoke('tags:cleanupUnused'),
+    getUsageCounts: () => ipcRenderer.invoke('tags:getUsageCounts'),
     create: (name: string) => ipcRenderer.invoke('tags:create', { name }),
     delete: (id: number) => ipcRenderer.invoke('tags:delete', { id }),
     assignToItem: (itemId: number, tagId: number) => ipcRenderer.invoke('tags:assignToItem', { itemId, tagId }),
@@ -78,6 +80,7 @@ const api = {
     zoomIn: () => ipcRenderer.invoke('app:zoomIn'),
     zoomOut: () => ipcRenderer.invoke('app:zoomOut'),
     zoomReset: () => ipcRenderer.invoke('app:zoomReset'),
+    getZoomFactor: () => ipcRenderer.invoke('app:getZoomFactor'),
     isCursorInsideWindow: () => ipcRenderer.invoke('app:isCursorInsideWindow'),
   },
 }

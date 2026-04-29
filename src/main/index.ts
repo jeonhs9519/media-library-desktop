@@ -13,6 +13,7 @@ import { registerPdfIPC } from './ipc/pdf'
 import { registerCbzIPC } from './ipc/cbz'
 import { registerVideoIPC } from './ipc/video'
 import { registerThumbnailsIPC } from './ipc/thumbnails'
+import { cleanupUnusedTags } from './services/tagMaintenance'
 
 const isDev = !app.isPackaged
 const isWindows = process.platform === 'win32'
@@ -347,19 +348,28 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('app:zoomIn', async () => {
-    if (!mainWindow) return
+    if (!mainWindow) return 1
     const current = mainWindow.webContents.getZoomFactor()
-    mainWindow.webContents.setZoomFactor(Math.min(3, current + 0.1))
+    const next = Math.min(3, current + 0.1)
+    mainWindow.webContents.setZoomFactor(next)
+    return next
   })
 
   ipcMain.handle('app:zoomOut', async () => {
-    if (!mainWindow) return
+    if (!mainWindow) return 1
     const current = mainWindow.webContents.getZoomFactor()
-    mainWindow.webContents.setZoomFactor(Math.max(0.5, current - 0.1))
+    const next = Math.max(0.5, current - 0.1)
+    mainWindow.webContents.setZoomFactor(next)
+    return next
   })
 
   ipcMain.handle('app:zoomReset', async () => {
     mainWindow?.webContents.setZoomFactor(1)
+    return 1
+  })
+
+  ipcMain.handle('app:getZoomFactor', async () => {
+    return mainWindow?.webContents.getZoomFactor() ?? 1
   })
 
   ipcMain.handle('app:isCursorInsideWindow', async () => {
@@ -469,6 +479,13 @@ app.whenReady().then(async () => {
 
   await measureStartupPhase('db:runtime-schema', 'Verifying runtime schema', () => {
     ensureRuntimeSchema(sqlite)
+  })
+
+  await measureStartupPhase('db:cleanup-tags', 'Cleaning unused tags', () => {
+    const result = cleanupUnusedTags(db)
+    if (result.deleted > 0) {
+      console.log(`[main] Removed ${result.deleted} unused tag(s)`)
+    }
   })
 
   await measureStartupPhase('ipc:register', 'Preparing app features', () => {

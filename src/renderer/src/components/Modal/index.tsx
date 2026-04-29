@@ -107,7 +107,7 @@ export default function Modal({
         tabIndex={-1}
         onClick={e => e.stopPropagation()}
         style={{
-          background: 'var(--bg-secondary)',
+          background: 'var(--bg-primary)',
           border: '1px solid var(--border)',
           borderRadius: 8,
           padding: contentPadding ?? 24,

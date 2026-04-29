@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import type { LanguageSetting } from '../../../i18n/index'
 import { api } from '../../../api'
 import Modal from '../../Modal'
+import { CodeIcon, MinusSquareIcon, PlusSquareIcon } from '../../icons'
 import type { Translate } from '../types'
 
 interface Props {
@@ -40,87 +42,128 @@ export default function SettingsModal({
   onOpenBulkRelinkConfirm,
   tr,
 }: Props) {
+  const [zoomFactor, setZoomFactor] = useState(1)
+
+  useEffect(() => {
+    if (!open) return
+    void api.app.getZoomFactor().then((value: number) => setZoomFactor(value || 1))
+  }, [open])
+
+  const zoomPercent = `${Math.round(zoomFactor * 100)}%`
+
+  const handleZoomOut = async () => {
+    const next = await api.app.zoomOut()
+    setZoomFactor(next || 1)
+  }
+
+  const handleZoomIn = async () => {
+    const next = await api.app.zoomIn()
+    setZoomFactor(next || 1)
+  }
+
+  const handleZoomReset = async () => {
+    const next = await api.app.zoomReset()
+    setZoomFactor(next || 1)
+  }
+
   return (
-    <Modal open={open} onClose={onClose}>
-      <div style={{ background: 'var(--bg-secondary)', borderRadius: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-          <h3 style={{ fontSize: 18, margin: 0 }}>{tr('settings.title')}</h3>
-          <button className="btn-secondary" title={tr('app.devTools')} onClick={() => api.app.toggleDevTools()} style={{ padding: '6px 10px' }}>DEV</button>
+    <Modal
+      open={open}
+      onClose={onClose}
+      contentWidth={600}
+      contentHeight="calc(100vh - 100px)"
+      contentMaxWidth="calc(100vw - 80px)"
+      contentPadding={0}
+    >
+      <div className="settings-dialog">
+        <div className="settings-header">
+          <h2>{tr('settings.title')}</h2>
+          <button
+            className="btn-secondary library-icon-button"
+            title={tr('app.devTools')}
+            aria-label={tr('app.devTools')}
+            onClick={() => api.app.toggleDevTools()}
+          >
+            <CodeIcon />
+          </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 2%' }}>
-          <div style={{ flex: '2 1 0', minWidth: 120 }}>
-            <h3 style={{ fontSize: 14, margin: 0 }}>{tr('settings.zoom.title')}</h3>
-          </div>
-          <div style={{ flex: '3 1 0', minWidth: 160, width: '100%', display: 'flex', gap: 8, alignItems: 'stretch' }}>
-            <button className="btn-secondary" title={tr('app.zoomOut')} style={{ padding: '6px 10px', flex: '0 0 auto', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => api.app.zoomOut()}>-</button>
-            <button className="btn-secondary" title={tr('app.zoomReset')} style={{ padding: '6px 10px', flex: '1 1 auto', minWidth: 0, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => api.app.zoomReset()}>100%</button>
-            <button className="btn-secondary" title={tr('app.zoomIn')} style={{ padding: '6px 10px', flex: '0 0 auto', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => api.app.zoomIn()}>+</button>
-          </div>
-        </div>
+        <div className="settings-body">
+          <section className="settings-section">
+            <h3>{tr('settings.display.title')}</h3>
 
-        <div style={{ marginTop: 14, paddingTop: 14, paddingLeft: '2%', paddingRight: '2%', borderTop: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ flex: '2 1 0', minWidth: 120 }}>
-              <h3 style={{ fontSize: 14, margin: 0 }}>{tr('settings.language.title')}</h3>
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <h4>{tr('settings.zoom.title')}</h4>
+              </div>
+              <div className="settings-row-control settings-zoom-control">
+                <button className="btn-secondary settings-zoom-icon-button" title={tr('app.zoomOut')} aria-label={tr('app.zoomOut')} onClick={handleZoomOut}>
+                  <MinusSquareIcon />
+                </button>
+                <button className="btn-secondary settings-zoom-reset-button" title={tr('app.zoomReset')} onClick={handleZoomReset}>
+                  {zoomPercent} → 100%
+                </button>
+                <button className="btn-secondary settings-zoom-icon-button" title={tr('app.zoomIn')} aria-label={tr('app.zoomIn')} onClick={handleZoomIn}>
+                  <PlusSquareIcon />
+                </button>
+              </div>
             </div>
-            <div style={{ flex: '3 1 0', minWidth: 160 }}>
-              <select
-                value={languageSetting}
-                onChange={e => onChangeLanguageSetting(e.target.value as LanguageSetting)}
-                style={{ width: '100%' }}
-              >
-                <option value="system">{tr('settings.language.system')}</option>
-                <option value="en">{tr('settings.language.en')}</option>
-                <option value="ko">{tr('settings.language.ko')}</option>
-                <option value="ja">{tr('settings.language.ja')}</option>
-                <option value="zh">{tr('settings.language.zh')}</option>
-              </select>
+
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <h4>{tr('settings.language.title')}</h4>
+              </div>
+              <div className="settings-row-control">
+                <select
+                  value={languageSetting}
+                  onChange={e => onChangeLanguageSetting(e.target.value as LanguageSetting)}
+                >
+                  <option value="system">{tr('settings.language.system')}</option>
+                  <option value="en">{tr('settings.language.en')}</option>
+                  <option value="ko">{tr('settings.language.ko')}</option>
+                  <option value="ja">{tr('settings.language.ja')}</option>
+                  <option value="zh">{tr('settings.language.zh')}</option>
+                </select>
+              </div>
             </div>
-          </div>
-        </div>
+          </section>
 
-        <div style={{ marginTop: 18, paddingTop: 14, paddingLeft: '2%', paddingRight: '2%', borderTop: '1px solid var(--border)' }}>
-          <h3 style={{ fontSize: 14, marginBottom: 4 }}>{tr('settings.filePolicy.title')}</h3>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: 12 }}>
-            {tr('settings.filePolicy.help')}
-          </p>
+          <section className="settings-section">
+            <h3>{tr('settings.filePolicy.title')}</h3>
+            <p className="settings-section-help">{tr('settings.filePolicy.help')}</p>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer' }}>
-            <input
-              type="radio"
-              value="once"
-              checked={fileModifiedPolicy === 'once'}
-              onChange={() => onChangeFileModifiedPolicy('once')}
-            />
-            <div>
-              <div style={{ fontSize: 14 }}>{tr('settings.filePolicy.once')}</div>
-              <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-secondary)' }}>{tr('settings.filePolicy.onceHelp')}</div>
-            </div>
-          </label>
+            <label className="settings-radio">
+              <input
+                type="radio"
+                value="once"
+                checked={fileModifiedPolicy === 'once'}
+                onChange={() => onChangeFileModifiedPolicy('once')}
+              />
+              <div>
+                <div>{tr('settings.filePolicy.once')}</div>
+                <p>{tr('settings.filePolicy.onceHelp')}</p>
+              </div>
+            </label>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-            <input
-              type="radio"
-              value="always"
-              checked={fileModifiedPolicy === 'always'}
-              onChange={() => onChangeFileModifiedPolicy('always')}
-            />
-            <div>
-              <div style={{ fontSize: 14 }}>{tr('settings.filePolicy.always')}</div>
-              <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-secondary)' }}>{tr('settings.filePolicy.alwaysHelp')}</div>
-            </div>
-          </label>
-        </div>
+            <label className="settings-radio">
+              <input
+                type="radio"
+                value="always"
+                checked={fileModifiedPolicy === 'always'}
+                onChange={() => onChangeFileModifiedPolicy('always')}
+              />
+              <div>
+                <div>{tr('settings.filePolicy.always')}</div>
+                <p>{tr('settings.filePolicy.alwaysHelp')}</p>
+              </div>
+            </label>
+          </section>
 
-        <div style={{ marginTop: 18, paddingTop: 14, paddingLeft: '2%', paddingRight: '2%', borderTop: '1px solid var(--border)' }}>
-          <h3 style={{ fontSize: 14, marginBottom: 4 }}>{tr('settings.bulkRelink.title')}</h3>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 12, fontSize: 12 }}>
-            {tr('settings.bulkRelink.help')}
-          </p>
+          <section className="settings-section">
+            <h3>{tr('settings.bulkRelink.title')}</h3>
+            <p className="settings-section-help">{tr('settings.bulkRelink.help')}</p>
 
-          <div style={{ display: 'grid', gap: 10 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+            <div className="settings-folder-grid">
               <input
                 value={bulkFromFolder}
                 readOnly
@@ -129,9 +172,7 @@ export default function SettingsModal({
               <button className="btn-secondary" onClick={onPickBulkFromFolder}>
                 {tr('settings.bulkRelink.pickBefore')}
               </button>
-            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
               <input
                 value={bulkToFolder}
                 readOnly
@@ -141,34 +182,32 @@ export default function SettingsModal({
                 {tr('settings.bulkRelink.pickAfter')}
               </button>
             </div>
-          </div>
 
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
-            {bulkCounting
-              ? tr('settings.bulkRelink.matchCountLoading')
-              : tr('settings.bulkRelink.matchCount', { count: bulkMatchCount })}
-          </div>
-
-          {bulkRelinkNotice && (
-            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--accent)' }}>
-              {bulkRelinkNotice}
+            <div className="settings-meta">
+              {bulkCounting
+                ? tr('settings.bulkRelink.matchCountLoading')
+                : tr('settings.bulkRelink.matchCount', { count: bulkMatchCount })}
             </div>
-          )}
 
-          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-            <button
-              className="btn-primary"
-              disabled={!bulkFromFolder || !bulkToFolder || bulkMatchCount <= 0 || bulkRelinking}
-              onClick={onOpenBulkRelinkConfirm}
-            >
-              {tr('settings.bulkRelink.apply')}
-            </button>
-          </div>
+            {bulkRelinkNotice && (
+              <div className="settings-notice">{bulkRelinkNotice}</div>
+            )}
+
+            <div className="settings-section-actions">
+              <button
+                className="btn-primary"
+                disabled={!bulkFromFolder || !bulkToFolder || bulkMatchCount <= 0 || bulkRelinking}
+                onClick={onOpenBulkRelinkConfirm}
+              >
+                {tr('settings.bulkRelink.apply')}
+              </button>
+            </div>
+          </section>
         </div>
-      </div>
 
-      <div style={{ marginTop: 32, display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn-primary" style={{ width: '33%', minWidth: 140, paddingTop: 8, paddingBottom: 8 }} onClick={onClose}>{tr('common.close')}</button>
+        <div className="settings-footer">
+          <button className="btn-primary" onClick={onClose}>{tr('common.close')}</button>
+        </div>
       </div>
     </Modal>
   )
