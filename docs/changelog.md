@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-04-30
+
+- 라이브러리 화면 구조 개선 결과를 `docs/current-status.md`, `docs/architecture.md`, `docs/next-task.md`, `docs/backlog.md`에 반영
+- `LibraryPage.tsx`에서 분리된 라이브러리 전용 컴포넌트, 모달, hook 구조를 문서화
+- 라이브러리 목록의 단일 Tab 진입, 방향키 roving focus, 상세 팝업 focus return, 하단 페이지네이션 동작을 문서화
+- 카드 컨텍스트 메뉴의 출처 URL 활성화 조건과 `items:getAll`의 `sourceUrl` 포함 변경을 상태 문서에 반영
+- 검색 툴바와 페이지네이션의 SVG 아이콘 버튼, `title`/`aria-label` 적용 상태를 문서화
+- 다음 작업 우선순위를 startup 확인, 태그 필터링, 테스트 보강, 플레이리스트 범위 확정 순서로 재정리
+
 ## 2026-04-29
 
 - `docs/` 디렉터리 신설
@@ -20,3 +29,13 @@
 - 앱 실행 시 창을 먼저 표시하고 startup 상태 화면에서 DB/IPC 준비 단계를 보여주도록 변경
 - startup 단계별 `performance.now()` 기반 console 로그 추가
 - 개발 앱 실행 정상 동작 확인. 단, 캐시가 따뜻한 상태라 startup 화면은 매우 짧게 지나가 직접 확인이 어려웠음
+- `LibraryPage.tsx`에서 검색/필터 툴바, 카드 렌더링, 목록/페이지네이션 렌더링을 `components/Library`로 분리
+- 라이브러리 카드 키보드 포커스, `Enter`/`Space` 상세 열기, 우클릭 컨텍스트 메뉴 추가
+- 공용 `Modal`에 focus trap과 dialog ARIA 속성 추가
+- 파일 업로드, HDT 업로드/미리보기, 상세, 설정, bulk relink 관련 모달 렌더링을 `components/Library/modals`로 분리
+- 파일 추가, HDT 가져오기, 설정/bulk relink 상태와 핸들러를 `components/Library/hooks`로 분리
+- 라이브러리 페이지네이션을 목록 스크롤 영역 밖 하단 고정 영역으로 이동
+- 라이브러리 목록을 단일 Tab 진입 영역으로 만들고, 썸네일 간 이동을 방향키 기반 roving focus로 변경
+- 하단 페이지네이션을 페이지 번호 버튼 중심으로 바꾸고 이전/다음 버튼을 좌우 끝에 배치
+- 코드/구조 변경 후 개발 앱 동작 확인 시 기존 개발 앱을 종료하고 새로 실행하는 운영 메모 추가
+- 라이브러리 검색 툴바의 정렬/새로고침/설정 버튼과 페이지네이션 이전/다음 버튼을 SVG 아이콘 버튼으로 교체

@@ -356,6 +356,7 @@ export function registerItemsIPC(db: DB) {
       fileName: items.fileName,
       fileExtension: items.fileExtension,
       title: items.title,
+      sourceUrl: items.sourceUrl,
       contentType: items.contentType,
       containerType: items.containerType,
       language: items.language,

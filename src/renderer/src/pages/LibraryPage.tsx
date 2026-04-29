@@ -1,91 +1,19 @@
-﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Item } from '../types'
-import Modal from '../components/Modal'
-import type { LanguageSetting } from '../i18n/index'
 import { useI18n } from '../useI18n'
-import ItemDetailPage from './ItemDetailPage'
 import { api } from '../api'
-
-const CARD_SIZE = 160
-const THUMB_SIZE = 128
-
-function getContentTypeIcon(ct: string) {
-  switch (ct) {
-    case 'book': return 'B'
-    case 'comic': return 'C'
-    case 'video': return 'V'
-    default: return 'F'
-  }
-}
-
-const TYPE_GLYPH_STYLE: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: 20,
-  height: 20,
-  padding: 0,
-  border: '1px solid #fff',
-  borderRadius: 4,
-  background: 'rgba(10, 16, 32, 0.45)',
-  color: '#f5f8ff',
-  fontWeight: 700,
-  fontSize: 14,
-  letterSpacing: '0.02em',
-}
-
-const TYPE_GLYPH_SMALL_STYLE: React.CSSProperties = {
-  ...TYPE_GLYPH_STYLE,
-}
-
-const LANGUAGE_GLYPH_STYLE: React.CSSProperties = {
-  ...TYPE_GLYPH_STYLE,
-  width: 40,
-}
-
-function getLanguageBadge(lang: string) {
-  switch (lang) {
-    case 'ko': return 'KOR'
-    case 'ja': return 'JPN'
-    case 'en': return 'ENG'
-    case 'zh': return 'CHN'
-    default: return ''
-  }
-}
-
-interface CardProps {
-  item: Item & { fileExists?: boolean }
-  thumbnailUrl?: string
-  onClick: () => void
-}
-
-type HdtPreviewItem = {
-  previewId: string
-  sourceFile: string
-  title: string
-  sourceUrl?: string
-  author?: string
-  filePath: string
-  fileName: string
-  fileExtension: string
-  contentType: 'comic' | 'video'
-  duplicate: boolean
-  hasThumbnail: boolean
-  thumbnailBase64?: string
-  disabledReason?: 'missing_title' | 'missing_path' | 'invalid_entry' | 'duplicate'
-}
-
-type HdtPreviewStats = {
-  rawTotal: number
-  visibleTotal: number
-  selectableTotal: number
-}
-
-type HdtPreviewResponse = {
-  items: HdtPreviewItem[]
-  stats: HdtPreviewStats
-}
+import LibraryGrid from '../components/Library/LibraryGrid'
+import LibraryToolbar from '../components/Library/LibraryToolbar'
+import DuplicateFileModal from '../components/Library/modals/DuplicateFileModal'
+import FileDropModal from '../components/Library/modals/FileDropModal'
+import HdtImportModal from '../components/Library/modals/HdtImportModal'
+import ItemDetailModal from '../components/Library/modals/ItemDetailModal'
+import SettingsModal from '../components/Library/modals/SettingsModal'
+import { BulkRelinkConfirmModal, BulkRelinkConflictModal, BulkRelinkErrorModal } from '../components/Library/modals/BulkRelinkModals'
+import { useFileImport } from '../components/Library/hooks/useFileImport'
+import { useHdtImport } from '../components/Library/hooks/useHdtImport'
+import { useLibrarySettings } from '../components/Library/hooks/useLibrarySettings'
 
 type MetadataFillStatus = {
   running: boolean
@@ -93,139 +21,6 @@ type MetadataFillStatus = {
   processed: number
   updated: number
   failed: number
-}
-
-function formatVideoDuration(secondsRaw: number): string {
-  const seconds = Math.max(0, Math.floor(secondsRaw))
-  if (seconds < 60) return `00:${seconds.toString().padStart(2, '0')}`
-
-  const ss = (seconds % 60).toString().padStart(2, '0')
-  const totalMinutes = Math.floor(seconds / 60)
-  if (seconds < 3600) {
-    return `${totalMinutes.toString().padStart(2, '0')}:${ss}`
-  }
-
-  const hh = Math.floor(totalMinutes / 60).toString().padStart(2, '0')
-  const mm = (totalMinutes % 60).toString().padStart(2, '0')
-  return `${hh}:${mm}:${ss}`
-}
-
-function formatVideoProgress(currentRaw: number, totalRaw: number): string {
-  const total = Math.max(0, Math.floor(totalRaw))
-  const current = Math.min(total, Math.max(0, Math.floor(currentRaw)))
-
-  if (total < 60) {
-    return `00:${current.toString().padStart(2, '0')}/00:${total.toString().padStart(2, '0')}`
-  }
-
-  if (total < 3600) {
-    const currentMinutes = Math.floor(current / 60).toString().padStart(2, '0')
-    const currentSeconds = (current % 60).toString().padStart(2, '0')
-    const totalMinutes = Math.floor(total / 60).toString().padStart(2, '0')
-    const totalSeconds = (total % 60).toString().padStart(2, '0')
-    return `${currentMinutes}:${currentSeconds}/${totalMinutes}:${totalSeconds}`
-  }
-
-  const currentHours = Math.floor(current / 3600).toString().padStart(2, '0')
-  const currentMinutes = Math.floor((current % 3600) / 60).toString().padStart(2, '0')
-  const currentSeconds = (current % 60).toString().padStart(2, '0')
-  const totalHours = Math.floor(total / 3600).toString().padStart(2, '0')
-  const totalMinutes = Math.floor((total % 3600) / 60).toString().padStart(2, '0')
-  const totalSeconds = (total % 60).toString().padStart(2, '0')
-  return `${currentHours}:${currentMinutes}:${currentSeconds}/${totalHours}:${totalMinutes}:${totalSeconds}`
-}
-
-function ItemCard({ item, thumbnailUrl, onClick }: CardProps) {
-  const missing = item.fileExists === false
-  const languageBadge = getLanguageBadge(item.language)
-
-  const formatContentInfo = (): string => {
-    if (!item.totalContent) return ''
-    if (item.contentType === 'video') {
-      return formatVideoDuration(item.totalContent)
-    } else if (item.contentType === 'book' || item.contentType === 'comic') {
-      return `${Math.round(item.totalContent)}p`
-    }
-    return ''
-  }
-
-  const contentInfo = formatContentInfo()
-  const progressInfo = item.totalContent
-    ? item.contentType === 'video'
-      ? formatVideoProgress(item.progress * item.totalContent, item.totalContent)
-      : `${Math.round(item.progress * item.totalContent)}/${Math.round(item.totalContent)}p`
-    : ''
-
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        width: CARD_SIZE,
-        cursor: 'pointer',
-        position: 'relative',
-        userSelect: 'none',
-      }}
-    >
-      <div
-        style={{
-          width: THUMB_SIZE,
-          height: THUMB_SIZE,
-          background: 'var(--bg-card)',
-          borderRadius: 6,
-          overflow: 'hidden',
-          position: 'relative',
-          margin: '0 auto',
-          filter: missing ? 'grayscale(100%)' : 'none',
-          border: '1px solid var(--border)',
-        }}
-      >
-        {thumbnailUrl ? (
-          <img src={thumbnailUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={item.title} />
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <span style={TYPE_GLYPH_STYLE}>{getContentTypeIcon(item.contentType)}</span>
-          </div>
-        )}
-        {missing && (
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', background: 'rgba(185, 74, 87, 0.32)', fontSize: 32,
-          }}>X</div>
-        )}
-        {/* Top: Type and Language */}
-        <div style={{ position: 'absolute', top: 2, left: 2, right: 2, display: 'flex', gap: 4, justifyContent: 'space-between' }}>
-          <span style={TYPE_GLYPH_SMALL_STYLE}>{getContentTypeIcon(item.contentType)}</span>
-          {languageBadge ? <span style={LANGUAGE_GLYPH_STYLE}>{languageBadge}</span> : null}
-        </div>
-        {/* Bottom-right: Content duration/pages or progress info */}
-        {contentInfo && (
-          <div style={{ position: 'absolute', bottom: 2, right: 2, fontSize: 11, color: '#e0e0e0', background: 'rgba(10, 16, 32, 0.45)', padding: '2px 6px', borderRadius: 3 }}>
-            {progressInfo || contentInfo}
-          </div>
-        )}
-      </div>
-      <div style={{
-        marginTop: 6,
-        fontSize: 13,
-        textAlign: 'center',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-        width: CARD_SIZE,
-        color: '#e0e0e0',
-      }}>
-        {item.title}
-      </div>
-      {item.progress > 0 && (
-        <div style={{
-          height: 2, background: 'var(--border)', borderRadius: 1, marginTop: 4,
-          width: CARD_SIZE,
-        }}>
-          <div style={{ height: '100%', width: `${item.progress * 100}%`, background: 'var(--accent)', borderRadius: 1 }} />
-        </div>
-      )}
-    </div>
-  )
 }
 
 const SEARCH_STATE_KEY = 'library.searchState'
@@ -254,43 +49,9 @@ export default function LibraryPage() {
   const [page, setPage] = useState<number>(() => readSavedSearch()?.page ?? 1)
   const [thumbnails, setThumbnails] = useState<Record<number, string>>({})
   const loadedThumbnailIds = useRef<Set<number>>(new Set())
-  const [duplicateModal, setDuplicateModal] = useState<{ fileName: string } | null>(null)
-  const [fileUploadModalOpen, setFileUploadModalOpen] = useState(false)
-  const [fileUploadDragging, setFileUploadDragging] = useState(false)
-  const [fileUploadNotice, setFileUploadNotice] = useState('')
-  const [settingsModalOpen, setSettingsModalOpen] = useState(false)
-  const [fileModifiedPolicy, setFileModifiedPolicy] = useState('once')
-  const [bulkFromFolder, setBulkFromFolder] = useState('')
-  const [bulkToFolder, setBulkToFolder] = useState('')
-  const [bulkMatchCount, setBulkMatchCount] = useState(0)
-  const [bulkCounting, setBulkCounting] = useState(false)
-  const [bulkRelinking, setBulkRelinking] = useState(false)
-  const [bulkRelinkNotice, setBulkRelinkNotice] = useState('')
-  const [bulkRelinkConfirmOpen, setBulkRelinkConfirmOpen] = useState(false)
-  const [bulkRelinkConflict, setBulkRelinkConflict] = useState<{
-    movingTitle?: string
-    movingPath: string
-    targetPath: string
-    existingTitle?: string
-    existingPath: string
-  } | null>(null)
-  const [bulkRelinkErrorOpen, setBulkRelinkErrorOpen] = useState(false)
-  const [bulkRelinkErrorMessage, setBulkRelinkErrorMessage] = useState('')
-  const [bulkRelinkFailedTarget, setBulkRelinkFailedTarget] = useState<{
-    movingTitle?: string
-    movingPath: string
-    targetPath: string
-  } | null>(null)
-  const [hdtUploadModalOpen, setHdtUploadModalOpen] = useState(false)
-  const [hdtUploadDragging, setHdtUploadDragging] = useState(false)
-  const [hdtUploadNotice, setHdtUploadNotice] = useState('')
-  const [hdtModalOpen, setHdtModalOpen] = useState(false)
-  const [hdtPreviewItems, setHdtPreviewItems] = useState<HdtPreviewItem[]>([])
-  const [hdtPreviewStats, setHdtPreviewStats] = useState<HdtPreviewStats>({ rawTotal: 0, visibleTotal: 0, selectableTotal: 0 })
-  const [hdtSelectedIds, setHdtSelectedIds] = useState<string[]>([])
-  const [hdtApplying, setHdtApplying] = useState(false)
   const [loading, setLoading] = useState(false)
   const [detailItemId, setDetailItemId] = useState<number | null>(null)
+  const [libraryFocusRequest, setLibraryFocusRequest] = useState(0)
   const searchRef = useRef<HTMLInputElement>(null)
   const metadataFillStartedRef = useRef(false)
   const metadataFillUpdatedRef = useRef(0)
@@ -317,6 +78,10 @@ export default function LibraryPage() {
       setLoading(false)
     }
   }, [search, contentType, language, watchedState, fileState, sortBy, sortDir, page])
+
+  const fileImport = useFileImport({ tr, loadItems })
+  const hdtImport = useHdtImport({ tr, loadItems })
+  const librarySettings = useLibrarySettings({ tr, changeLanguageSetting, loadItems })
 
   useEffect(() => {
     sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify({
@@ -417,41 +182,6 @@ export default function LibraryPage() {
   }, [])
 
   useEffect(() => {
-    api.settings.get('fileModifiedAt.updatePolicy').then((v: string | undefined) => {
-      if (v) setFileModifiedPolicy(v)
-    })
-  }, [])
-
-  useEffect(() => {
-    let canceled = false
-
-    const loadBulkMatchCount = async () => {
-      if (!bulkFromFolder) {
-        setBulkMatchCount(0)
-        setBulkRelinkNotice('')
-        return
-      }
-
-      setBulkCounting(true)
-      try {
-        const count = await api.items.countByFolderPrefix(bulkFromFolder)
-        if (canceled) return
-        setBulkMatchCount(count)
-      } catch {
-        if (canceled) return
-        setBulkMatchCount(0)
-      } finally {
-        if (!canceled) setBulkCounting(false)
-      }
-    }
-
-    loadBulkMatchCount()
-    return () => {
-      canceled = true
-    }
-  }, [bulkFromFolder])
-
-  useEffect(() => {
     if (!id) {
       setDetailItemId(null)
       return
@@ -460,350 +190,8 @@ export default function LibraryPage() {
     setDetailItemId(Number.isNaN(parsed) ? null : parsed)
   }, [id])
 
-  useEffect(() => {
-    if (!hdtUploadModalOpen) return
-
-    const allowFileDrop = (e: DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      if (e.dataTransfer) {
-        e.dataTransfer.dropEffect = 'copy'
-      }
-    }
-
-    window.addEventListener('dragenter', allowFileDrop)
-    window.addEventListener('dragover', allowFileDrop)
-    window.addEventListener('drop', allowFileDrop)
-
-    return () => {
-      window.removeEventListener('dragenter', allowFileDrop)
-      window.removeEventListener('dragover', allowFileDrop)
-      window.removeEventListener('drop', allowFileDrop)
-    }
-  }, [hdtUploadModalOpen])
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault()
-    if (fileUploadModalOpen || hdtUploadModalOpen || hdtModalOpen) return
-    const paths = getDroppedFilePaths(Array.from(e.dataTransfer.files))
-
-    for (const filePath of paths) {
-      await addFile(filePath)
-    }
-  }, [fileUploadModalOpen, hdtUploadModalOpen, hdtModalOpen])
-
-  const getDroppedFilePaths = (files: File[]) => files
-    .map((file) => {
-      const directPath = (file as any).path as string | undefined
-      if (directPath) return directPath
-      const resolvedPath = api.file.getPathForFile(file as any)
-      return resolvedPath || undefined
-    })
-    .filter((p): p is string => Boolean(p))
-
-  const addFile = async (filePath: string) => {
-    const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
-    const dir = filePath.substring(0, lastSlash)
-    const baseName = filePath.substring(lastSlash + 1)
-    const lastDot = baseName.lastIndexOf('.')
-    const fileName = lastDot > 0 ? baseName.substring(0, lastDot) : baseName
-    const fileExtension = lastDot > 0 ? baseName.substring(lastDot + 1) : ''
-
-    const exists = await api.items.checkExists(dir, fileName, fileExtension)
-    if (exists) {
-      setDuplicateModal({ fileName: baseName })
-      return
-    }
-
-    const stat = await api.file.readStat(filePath)
-    await api.items.add({
-      filePath: dir,
-      fileName,
-      fileExtension,
-      fileModifiedAt: stat?.mtime,
-    })
-    await loadItems()
-  }
-
-  const beginFileAdd = async (paths: string[]) => {
-    if (!paths.length) {
-      setFileUploadNotice(tr('modal.fileUpload.noFilesAdded'))
-      return
-    }
-
-    setFileUploadNotice('')
-    for (const p of paths) {
-      await addFile(p)
-    }
-    setFileUploadDragging(false)
-    setFileUploadNotice('')
-    setFileUploadModalOpen(false)
-  }
-
-  const handleOpenFileUploadModal = () => {
-    setFileUploadNotice('')
-    setFileUploadDragging(false)
-    setFileUploadModalOpen(true)
-  }
-
-  const handleBrowseFiles = async () => {
-    const paths = await api.file.openDialog()
-    await beginFileAdd(paths)
-  }
-
-  const handleFileUploadDrop = async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setFileUploadDragging(false)
-
-    const hasFiles = Array.from(e.dataTransfer.types || []).includes('Files')
-    if (!hasFiles) {
-      setFileUploadNotice(tr('modal.fileUpload.invalidSelection'))
-      return
-    }
-
-    const paths = getDroppedFilePaths(Array.from(e.dataTransfer.files))
-    if (!paths.length) {
-      setFileUploadNotice(tr('modal.fileUpload.dropBlocked'))
-      return
-    }
-
-    await beginFileAdd(paths)
-  }
-
-  const handleFileUploadDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer.dropEffect = 'copy'
-    if (!fileUploadDragging) setFileUploadDragging(true)
-  }
-
-  const handleFileUploadDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setFileUploadDragging(false)
-  }
-
-  const beginHdtPreview = async (paths: string[]) => {
-    if (!paths.length) return
-
-    const hdtPaths = paths.filter((p) => p.toLowerCase().endsWith('.hdt'))
-    if (!hdtPaths.length) {
-      setHdtUploadNotice(tr('modal.hdtUpload.invalidSelection'))
-      return
-    }
-
-    setHdtUploadNotice('')
-    const previewResult = await api.items.importHdtPreview(hdtPaths) as HdtPreviewItem[] | HdtPreviewResponse
-    const previewItems = Array.isArray(previewResult) ? previewResult : previewResult.items
-    const stats = Array.isArray(previewResult)
-      ? {
-          rawTotal: previewItems.length,
-          visibleTotal: previewItems.length,
-          selectableTotal: previewItems.filter((item: HdtPreviewItem) => !item.disabledReason).length,
-        }
-      : previewResult.stats
-
-    if (!previewItems.length) {
-      setHdtUploadNotice(tr('modal.hdtUpload.noPreview'))
-      return
-    }
-
-    const selectableIds = previewItems
-      .filter((item: HdtPreviewItem) => !item.disabledReason)
-      .map((item: HdtPreviewItem) => item.previewId)
-
-    setHdtPreviewItems(previewItems)
-    setHdtPreviewStats(stats)
-    setHdtSelectedIds(selectableIds)
-    setHdtUploadDragging(false)
-    setHdtUploadNotice('')
-    setHdtUploadModalOpen(false)
-    setHdtModalOpen(true)
-  }
-
-  const handleOpenHdtUploadModal = () => {
-    setHdtUploadNotice('')
-    setHdtUploadDragging(false)
-    setHdtUploadModalOpen(true)
-  }
-
-  const handleBrowseHdtFiles = async () => {
-    const paths = await api.file.openDialog([
-      { name: 'HDT Files', extensions: ['hdt'] },
-      { name: 'All Files', extensions: ['*'] },
-    ])
-    await beginHdtPreview(paths)
-  }
-
-  const handleHdtUploadDrop = async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setHdtUploadDragging(false)
-
-    const hasFiles = Array.from(e.dataTransfer.types || []).includes('Files')
-    if (!hasFiles) {
-      setHdtUploadNotice(tr('modal.hdtUpload.invalidSelection'))
-      return
-    }
-
-    const files = Array.from(e.dataTransfer.files)
-    const paths = files
-      .map((file) => {
-        const directPath = (file as any).path as string | undefined
-        if (directPath) return directPath
-        const resolvedPath = api.file.getPathForFile(file as any)
-        return resolvedPath || undefined
-      })
-      .filter((p): p is string => Boolean(p))
-
-    if (!paths.length) {
-      setHdtUploadNotice(tr('modal.hdtUpload.dropBlocked'))
-      return
-    }
-
-    await beginHdtPreview(paths)
-  }
-
-  const handleHdtUploadDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer.dropEffect = 'copy'
-    if (!hdtUploadDragging) setHdtUploadDragging(true)
-  }
-
-  const handleHdtUploadDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setHdtUploadDragging(false)
-  }
-
-  const handleToggleHdtItem = (previewId: string) => {
-    setHdtSelectedIds((prev) => (
-      prev.includes(previewId)
-        ? prev.filter((id) => id !== previewId)
-        : [...prev, previewId]
-    ))
-  }
-
-  const handleApplyHdt = async () => {
-    if (!hdtSelectedIds.length) {
-      setHdtModalOpen(false)
-      setHdtPreviewItems([])
-      setHdtPreviewStats({ rawTotal: 0, visibleTotal: 0, selectableTotal: 0 })
-      return
-    }
-
-    setHdtApplying(true)
-    try {
-      await api.items.importHdtApply(hdtSelectedIds)
-      setHdtModalOpen(false)
-      setHdtPreviewItems([])
-      setHdtPreviewStats({ rawTotal: 0, visibleTotal: 0, selectableTotal: 0 })
-      setHdtSelectedIds([])
-      await loadItems()
-    } finally {
-      setHdtApplying(false)
-    }
-  }
-
-  const getHdtReasonLabel = (item: HdtPreviewItem) => {
-    if (item.disabledReason === 'duplicate') return tr('modal.hdtImport.reason.duplicate')
-    if (item.disabledReason === 'missing_title') return tr('modal.hdtImport.reason.missingTitle')
-    if (item.disabledReason === 'missing_path') return tr('modal.hdtImport.reason.missingPath')
-    if (item.disabledReason === 'invalid_entry') return tr('modal.hdtImport.reason.invalidEntry')
-    return tr('modal.hdtImport.reason.ready')
-  }
-
-  const groupedHdtPreviewItems = useMemo(() => {
-    const groups = new Map<string, HdtPreviewItem[]>()
-    for (const item of hdtPreviewItems) {
-      const current = groups.get(item.sourceFile) ?? []
-      current.push(item)
-      groups.set(item.sourceFile, current)
-    }
-    return Array.from(groups.entries()).map(([sourceFile, items]) => ({ sourceFile, items }))
-  }, [hdtPreviewItems])
-
-  const handleSelectHdtGroup = (previewIds: string[]) => {
-    if (hdtApplying || !previewIds.length) return
-    setHdtSelectedIds((prev) => Array.from(new Set([...prev, ...previewIds])))
-  }
-
-  const handleClearHdtGroup = (previewIds: string[]) => {
-    if (hdtApplying || !previewIds.length) return
-    const idSet = new Set(previewIds)
-    setHdtSelectedIds((prev) => prev.filter((id) => !idSet.has(id)))
-  }
-
-  const handleChangeFileModifiedPolicy = async (value: string) => {
-    setFileModifiedPolicy(value)
-    await api.settings.set('fileModifiedAt.updatePolicy', value)
-  }
-
-  const handleChangeLanguageSetting = async (value: LanguageSetting) => {
-    await changeLanguageSetting(value)
-  }
-
-  const handlePickBulkFromFolder = async () => {
-    const picked = await api.file.openFolderDialog()
-    if (!picked) return
-    setBulkFromFolder(picked)
-    setBulkRelinkNotice('')
-    setBulkRelinkConflict(null)
-    setBulkRelinkErrorOpen(false)
-    setBulkRelinkErrorMessage('')
-    setBulkRelinkFailedTarget(null)
-  }
-
-  const handlePickBulkToFolder = async () => {
-    const picked = await api.file.openFolderDialog()
-    if (!picked) return
-    setBulkToFolder(picked)
-    setBulkRelinkNotice('')
-    setBulkRelinkConflict(null)
-    setBulkRelinkErrorOpen(false)
-    setBulkRelinkErrorMessage('')
-    setBulkRelinkFailedTarget(null)
-  }
-
-  const handleApplyBulkRelink = async () => {
-    if (bulkRelinking) return
-    setBulkRelinking(true)
-    try {
-      const result = await api.items.bulkRelinkFolder(bulkFromFolder, bulkToFolder)
-
-      if (result?.ok === false && result?.reason === 'duplicate') {
-        setBulkRelinkConfirmOpen(false)
-        setBulkRelinkConflict(result.conflict || null)
-        return
-      }
-
-      if (result?.ok === false) {
-        setBulkRelinkConfirmOpen(false)
-        setBulkRelinkErrorMessage(String(result?.message || ''))
-        setBulkRelinkFailedTarget(result?.failedTarget || null)
-        setBulkRelinkErrorOpen(true)
-        return
-      }
-
-      const updated = Number(result?.updated ?? 0)
-      setBulkRelinkNotice(tr('settings.bulkRelink.done', { count: updated }))
-      setBulkRelinkConfirmOpen(false)
-      await loadItems()
-      const latestCount = await api.items.countByFolderPrefix(bulkFromFolder)
-      setBulkMatchCount(Number(latestCount ?? 0))
-    } catch (error: any) {
-      setBulkRelinkConfirmOpen(false)
-      setBulkRelinkErrorMessage(String(error?.message || ''))
-      setBulkRelinkFailedTarget(null)
-      setBulkRelinkErrorOpen(true)
-    } finally {
-      setBulkRelinking(false)
-    }
-  }
-
   const handleOpenDetail = (itemId: number) => {
+    setDetailItemId(itemId)
     navigate(`/items/${itemId}`)
   }
 
@@ -811,13 +199,14 @@ export default function LibraryPage() {
     setDetailItemId(null)
     navigate('/')
     await loadItems()
+    setLibraryFocusRequest((value) => value + 1)
   }
 
   return (
     <div
       style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}
       onDragOver={e => e.preventDefault()}
-      onDrop={handleDrop}
+      onDrop={(event) => fileImport.handleRootDrop(event, fileImport.fileUploadModalOpen || hdtImport.isHdtModalOpen)}
     >
       <div
         style={{
@@ -836,597 +225,149 @@ export default function LibraryPage() {
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: 0.2 }}>{tr('app.title')}</span>
       </div>
 
-      <div style={{
-        background: 'var(--bg-secondary)', padding: '12px 16px',
-        display: 'flex', gap: 12, alignItems: 'center',
-        borderBottom: '1px solid var(--border)', flexShrink: 0, flexWrap: 'wrap', fontSize: 14,
-      }}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', flex: '1 1 auto', minWidth: 0, justifyContent: 'flex-start' }}>
-          <div style={{ display: 'flex', alignItems: 'center', flex: '0 0 320px', width: 320, minWidth: 320 }}>
-            <input
-              ref={searchRef}
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1) }}
-              placeholder={tr('filters.searchPlaceholder')}
-              style={{ width: '100%', maxWidth: 320 }}
-            />
-          </div>
+      <LibraryToolbar
+        searchRef={searchRef}
+        search={search}
+        setSearch={setSearch}
+        contentType={contentType}
+        setContentType={setContentType}
+        language={language}
+        setLanguage={setLanguage}
+        watchedState={watchedState}
+        setWatchedState={setWatchedState}
+        fileState={fileState}
+        setFileState={setFileState}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        sortDir={sortDir}
+        setSortDir={setSortDir}
+        setPage={setPage}
+        onResetSearch={handleResetSearch}
+        onOpenFileUploadModal={fileImport.openFileUploadModal}
+        onOpenHdtUploadModal={hdtImport.openHdtUploadModal}
+        onReload={() => api.app.reload()}
+        onOpenSettings={librarySettings.openSettingsModal}
+        tr={tr}
+      />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'nowrap' }}>
-            <select value={contentType} onChange={e => { setContentType(e.target.value); setPage(1) }}>
-              <option value="">{tr('filters.allTypes')}</option>
-              <option value="book">{tr('filters.type.book')}</option>
-              <option value="comic">{tr('filters.type.comic')}</option>
-              <option value="video">{tr('filters.type.video')}</option>
-              <option value="other">{tr('filters.type.other')}</option>
-            </select>
+      <LibraryGrid
+        items={items}
+        thumbnails={thumbnails}
+        total={total}
+        loading={loading}
+        page={page}
+        perPage={perPage}
+        setPage={setPage}
+        onOpenDetail={handleOpenDetail}
+        focusRequest={libraryFocusRequest}
+        tr={tr}
+      />
 
-            <select value={language} onChange={e => { setLanguage(e.target.value); setPage(1) }}>
-              <option value="">{tr('filters.allLanguages')}</option>
-              <option value="ko">{tr('filters.language.ko')}</option>
-              <option value="ja">{tr('filters.language.ja')}</option>
-              <option value="en">{tr('filters.language.en')}</option>
-              <option value="zh">{tr('filters.language.zh')}</option>
-              <option value="other">{tr('filters.language.other')}</option>
-            </select>
+      <DuplicateFileModal
+        fileName={fileImport.duplicateModal?.fileName}
+        onClose={() => fileImport.setDuplicateModal(null)}
+        tr={tr}
+      />
 
-            <select value={watchedState} onChange={e => { setWatchedState(e.target.value as any); setPage(1) }}>
-              <option value="all">{tr('filters.reading.all')}</option>
-              <option value="unread">{tr('filters.reading.unread')}</option>
-              <option value="inProgress">{tr('filters.reading.inProgress')}</option>
-              <option value="completed">{tr('filters.reading.completed')}</option>
-            </select>
-
-            <select value={fileState} onChange={e => { setFileState(e.target.value as any); setPage(1) }}>
-              <option value="all">{tr('filters.file.all')}</option>
-              <option value="normal">{tr('filters.file.normal')}</option>
-              <option value="missing">{tr('filters.file.missing')}</option>
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'nowrap' }}>
-            <select value={sortBy} onChange={e => setSortBy(e.target.value)}>
-              <option value="createdAt">{tr('filters.sort.createdAt')}</option>
-              <option value="updatedAt">{tr('filters.sort.updatedAt')}</option>
-              <option value="title">{tr('filters.sort.title')}</option>
-              <option value="fileModifiedAt">{tr('filters.sort.fileModifiedAt')}</option>
-            </select>
-
-            <button
-              className="btn-secondary"
-              onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
-              style={{ padding: '6px 10px', width: 64 }}
-            >
-              {sortDir === 'asc' ? 'ASC' : 'DESC'}
-            </button>
-
-            {(search !== '' || contentType !== '' || language !== '' || watchedState !== 'all' || fileState !== 'all' || sortBy !== 'createdAt' || sortDir !== 'desc') && (
-              <button
-                className="btn-secondary"
-                onClick={handleResetSearch}
-                style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}
-              >
-                {tr('filters.resetSearch')}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto', flex: '0 0 auto' }}>
-          <button className="btn-primary" onClick={handleOpenFileUploadModal}>{tr('actions.addFile')}</button>
-          <button className="btn-secondary" onClick={handleOpenHdtUploadModal}>{tr('actions.importHdt')}</button>
-          <button className="btn-secondary" title={tr('app.reload')} onClick={() => api.app.reload()} style={{ padding: '6px 10px' }}>R</button>
-          <button className="btn-secondary" title={tr('actions.settings')} onClick={() => setSettingsModalOpen(true)} style={{ padding: '6px 10px' }}>S</button>
-        </div>
-      </div>
-
-      <div style={{ padding: '8px 16px', fontSize: 12, color: '#a0a0b0', flexShrink: 0 }}>
-        {tr('library.items', { count: total })} {loading && tr('library.loading')}
-      </div>
-
-      <div style={{ flex: 1, overflow: 'auto', padding: '8px 16px' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-          {items.map(item => (
-            <ItemCard
-              key={item.id}
-              item={item}
-              thumbnailUrl={thumbnails[item.id]}
-              onClick={() => handleOpenDetail(item.id)}
-            />
-          ))}
-        </div>
-
-        {total > perPage && (
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', padding: 16 }}>
-            <button className="btn-secondary" disabled={page === 1} onClick={() => setPage(p => p - 1)}>{tr('library.prev')}</button>
-            <span style={{ alignSelf: 'center' }}>{tr('library.page', { page, total: Math.ceil(total / perPage) })}</span>
-            <button className="btn-secondary" disabled={page * perPage >= total} onClick={() => setPage(p => p + 1)}>{tr('library.next')}</button>
-          </div>
-        )}
-      </div>
-
-      <Modal open={!!duplicateModal} onClose={() => setDuplicateModal(null)} title={tr('modal.duplicate.title')}>
-        <p>{tr('modal.duplicate.message', { fileName: duplicateModal?.fileName ?? '' })}</p>
-        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-primary" onClick={() => setDuplicateModal(null)}>{tr('common.ok')}</button>
-        </div>
-      </Modal>
-
-      <Modal
-        open={fileUploadModalOpen}
-        onClose={() => {
-          setFileUploadModalOpen(false)
-          setFileUploadDragging(false)
-          setFileUploadNotice('')
-        }}
+      <FileDropModal
+        open={fileImport.fileUploadModalOpen}
+        dragging={fileImport.fileUploadDragging}
+        notice={fileImport.fileUploadNotice}
         title={tr('modal.fileUpload.title')}
-        contentWidth={640}
-        contentMaxWidth="min(92vw, 760px)"
-      >
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>
-          {tr('modal.fileUpload.description')}
-        </p>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
-          {tr('modal.fileUpload.supported')}
-        </p>
+        description={tr('modal.fileUpload.description')}
+        supported={tr('modal.fileUpload.supported')}
+        dropHere={tr('modal.fileUpload.dropHere')}
+        dropActive={tr('modal.fileUpload.dropActive')}
+        dropHint={tr('modal.fileUpload.dropHint')}
+        onClose={fileImport.closeFileUploadModal}
+        onBrowse={fileImport.handleBrowseFiles}
+        onDragOver={fileImport.handleFileUploadDragOver}
+        onDragLeave={fileImport.handleFileUploadDragLeave}
+        onDrop={fileImport.handleFileUploadDrop}
+        tr={tr}
+      />
 
-        <div
-          className={`hdt-upload-dropzone${fileUploadDragging ? ' is-dragging' : ''}`}
-          onClick={handleBrowseFiles}
-          onDragEnter={handleFileUploadDragOver}
-          onDragOver={handleFileUploadDragOver}
-          onDragLeave={handleFileUploadDragLeave}
-          onDrop={handleFileUploadDrop}
-        >
-          <div className="hdt-upload-dropzone-title">
-            {fileUploadDragging ? tr('modal.fileUpload.dropActive') : tr('modal.fileUpload.dropHere')}
-          </div>
-          <div className="hdt-upload-dropzone-sub">{tr('modal.fileUpload.dropHint')}</div>
-        </div>
-
-        {fileUploadNotice && (
-          <div className="hdt-upload-notice">{fileUploadNotice}</div>
-        )}
-
-        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button
-            className="btn-secondary"
-            onClick={() => {
-              setFileUploadModalOpen(false)
-              setFileUploadDragging(false)
-              setFileUploadNotice('')
-            }}
-          >
-            {tr('common.cancel')}
-          </button>
-        </div>
-      </Modal>
-
-      <Modal
-        open={hdtUploadModalOpen}
-        onClose={() => {
-          setHdtUploadModalOpen(false)
-          setHdtUploadDragging(false)
-          setHdtUploadNotice('')
-        }}
+      <FileDropModal
+        open={hdtImport.hdtUploadModalOpen}
+        dragging={hdtImport.hdtUploadDragging}
+        notice={hdtImport.hdtUploadNotice}
         title={tr('modal.hdtUpload.title')}
-        contentWidth={640}
-        contentMaxWidth="min(92vw, 760px)"
-      >
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>
-          {tr('modal.hdtUpload.description')}
-        </p>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
-          {tr('modal.hdtUpload.supported')}
-        </p>
+        description={tr('modal.hdtUpload.description')}
+        supported={tr('modal.hdtUpload.supported')}
+        dropHere={tr('modal.hdtUpload.dropHere')}
+        dropActive={tr('modal.hdtUpload.dropActive')}
+        dropHint={tr('modal.hdtUpload.dropHint')}
+        onClose={hdtImport.closeHdtUploadModal}
+        onBrowse={hdtImport.handleBrowseHdtFiles}
+        onDragOver={hdtImport.handleHdtUploadDragOver}
+        onDragLeave={hdtImport.handleHdtUploadDragLeave}
+        onDrop={hdtImport.handleHdtUploadDrop}
+        tr={tr}
+      />
 
-        <div
-          className={`hdt-upload-dropzone${hdtUploadDragging ? ' is-dragging' : ''}`}
-          onClick={handleBrowseHdtFiles}
-          onDragEnter={handleHdtUploadDragOver}
-          onDragOver={handleHdtUploadDragOver}
-          onDragLeave={handleHdtUploadDragLeave}
-          onDrop={handleHdtUploadDrop}
-        >
-          <div className="hdt-upload-dropzone-title">
-            {hdtUploadDragging ? tr('modal.hdtUpload.dropActive') : tr('modal.hdtUpload.dropHere')}
-          </div>
-          <div className="hdt-upload-dropzone-sub">{tr('modal.hdtUpload.dropHint')}</div>
-        </div>
+      <HdtImportModal
+        open={hdtImport.hdtModalOpen}
+        applying={hdtImport.hdtApplying}
+        stats={hdtImport.hdtPreviewStats}
+        selectedIds={hdtImport.hdtSelectedIds}
+        groupedItems={hdtImport.groupedHdtPreviewItems}
+        onClose={hdtImport.closeHdtImport}
+        onApply={hdtImport.handleApplyHdt}
+        onToggleItem={hdtImport.handleToggleHdtItem}
+        onSelectGroup={hdtImport.handleSelectHdtGroup}
+        onClearGroup={hdtImport.handleClearHdtGroup}
+        getReasonLabel={hdtImport.getHdtReasonLabel}
+        tr={tr}
+      />
 
-        {hdtUploadNotice && (
-          <div className="hdt-upload-notice">{hdtUploadNotice}</div>
-        )}
+      <ItemDetailModal itemId={detailItemId} onClose={handleCloseDetail} />
 
-        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button
-            className="btn-secondary"
-            onClick={() => {
-              setHdtUploadModalOpen(false)
-              setHdtUploadDragging(false)
-              setHdtUploadNotice('')
-            }}
-          >
-            {tr('common.cancel')}
-          </button>
-        </div>
-      </Modal>
+      <SettingsModal
+        open={librarySettings.settingsModalOpen}
+        languageSetting={languageSetting}
+        fileModifiedPolicy={librarySettings.fileModifiedPolicy}
+        bulkFromFolder={librarySettings.bulkFromFolder}
+        bulkToFolder={librarySettings.bulkToFolder}
+        bulkMatchCount={librarySettings.bulkMatchCount}
+        bulkCounting={librarySettings.bulkCounting}
+        bulkRelinking={librarySettings.bulkRelinking}
+        bulkRelinkNotice={librarySettings.bulkRelinkNotice}
+        onClose={librarySettings.closeSettingsModal}
+        onChangeLanguageSetting={librarySettings.handleChangeLanguageSetting}
+        onChangeFileModifiedPolicy={librarySettings.handleChangeFileModifiedPolicy}
+        onPickBulkFromFolder={librarySettings.handlePickBulkFromFolder}
+        onPickBulkToFolder={librarySettings.handlePickBulkToFolder}
+        onOpenBulkRelinkConfirm={librarySettings.openBulkRelinkConfirm}
+        tr={tr}
+      />
 
-      <Modal
-        open={hdtModalOpen}
-        onClose={() => {
-          if (hdtApplying) return
-          setHdtModalOpen(false)
-          setHdtPreviewItems([])
-          setHdtPreviewStats({ rawTotal: 0, visibleTotal: 0, selectableTotal: 0 })
-          setHdtSelectedIds([])
-        }}
-        title={tr('modal.hdtImport.title')}
-        contentMaxHeight="88vh"
-      >
-        <div style={{ marginBottom: 12, fontSize: 13, color: 'var(--text-secondary)' }}>
-          {tr('modal.hdtImport.summaryDetailed', {
-            raw: hdtPreviewStats.rawTotal,
-            visible: hdtPreviewStats.visibleTotal,
-            selected: hdtSelectedIds.length,
-          })}
-        </div>
+      <BulkRelinkConfirmModal
+        open={librarySettings.bulkRelinkConfirmOpen}
+        relinking={librarySettings.bulkRelinking}
+        fromFolder={librarySettings.bulkFromFolder}
+        toFolder={librarySettings.bulkToFolder}
+        matchCount={librarySettings.bulkMatchCount}
+        onClose={librarySettings.closeBulkRelinkConfirm}
+        onApply={librarySettings.handleApplyBulkRelink}
+        tr={tr}
+      />
 
-        <div className="hdt-preview-list">
-          {groupedHdtPreviewItems.map((group) => (
-            <section key={group.sourceFile} className="hdt-preview-group">
-              {(() => {
-                const selectableIds = group.items
-                  .filter((item) => !item.disabledReason)
-                  .map((item) => item.previewId)
-                const selectedCount = selectableIds.filter((id) => hdtSelectedIds.includes(id)).length
-                const allSelected = selectableIds.length > 0 && selectedCount === selectableIds.length
+      <BulkRelinkConflictModal
+        conflict={librarySettings.bulkRelinkConflict}
+        onClose={librarySettings.closeBulkRelinkConflict}
+        tr={tr}
+      />
 
-                return (
-              <div className="hdt-preview-group-header">
-                <span className="hdt-preview-group-title" title={group.sourceFile}>{group.sourceFile}</span>
-                <div className="hdt-preview-group-header-right">
-                  <span className="hdt-preview-group-count">{tr('modal.hdtImport.groupCount', { count: group.items.length })}</span>
-                  <span className="hdt-preview-group-selected">{tr('modal.hdtImport.groupSelected', { selected: selectedCount, total: selectableIds.length })}</span>
-                  <button
-                    type="button"
-                    className="hdt-preview-group-action"
-                    disabled={hdtApplying || !selectableIds.length || allSelected}
-                    onClick={() => handleSelectHdtGroup(selectableIds)}
-                  >
-                    {tr('modal.hdtImport.groupAction.selectAll')}
-                  </button>
-                  <button
-                    type="button"
-                    className="hdt-preview-group-action"
-                    disabled={hdtApplying || selectedCount === 0}
-                    onClick={() => handleClearHdtGroup(selectableIds)}
-                  >
-                    {tr('modal.hdtImport.groupAction.clear')}
-                  </button>
-                </div>
-              </div>
-                )
-              })()}
-
-              <div className="hdt-preview-group-items">
-                {group.items.map((item) => {
-                  const disabled = !!item.disabledReason || hdtApplying
-                  const checked = hdtSelectedIds.includes(item.previewId)
-                  const fileLabel = `${item.fileName}${item.fileExtension ? `.${item.fileExtension}` : ''}`
-                  const cardClassName = [
-                    'hdt-preview-card',
-                    checked ? 'is-checked' : 'is-unchecked',
-                    disabled ? 'is-disabled' : '',
-                  ].filter(Boolean).join(' ')
-
-                  return (
-                    <button
-                      key={item.previewId}
-                      type="button"
-                      className={cardClassName}
-                      onClick={() => {
-                        if (disabled) return
-                        handleToggleHdtItem(item.previewId)
-                      }}
-                      title={item.title || tr('modal.hdtImport.untitled')}
-                    >
-                      <div className="hdt-preview-thumb-wrap">
-                        {item.thumbnailBase64 ? (
-                          <img
-                            className="hdt-preview-thumb"
-                            src={`data:image/jpeg;base64,${item.thumbnailBase64}`}
-                            alt={item.title || tr('modal.hdtImport.untitled')}
-                          />
-                        ) : (
-                          <div className="hdt-preview-thumb-fallback" aria-hidden="true">
-                            <span className="hdt-preview-thumb-fallback-badge">{getContentTypeIcon(item.contentType)}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="hdt-preview-main">
-                        <div className="hdt-preview-title">{item.title || tr('modal.hdtImport.untitled')}</div>
-                        <div className="hdt-preview-subline">{tr('modal.hdtImport.field.type')}: {item.contentType}</div>
-                        <div className="hdt-preview-subline" title={item.sourceUrl || tr('detail.unknown')}>
-                          {tr('modal.hdtImport.field.sourceUrl')}: {item.sourceUrl || tr('detail.unknown')}
-                        </div>
-                        <div className="hdt-preview-subline" title={item.author || tr('detail.unknown')}>
-                          {tr('modal.hdtImport.field.author')}: {item.author || tr('detail.unknown')}
-                        </div>
-                        <div className="hdt-preview-subline" title={`${item.filePath}\\${fileLabel}`}>
-                          {tr('modal.hdtImport.field.targetFile')}: {item.filePath}\\{fileLabel}
-                        </div>
-                      </div>
-
-                      <div className="hdt-preview-state">{getHdtReasonLabel(item)}</div>
-                    </button>
-                  )
-                })}
-              </div>
-            </section>
-          ))}
-        </div>
-
-        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button
-            className="btn-secondary"
-            onClick={() => {
-              if (hdtApplying) return
-              setHdtModalOpen(false)
-              setHdtPreviewItems([])
-              setHdtPreviewStats({ rawTotal: 0, visibleTotal: 0, selectableTotal: 0 })
-              setHdtSelectedIds([])
-            }}
-            disabled={hdtApplying}
-          >
-            {tr('common.cancel')}
-          </button>
-          <button className="btn-primary" onClick={handleApplyHdt} disabled={hdtApplying || !hdtSelectedIds.length}>
-            {hdtApplying ? tr('common.loading') : tr('modal.hdtImport.apply')}
-          </button>
-        </div>
-      </Modal>
-
-      <Modal
-        open={detailItemId !== null}
-        onClose={handleCloseDetail}
-        contentWidth={600}
-        contentHeight="calc(100vh - 100px)"
-        contentMaxWidth="calc(100vw - 80px)"
-        contentPadding={0}
-      >
-        {detailItemId !== null && <ItemDetailPage itemId={detailItemId} onClose={handleCloseDetail} />}
-      </Modal>
-
-      <Modal open={settingsModalOpen} onClose={() => setSettingsModalOpen(false)}>
-        <div style={{ background: 'var(--bg-secondary)', borderRadius: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-            <h3 style={{ fontSize: 18, margin: 0 }}>{tr('settings.title')}</h3>
-            <button className="btn-secondary" title={tr('app.devTools')} onClick={() => api.app.toggleDevTools()} style={{ padding: '6px 10px' }}>DEV</button>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 2%' }}>
-            <div style={{ flex: '2 1 0', minWidth: 120 }}>
-              <h3 style={{ fontSize: 14, margin: 0 }}>{tr('settings.zoom.title')}</h3>
-            </div>
-            <div style={{ flex: '3 1 0', minWidth: 160, width: '100%', display: 'flex', gap: 8, alignItems: 'stretch' }}>
-              <button className="btn-secondary" title={tr('app.zoomOut')} style={{ padding: '6px 10px', flex: '0 0 auto', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => api.app.zoomOut()}>-</button>
-              <button className="btn-secondary" title={tr('app.zoomReset')} style={{ padding: '6px 10px', flex: '1 1 auto', minWidth: 0, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => api.app.zoomReset()}>100%</button>
-              <button className="btn-secondary" title={tr('app.zoomIn')} style={{ padding: '6px 10px', flex: '0 0 auto', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => api.app.zoomIn()}>+</button>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 14, paddingTop: 14, paddingLeft: '2%', paddingRight: '2%', borderTop: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ flex: '2 1 0', minWidth: 120 }}>
-                <h3 style={{ fontSize: 14, margin: 0 }}>{tr('settings.language.title')}</h3>
-              </div>
-              <div style={{ flex: '3 1 0', minWidth: 160 }}>
-                <select
-                  value={languageSetting}
-                  onChange={e => handleChangeLanguageSetting(e.target.value as LanguageSetting)}
-                  style={{ width: '100%' }}
-                >
-                  <option value="system">{tr('settings.language.system')}</option>
-                  <option value="en">{tr('settings.language.en')}</option>
-                  <option value="ko">{tr('settings.language.ko')}</option>
-                  <option value="ja">{tr('settings.language.ja')}</option>
-                  <option value="zh">{tr('settings.language.zh')}</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 18, paddingTop: 14, paddingLeft: '2%', paddingRight: '2%', borderTop: '1px solid var(--border)' }}>
-            <h3 style={{ fontSize: 14, marginBottom: 4 }}>{tr('settings.filePolicy.title')}</h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: 12 }}>
-              {tr('settings.filePolicy.help')}
-            </p>
-
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer' }}>
-            <input
-              type="radio"
-              value="once"
-              checked={fileModifiedPolicy === 'once'}
-              onChange={() => handleChangeFileModifiedPolicy('once')}
-            />
-            <div>
-              <div style={{ fontSize: 14 }}>{tr('settings.filePolicy.once')}</div>
-              <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-secondary)' }}>{tr('settings.filePolicy.onceHelp')}</div>
-            </div>
-          </label>
-
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-            <input
-              type="radio"
-              value="always"
-              checked={fileModifiedPolicy === 'always'}
-              onChange={() => handleChangeFileModifiedPolicy('always')}
-            />
-            <div>
-              <div style={{ fontSize: 14 }}>{tr('settings.filePolicy.always')}</div>
-              <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-secondary)' }}>{tr('settings.filePolicy.alwaysHelp')}</div>
-            </div>
-          </label>
-          </div>
-
-          <div style={{ marginTop: 18, paddingTop: 14, paddingLeft: '2%', paddingRight: '2%', borderTop: '1px solid var(--border)' }}>
-            <h3 style={{ fontSize: 14, marginBottom: 4 }}>{tr('settings.bulkRelink.title')}</h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: 12, fontSize: 12 }}>
-              {tr('settings.bulkRelink.help')}
-            </p>
-
-            <div style={{ display: 'grid', gap: 10 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
-                <input
-                  value={bulkFromFolder}
-                  readOnly
-                  placeholder={tr('settings.bulkRelink.fromPlaceholder')}
-                />
-                <button className="btn-secondary" onClick={handlePickBulkFromFolder}>
-                  {tr('settings.bulkRelink.pickBefore')}
-                </button>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
-                <input
-                  value={bulkToFolder}
-                  readOnly
-                  placeholder={tr('settings.bulkRelink.toPlaceholder')}
-                />
-                <button className="btn-secondary" onClick={handlePickBulkToFolder}>
-                  {tr('settings.bulkRelink.pickAfter')}
-                </button>
-              </div>
-            </div>
-
-            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
-              {bulkCounting
-                ? tr('settings.bulkRelink.matchCountLoading')
-                : tr('settings.bulkRelink.matchCount', { count: bulkMatchCount })}
-            </div>
-
-            {bulkRelinkNotice && (
-              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--accent)' }}>
-                {bulkRelinkNotice}
-              </div>
-            )}
-
-            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                className="btn-primary"
-                disabled={!bulkFromFolder || !bulkToFolder || bulkMatchCount <= 0 || bulkRelinking}
-                onClick={() => setBulkRelinkConfirmOpen(true)}
-              >
-                {tr('settings.bulkRelink.apply')}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ marginTop: 32, display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-primary" style={{ width: '33%', minWidth: 140, paddingTop: 8, paddingBottom: 8 }} onClick={() => setSettingsModalOpen(false)}>{tr('common.close')}</button>
-        </div>
-      </Modal>
-
-      <Modal
-        open={bulkRelinkConfirmOpen}
-        onClose={() => {
-          if (bulkRelinking) return
-          setBulkRelinkConfirmOpen(false)
-        }}
-        title={tr('settings.bulkRelink.confirmTitle')}
-      >
-        <p style={{ marginTop: 0, marginBottom: 12 }}>{tr('settings.bulkRelink.confirmMessage')}</p>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
-          {tr('settings.bulkRelink.confirmBefore')}: {bulkFromFolder}
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
-          {tr('settings.bulkRelink.confirmAfter')}: {bulkToFolder}
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
-          {tr('settings.bulkRelink.matchCount', { count: bulkMatchCount })}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button
-            className="btn-secondary"
-            disabled={bulkRelinking}
-            onClick={() => setBulkRelinkConfirmOpen(false)}
-          >
-            {tr('common.cancel')}
-          </button>
-          <button className="btn-primary" disabled={bulkRelinking} onClick={handleApplyBulkRelink}>
-            {bulkRelinking ? tr('common.loading') : tr('settings.bulkRelink.confirmApply')}
-          </button>
-        </div>
-      </Modal>
-
-      <Modal
-        open={!!bulkRelinkConflict}
-        onClose={() => setBulkRelinkConflict(null)}
-        title={tr('settings.bulkRelink.conflictTitle')}
-      >
-        <p style={{ marginTop: 0, marginBottom: 10 }}>{tr('settings.bulkRelink.conflictMessage')}</p>
-        {bulkRelinkConflict?.movingTitle && (
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
-            {tr('settings.bulkRelink.conflictMovingItem')}: {bulkRelinkConflict.movingTitle}
-          </div>
-        )}
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, wordBreak: 'break-all' }}>
-          {tr('settings.bulkRelink.conflictMovingPath')}: {bulkRelinkConflict?.movingPath}
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, wordBreak: 'break-all' }}>
-          {tr('settings.bulkRelink.conflictTargetPath')}: {bulkRelinkConflict?.targetPath}
-        </div>
-        {bulkRelinkConflict?.existingTitle && (
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
-            {tr('settings.bulkRelink.conflictExistingItem')}: {bulkRelinkConflict.existingTitle}
-          </div>
-        )}
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, wordBreak: 'break-all' }}>
-          {tr('settings.bulkRelink.conflictExistingPath')}: {bulkRelinkConflict?.existingPath}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-primary" onClick={() => setBulkRelinkConflict(null)}>{tr('common.ok')}</button>
-        </div>
-      </Modal>
-
-      <Modal
-        open={bulkRelinkErrorOpen}
-        onClose={() => setBulkRelinkErrorOpen(false)}
-        title={tr('settings.bulkRelink.errorTitle')}
-      >
-        <p style={{ marginTop: 0, marginBottom: 16 }}>{tr('settings.bulkRelink.errorMessage')}</p>
-        {bulkRelinkFailedTarget?.movingTitle && (
-          <div style={{ marginTop: 0, marginBottom: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
-            {tr('settings.bulkRelink.errorFailedItem')}: {bulkRelinkFailedTarget.movingTitle}
-          </div>
-        )}
-        {bulkRelinkFailedTarget?.movingPath && (
-          <div style={{ marginTop: 0, marginBottom: 8, fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
-            {tr('settings.bulkRelink.errorCurrentPath')}: {bulkRelinkFailedTarget.movingPath}
-          </div>
-        )}
-        {bulkRelinkFailedTarget?.targetPath && (
-          <div style={{ marginTop: 0, marginBottom: 16, fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
-            {tr('settings.bulkRelink.errorTargetPath')}: {bulkRelinkFailedTarget.targetPath}
-          </div>
-        )}
-        {bulkRelinkErrorMessage && (
-          <pre style={{ marginTop: 0, marginBottom: 16, padding: 10, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-            {bulkRelinkErrorMessage}
-          </pre>
-        )}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-primary" onClick={() => {
-            setBulkRelinkErrorOpen(false)
-            setBulkRelinkErrorMessage('')
-            setBulkRelinkFailedTarget(null)
-          }}>{tr('common.ok')}</button>
-        </div>
-      </Modal>
+      <BulkRelinkErrorModal
+        open={librarySettings.bulkRelinkErrorOpen}
+        errorMessage={librarySettings.bulkRelinkErrorMessage}
+        failedTarget={librarySettings.bulkRelinkFailedTarget}
+        onClose={librarySettings.closeBulkRelinkError}
+        tr={tr}
+      />
     </div>
   )
 }
+
+
 

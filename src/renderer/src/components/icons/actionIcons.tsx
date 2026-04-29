@@ -9,6 +9,14 @@ export function CaretLeftIcon({ size = 16 }: IconProps) {
   )
 }
 
+export function CaretRightIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
+      <path d="M9.5 6.5L15 12l-5.5 5.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function ChevronLeftIcon({ size = 16 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
@@ -21,6 +29,50 @@ export function ChevronRightIcon({ size = 16 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
       <path d="M9 6.5L14.5 12 9 17.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function SortAscendingIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
+      <path d="M7 18V6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M4.6 8.4L7 6l2.4 2.4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13 8h6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M13 12h4.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M13 16h3" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function SortDescendingIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
+      <path d="M7 6v12" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M4.6 15.6L7 18l2.4-2.4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13 8h6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M13 12h4.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M13 16h3" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function RefreshIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
+      <path d="M18.4 8.2A7.2 7.2 0 0 0 6.2 6.8L4.5 8.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4.3 4.5v4.2h4.2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5.6 15.8a7.2 7.2 0 0 0 12.2 1.4l1.7-1.7" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M19.7 19.5v-4.2h-4.2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function SettingsGearIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
+      <path d="M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2z" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M19.2 13.1a7.7 7.7 0 0 0 0-2.2l2-1.4-2-3.4-2.4 1a8.2 8.2 0 0 0-1.9-1.1L14.6 3h-5.2L9 6a8.2 8.2 0 0 0-1.9 1.1l-2.4-1-2 3.4 2 1.4a7.7 7.7 0 0 0 0 2.2l-2 1.4 2 3.4 2.4-1a8.2 8.2 0 0 0 1.9 1.1l.4 3h5.2l.4-3a8.2 8.2 0 0 0 1.9-1.1l2.4 1 2-3.4-2.1-1.4z" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

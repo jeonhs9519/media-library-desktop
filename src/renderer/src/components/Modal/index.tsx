@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 
 interface Props {
   open: boolean
@@ -23,6 +23,8 @@ export default function Modal({
   contentMaxHeight,
   contentPadding,
 }: Props) {
+  const contentRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -30,6 +32,61 @@ export default function Modal({
     if (open) document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [open, onClose])
+
+  useEffect(() => {
+    if (!open) return
+
+    const previousActiveElement = document.activeElement as HTMLElement | null
+    const focusableSelector = [
+      'a[href]',
+      'button:not([disabled])',
+      'textarea:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',')
+
+    const focusFirstElement = () => {
+      const content = contentRef.current
+      const firstFocusable = content?.querySelector<HTMLElement>(focusableSelector)
+      ;(firstFocusable || content)?.focus()
+    }
+
+    const handleTabKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return
+
+      const content = contentRef.current
+      if (!content) return
+
+      const focusableElements = Array.from(content.querySelectorAll<HTMLElement>(focusableSelector))
+        .filter((element) => element.offsetParent !== null || element === document.activeElement)
+
+      if (!focusableElements.length) {
+        event.preventDefault()
+        content.focus()
+        return
+      }
+
+      const first = focusableElements[0]
+      const last = focusableElements[focusableElements.length - 1]
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    window.setTimeout(focusFirstElement, 0)
+    document.addEventListener('keydown', handleTabKey)
+
+    return () => {
+      document.removeEventListener('keydown', handleTabKey)
+      previousActiveElement?.focus?.()
+    }
+  }, [open])
 
   if (!open) return null
 
@@ -43,6 +100,11 @@ export default function Modal({
       onClick={onClose}
     >
       <div
+        ref={contentRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
         onClick={e => e.stopPropagation()}
         style={{
           background: 'var(--bg-secondary)',
