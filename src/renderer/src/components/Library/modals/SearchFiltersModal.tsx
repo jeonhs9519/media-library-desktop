@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import Modal from '../../Modal'
 import { SortAscendingIcon, SortDescendingIcon } from '../../icons'
 import type { TagUsageCount, Translate } from '../types'
 
 type WatchedState = 'all' | 'unread' | 'inProgress' | 'completed'
 type FileState = 'all' | 'normal' | 'missing'
+const COLLAPSED_TAG_LIMIT = 20
 
 interface Props {
   open: boolean
@@ -27,6 +29,7 @@ interface Props {
   onChangeSortDir: (value: 'asc' | 'desc') => void
   onToggleTag: (tagId: number) => void
   onToggleUntagged: () => void
+  onClearTags: () => void
   onResetSearch: () => void
   tr: Translate
 }
@@ -53,9 +56,16 @@ export default function SearchFiltersModal({
   onChangeSortDir,
   onToggleTag,
   onToggleUntagged,
+  onClearTags,
   onResetSearch,
   tr,
 }: Props) {
+  const [tagsExpanded, setTagsExpanded] = useState(false)
+  const hasSelectedTags = untaggedOnly || selectedTagIds.length > 0
+  const hasHiddenTags = tagUsageCounts.length > COLLAPSED_TAG_LIMIT
+  const visibleTags = tagsExpanded ? tagUsageCounts : tagUsageCounts.slice(0, COLLAPSED_TAG_LIMIT)
+  const hiddenTagCount = Math.max(0, tagUsageCounts.length - COLLAPSED_TAG_LIMIT)
+
   return (
     <Modal
       open={open}
@@ -150,7 +160,17 @@ export default function SearchFiltersModal({
           </section>
 
           <section className="search-filter-section">
-            <h3>{tr('filters.tags')}</h3>
+            <div className="search-filter-section-header">
+              <h3>{tr('filters.tags')}</h3>
+              <button
+                type="button"
+                className="btn-secondary search-filter-tag-reset"
+                disabled={!hasSelectedTags}
+                onClick={onClearTags}
+              >
+                {tr('filters.clearTags')}
+              </button>
+            </div>
             <div className="search-filter-tags">
               <button
                 type="button"
@@ -160,7 +180,7 @@ export default function SearchFiltersModal({
               >
                 <span className="library-tag-chip-name">{tr('filters.untagged')}</span>
               </button>
-              {tagUsageCounts.map((tag) => {
+              {visibleTags.map((tag) => {
                 const selected = !untaggedOnly && selectedTagIds.includes(tag.id)
                 return (
                   <button
@@ -176,6 +196,17 @@ export default function SearchFiltersModal({
                   </button>
                 )
               })}
+              {hasHiddenTags && (
+                <button
+                  type="button"
+                  className="btn-secondary search-filter-tag-more"
+                  onClick={() => setTagsExpanded((expanded) => !expanded)}
+                >
+                  {tagsExpanded
+                    ? tr('filters.showLessTags')
+                    : tr('filters.showMoreTags', { count: hiddenTagCount })}
+                </button>
+              )}
             </div>
           </section>
         </div>

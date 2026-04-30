@@ -73,20 +73,27 @@ Last updated: 2026-04-30
 
 ## 주의할 코드 영역
 
-### `src/main/ipc/items.ts`
+### `src/main/ipc/items/`
 
-- 기능이 많이 누적된 핵심 파일입니다.
-- 아이템 CRUD, relink, `.hdt` import, 메타데이터 보강까지 맡고 있습니다.
+- 아이템 관련 IPC 등록 폴더입니다.
+- renderer/preload의 `api.items.*` 호출명은 유지하고, main 내부 책임만 세부 파일로 나눕니다.
+- `index.ts`: 아이템 IPC 등록 진입점
+- `core.ts`: 목록 조회, 상세 조회, 추가, 수정, 삭제, 중복 확인
+- `relink.ts`: 개별 relink, 폴더 prefix count, bulk relink
+- `imports.ts`: `.hdt` preview/apply
+- `metadata.ts`: 누락 메타데이터 보강과 상태 조회
+- `utils.ts`: 경로 비교, full path 구성, HDT 보조 타입과 이미지 디코딩
 - 목록 조회 응답은 라이브러리 카드와 컨텍스트 메뉴에서 필요한 `sourceUrl` 같은 표시/액션 필드를 포함합니다.
 - 목록 검색어는 제목, 파일명, 작가, 메모, 원본 URL을 대상으로 합니다.
-- 이후 기능이 더 늘어나면 `items`, `imports`, `metadata`, `relink` 정도로 분리할 여지가 큽니다.
 
 ### `src/renderer/src/pages/LibraryPage.tsx`
 
 - 메인 라이브러리 화면의 데이터 로드와 조립을 담당하는 허브입니다.
 - 검색/필터 툴바, 카드, 목록/페이지네이션, 주요 모달 렌더링은 `src/renderer/src/components/Library/` 아래로 분리되었습니다.
 - 파일 추가, `.hdt` 가져오기, 설정/bulk relink 흐름 일부는 전용 hook으로 분리되었습니다.
-- 검색/필터 상태, 썸네일 로드, metadata fill 흐름은 아직 이 파일에 남아 있어 후속 분리 후보입니다.
+- 검색/필터 상태는 `useLibrarySearchFilters` hook으로 분리되었습니다.
+- 썸네일 로드는 `useLibraryThumbnails` hook으로 분리되었습니다.
+- metadata fill 흐름은 `useLibraryMetadataFill` hook으로 분리되었습니다.
 
 ### `src/renderer/src/components/Library/LibraryGrid.tsx`
 
@@ -108,6 +115,8 @@ Last updated: 2026-04-30
 
 - 검색어, 타입, 언어, 진행 상태, 파일 상태, 정렬 방식, 정렬 방향, 태그 조건을 한곳에서 지정합니다.
 - 태그 조건은 전체, 미지정, 선택 태그 AND 필터 중 하나의 흐름으로 동작합니다.
+- 태그 목록은 사용 건수 기준 상위 20개를 기본 표시하고, 하단 전체 폭 버튼으로 더보기/접기를 전환합니다.
+- 태그 초기화 버튼은 header 오른쪽에 항상 표시하고, 태그 조건이 없으면 비활성화합니다.
 - 정렬 방향은 select가 아니라 아이콘과 문구가 있는 토글 버튼으로 전환합니다.
 
 ### `src/renderer/src/components/Library/modals/SettingsModal.tsx`

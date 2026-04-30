@@ -4,19 +4,15 @@
 
 ## 1. Start Of Every Session
 
-세션 시작 시 먼저 아래 문서를 읽습니다.
+새 세션은 반드시 이 순서로 시작합니다.
 
-- `current-status.md`
-- `next-task.md`
-- `roadmap.md`
+1. `docs/README.md`의 문서 읽기 순서를 확인합니다.
+2. `docs/current-status.md`, `docs/next-task.md`, `docs/roadmap.md`, `docs/AI_WORKFLOW.md`를 읽습니다.
+3. 작업 성격에 따라 `docs/doc-style-guide.md`, `docs/architecture.md`, `docs/backlog.md`, `docs/decisions.md`, `docs/changelog.md`를 확인합니다.
+4. 문서 확인 후 바로 사용자의 요청을 수행합니다.
+5. 문서와 코드가 다르면 코드 확인 후 필요한 문서를 갱신합니다.
 
-상황에 따라 아래 문서도 함께 확인합니다.
-
-- `doc-style-guide.md`
-- `architecture.md`
-- `backlog.md`
-- `decisions.md`
-- `changelog.md`
+문서를 읽었다는 별도 보고는 사용자가 요청하지 않는 한 생략합니다.
 
 ## 2. During Work
 

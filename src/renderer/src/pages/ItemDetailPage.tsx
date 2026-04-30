@@ -46,6 +46,11 @@ function formatProgressDetail(item: any): string {
   return `${current}p/${total}p (${pct}%)`
 }
 
+function isReservedTagName(name: string, untaggedLabel: string) {
+  const normalized = name.trim().toLocaleLowerCase()
+  return ['미지정', 'untagged', '未指定', untaggedLabel.toLocaleLowerCase()].includes(normalized)
+}
+
 interface ItemDetailPageProps {
   itemId: number
   onClose: () => void
@@ -62,6 +67,7 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
   const [thumbnail, setThumbnail] = useState<string | null>(null)
   const [newTagName, setNewTagName] = useState('')
   const [isTagComposing, setIsTagComposing] = useState(false)
+  const [tagInputError, setTagInputError] = useState('')
   const [relinkModal, setRelinkModal] = useState(false)
   const [relinkDuplicate, setRelinkDuplicate] = useState<{
     targetPath: string
@@ -160,6 +166,11 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
   const handleAddTag = async () => {
     const trimmed = newTagName.trim()
     if (!trimmed) return
+    if (isReservedTagName(trimmed, tr('filters.untagged'))) {
+      setTagInputError(tr('detail.invalidTagNameShort'))
+      window.setTimeout(() => setTagInputError(''), 2600)
+      return
+    }
 
     let tag = allTags.find(t => t.name === trimmed)
 
@@ -342,10 +353,13 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
               </span>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className={`detail-tag-input-row${tagInputError ? ' has-error' : ''}`}>
             <input
               value={newTagName}
-              onChange={e => setNewTagName(e.target.value)}
+              onChange={e => {
+                setNewTagName(e.target.value)
+                if (tagInputError) setTagInputError('')
+              }}
               onKeyDown={handleTagInputKeyDown}
               onCompositionStart={() => setIsTagComposing(true)}
               onCompositionEnd={() => setIsTagComposing(false)}
@@ -356,6 +370,13 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
               {allTags.map(t => <option key={t.id} value={t.name} />)}
             </datalist>
             <button className="btn-secondary" onClick={handleAddTag}>{tr('detail.add')}</button>
+            <span
+              className="detail-tag-input-error"
+              title={tagInputError || tr('detail.invalidTagName')}
+              aria-live="polite"
+            >
+              {tagInputError}
+            </span>
           </div>
         </div>
 

@@ -185,6 +185,15 @@ button {
 
 button:hover { opacity: 0.85; }
 
+button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+button:disabled:hover {
+  opacity: 0.45;
+}
+
 input, select, textarea {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
@@ -508,6 +517,7 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 24px;
   margin-bottom: 12px;
 }
 
@@ -564,10 +574,18 @@ input:focus, select:focus, textarea:focus {
 }
 
 .search-filter-tag-reset {
-  height: 30px;
-  padding: 4px 10px;
+  height: 24px;
+  padding: 2px 9px;
   font-size: 12px;
+  line-height: 18px;
   white-space: nowrap;
+}
+
+.search-filter-tag-more {
+  flex: 1 0 100%;
+  width: 100%;
+  height: 34px;
+  margin-top: 4px;
 }
 
 .settings-dialog {
@@ -854,6 +872,31 @@ input:focus, select:focus, textarea:focus {
   font-size: 13px;
   text-align: center;
   user-select: none;
+}
+
+.detail-tag-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(84px, 120px);
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-tag-input-row input {
+  width: 100%;
+}
+
+.detail-tag-input-row.has-error input {
+  border-color: #ff9aa6;
+}
+
+.detail-tag-input-error {
+  min-width: 0;
+  color: #ffb6bf;
+  font-size: 12px;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 * {

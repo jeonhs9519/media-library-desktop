@@ -13,6 +13,12 @@ Last updated: 2026-04-30
 - 검색어는 제목, 파일명, 작가, 메모, 원본 URL을 대상으로 합니다.
 - 목록 카운터 위에는 검색 조건 요약을 표시하며, 조건별로 줄바꿈 가능한 inline-block 항목으로 나눕니다.
 - 태그 요약은 선택된 태그 전체를 건수 내림차순 기준으로 표시합니다.
+- 검색/필터 상태는 `useLibrarySearchFilters` hook에서 관리하며, 태그 필터 상태도 같은 hook에 포함합니다.
+- 라이브러리 썸네일 로드는 `useLibraryThumbnails` hook에서 관리합니다.
+- 누락 메타데이터 보강 흐름은 `useLibraryMetadataFill` hook에서 관리합니다.
+- 검색 조건 모달의 태그 목록은 상위 20개를 기본 표시하고, 더보기/접기 버튼으로 나머지 태그를 표시합니다.
+- 검색 조건 모달에는 명시적인 태그 초기화 버튼이 항상 표시되며, 태그 조건이 없으면 비활성화됩니다.
+- 상세 정보 모달에서 `미지정` 같은 예약 태그명을 추가하려 하면 태그 입력 행의 고정 오류 배지로 차단합니다.
 - 설정 모달은 검색 조건 모달과 같은 고정 header/body/footer 구조를 사용하며, 표시 설정/파일 수정일 변경 규칙/폴더 경로 일괄 변경으로 구분됩니다.
 - 설정 모달의 배율 컨트롤은 현재 배율과 `100%` 초기화 목표를 함께 표시하며, 확대/축소는 SVG 아이콘 버튼을 사용합니다.
 - 라이브러리 검색 툴바의 검색 버튼은 돋보기 아이콘과 플랫폼별 단축키(`Ctrl + F` 또는 `Cmd + F`)를 함께 표시합니다.
@@ -41,7 +47,8 @@ Last updated: 2026-04-30
 - 라이브러리 전용 hook: `src/renderer/src/components/Library/hooks/`
 - 공용 아이콘: `src/renderer/src/components/icons/`
 - DB 스키마: `src/main/db/schema.ts`
-- 핵심 IPC: `src/main/ipc/items.ts`
+- 아이템 IPC 진입점: `src/main/ipc/items/index.ts`
+- 아이템 IPC 세부 모듈: `src/main/ipc/items/core.ts`, `src/main/ipc/items/relink.ts`, `src/main/ipc/items/imports.ts`, `src/main/ipc/items/metadata.ts`
 - 태그 유지보수 기능: `src/main/services/tagMaintenance.ts`
 - 검색 조건 모달: `src/renderer/src/components/Library/modals/SearchFiltersModal.tsx`
 
@@ -59,11 +66,10 @@ Last updated: 2026-04-30
 - 공용 `Modal`에 focus trap과 dialog ARIA 속성을 추가했습니다.
 - 라이브러리 카드 컨텍스트 메뉴에서 상세 정보, 뷰어 열기, 외부에서 열기, 출처 URL 열기, 파일 위치 열기를 사용할 수 있습니다.
 - `items:getAll` 목록 응답에 `sourceUrl`을 포함해 컨텍스트 메뉴와 상세 팝업의 출처 URL 동작을 맞췄습니다.
-- `LibraryPage.tsx`에는 아직 검색 조건 상태, 썸네일 로드, metadata fill 흐름이 남아 있어 추가 분리 여지가 있습니다.
+- `LibraryPage.tsx`의 주요 렌더링, 검색/필터, 썸네일, metadata fill 흐름은 전용 컴포넌트와 hook으로 분리되었습니다.
+- `items` IPC는 진입점과 core/relink/imports/metadata 세부 모듈로 분리되었습니다. renderer/preload의 `api.items.*` 호출명은 유지합니다.
 - 테스트는 현재 얇은 편이며, 핵심 사용자 흐름을 충분히 보호하지 못합니다.
 - 미사용 태그 정리 기능은 단위 테스트가 추가되었지만, 현재 로컬 `better-sqlite3` 네이티브 모듈 잠금 이슈 때문에 실제 SQLite 통합 테스트 대신 호출 계약 중심으로 검증합니다.
-- 루트 문서가 분산되어 있었고, 작업 기록이 구조적으로 누적되지는 않았습니다.
-- `items` IPC가 커지고 있어 이후 기능 추가 시 책임 분리가 필요할 수 있습니다.
 - startup 화면은 캐시가 따뜻한 상태에서는 매우 짧게 지나가므로, 재부팅 직후 느린 실행 환경에서 다시 확인이 필요합니다.
 
 ## 작업 트리 메모
@@ -71,17 +77,18 @@ Last updated: 2026-04-30
 - 현재 수정 중인 파일이 이미 존재합니다.
 - 확인된 변경 파일:
   - `docs/AI_WORKFLOW.md`
+  - `docs/architecture.md`
+  - `docs/backlog.md`
   - `docs/changelog.md`
-  - `docs/setup.md`
-  - `scripts/after-pack.js`
-  - `src/main/index.ts`
+  - `docs/current-status.md`
+  - `docs/next-task.md`
+  - `docs/roadmap.md`
+  - `src/main/ipc/items/`
   - `src/main/ipc/items.ts`
-  - `src/preload/index.ts`
-  - `src/renderer/src/App.tsx`
   - `src/renderer/src/components/Library/`
-  - `src/renderer/src/components/Modal/index.tsx`
-  - `src/renderer/src/components/icons/actionIcons.tsx`
   - `src/renderer/src/i18n/locales/`
+  - `src/renderer/src/pages/ItemDetailPage.tsx`
+  - `src/renderer/src/pages/LibraryPage.tsx`
   - `src/renderer/src/styles.css`
 
 이 문서는 기능 상태 중심으로 유지하고, 세부 구현 계획은 `next-task.md`와 `backlog.md`에서 관리합니다.

@@ -68,15 +68,14 @@ export default function LibraryToolbar({
           <span>{tr('filters.searchButton')}</span>
           <span className="library-search-shortcut">({searchShortcut})</span>
         </button>
-        {hasCustomSearch && (
-          <button
-            className="btn-secondary"
-            onClick={onResetSearch}
-            style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}
-          >
-            {tr('filters.resetSearch')}
-          </button>
-        )}
+        <button
+          className="btn-secondary"
+          disabled={!hasCustomSearch}
+          onClick={onResetSearch}
+          style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}
+        >
+          {tr('filters.resetSearch')}
+        </button>
       </div>
 
       <div className="library-toolbar-actions">
