@@ -2,6 +2,14 @@
 
 ## 2026-05-01
 
+- commit message는 특별한 요청이 없는 한 항상 `doc-style-guide.md` 기준으로 작성하도록 `AI_WORKFLOW.md`와 `doc-style-guide.md`에 명시
+- `AI_WORKFLOW.md`에 작업 종료 전 문서 점검 체크리스트와 commit message 제안 전 문서 최신성 확인 규칙을 추가
+- 페이지네이션을 한 페이지만 존재해도 항상 표시하도록 수정
+- 상세 팝업 삭제 확인을 `confirm()` 대신 복구 불가 안내가 포함된 공용 Modal로 구현
+- 공용 `Modal`의 중첩 동작을 보강해 최상단 Modal만 `Escape`/`Tab` 키 이벤트를 처리하도록 수정
+- PDF, CBZ, 비디오 뷰어의 썸네일 업데이트 완료 알림을 `alert()` 대신 상단 툴바 아래 우측 toast로 표시
+- renderer 코드에서 `alert()`, `confirm()`, `prompt()` 호출이 남아 있지 않음을 확인
+- `next-task.md`에서 페이지네이션 상시 표시와 상세 삭제 확인 Modal을 완료 항목으로 이동
 - 재부팅 직후 stdout/stderr 리다이렉션 방식의 개발 앱 startup 확인 결과를 문서화
 - startup ready까지 약 `4410.2ms`가 걸렸고, 주요 소요 구간이 창 생성/renderer 로드임을 기록
 - `next-task.md`의 다음 우선순위를 플레이리스트 기능 범위 확정부터 시작하도록 조정

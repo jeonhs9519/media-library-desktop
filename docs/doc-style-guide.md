@@ -21,6 +21,8 @@ Last updated: 2026-04-29
 
 ## Commit Message 규칙
 
+사용자가 아주 특별하게 다른 형식을 요청하지 않는 한, commit message는 항상 이 문서의 규칙을 기준으로 작성합니다.
+
 기본 형식:
 
 ```text
