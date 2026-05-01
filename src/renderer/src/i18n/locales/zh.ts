@@ -164,6 +164,7 @@ export const zhMessages: Record<string, string> = {
 
   'detail.openViewer': '打开查看器',
   'detail.confirmDelete': '确定要删除该项目吗？',
+  'detail.deleteWarning': '删除的文件信息无法恢复，如有需要请重新注册。',
   'detail.metadata': '元数据',
   'detail.contentType': '内容类型',
   'detail.language': '语言',

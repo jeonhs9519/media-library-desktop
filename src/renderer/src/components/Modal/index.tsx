@@ -1,5 +1,8 @@
 import React, { useEffect, useRef } from 'react'
 
+let nextModalId = 1
+const modalStack: number[] = []
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -24,9 +27,30 @@ export default function Modal({
   contentPadding,
 }: Props) {
   const contentRef = useRef<HTMLDivElement>(null)
+  const modalIdRef = useRef<number | null>(null)
+
+  if (modalIdRef.current === null) {
+    modalIdRef.current = nextModalId
+    nextModalId += 1
+  }
+
+  useEffect(() => {
+    if (!open) return
+
+    const modalId = modalIdRef.current
+    modalStack.push(modalId)
+
+    return () => {
+      const index = modalStack.lastIndexOf(modalId)
+      if (index >= 0) modalStack.splice(index, 1)
+    }
+  }, [open])
+
+  const isTopModal = () => modalStack[modalStack.length - 1] === modalIdRef.current
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (!isTopModal()) return
       if (e.key === 'Escape') onClose()
     }
     if (open) document.addEventListener('keydown', handler)
@@ -53,6 +77,7 @@ export default function Modal({
     }
 
     const handleTabKey = (event: KeyboardEvent) => {
+      if (!isTopModal()) return
       if (event.key !== 'Tab') return
 
       const content = contentRef.current

@@ -164,6 +164,7 @@ export const koMessages: Record<string, string> = {
 
   'detail.openViewer': '뷰어 열기',
   'detail.confirmDelete': '이 항목을 삭제할까요?',
+  'detail.deleteWarning': '삭제된 파일 정보는 복구할 수 없으며, 필요하면 새로 등록해야 합니다.',
   'detail.metadata': '메타데이터',
   'detail.contentType': '콘텐츠 타입',
   'detail.language': '언어',

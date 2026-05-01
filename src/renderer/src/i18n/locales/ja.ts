@@ -164,6 +164,7 @@ export const jaMessages: Record<string, string> = {
 
   'detail.openViewer': 'ビューアを開く',
   'detail.confirmDelete': 'この項目を削除しますか？',
+  'detail.deleteWarning': '削除したファイル情報は復元できません。必要な場合は再登録してください。',
   'detail.metadata': 'メタデータ',
   'detail.contentType': 'コンテンツ種類',
   'detail.language': '言語',

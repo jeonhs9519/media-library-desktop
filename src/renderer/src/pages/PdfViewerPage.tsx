@@ -6,6 +6,7 @@ import { api } from '../api'
 import BookViewerOverlay, { useBookViewerViewMode } from '../components/BookViewerOverlay/index'
 import { useBookViewerOverlayUx } from '../components/BookViewerOverlay/useBookViewerOverlayUx.ts'
 import { useBookViewerKeyboard } from '../components/BookViewerOverlay/useBookViewerKeyboard.ts'
+import Toast, { useToast } from '../components/Toast'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
@@ -36,6 +37,7 @@ export default function PdfViewerPage() {
   const leftRenderTaskRef = useRef<pdfjsLib.RenderTask | null>(null)
   const rightRenderTaskRef = useRef<pdfjsLib.RenderTask | null>(null)
   const { tr } = useI18n()
+  const thumbnailToast = useToast()
   const {
     containerRef,
     isTopOverlayVisible,
@@ -222,7 +224,7 @@ export default function PdfViewerPage() {
     if (!activeCanvas || activeCanvas.width === 0 || activeCanvas.height === 0) return
     const base64 = activeCanvas.toDataURL('image/jpeg', 0.8).split(',')[1]
     await api.thumbnail.setFromImageData(itemId, base64)
-    alert(tr('viewer.thumbnailUpdated'))
+    thumbnailToast.showToast(tr('viewer.thumbnailUpdated'))
   }
 
   const handleShowInFolder = async () => {
@@ -319,6 +321,7 @@ export default function PdfViewerPage() {
       onCloseContextMenu={closeContextMenu}
       contextMenuId="pdf-context-menu"
     >
+      <Toast toast={thumbnailToast.toast} onClose={thumbnailToast.hideToast} />
       <div ref={viewportRef} style={{ height: '100%', overflow: 'hidden', padding: 8, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         {renderContent()}
       </div>

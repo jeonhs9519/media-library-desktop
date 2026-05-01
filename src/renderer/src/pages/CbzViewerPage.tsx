@@ -5,6 +5,7 @@ import { api } from '../api'
 import BookViewerOverlay, { useBookViewerViewMode } from '../components/BookViewerOverlay/index'
 import { useBookViewerOverlayUx } from '../components/BookViewerOverlay/useBookViewerOverlayUx.ts'
 import { useBookViewerKeyboard } from '../components/BookViewerOverlay/useBookViewerKeyboard.ts'
+import Toast, { useToast } from '../components/Toast'
 
 const CBZ_VIEW_MODE_SETTING_KEY = 'cbz.viewMode'
 
@@ -19,6 +20,7 @@ export default function CbzViewerPage() {
   const [images, setImages] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
   const { tr } = useI18n()
+  const thumbnailToast = useToast()
   const {
     viewMode,
     setViewMode,
@@ -104,7 +106,7 @@ export default function CbzViewerPage() {
 
   const handleSetThumbnail = async () => {
     await api.thumbnail.setFromPage(itemId, currentPage)
-    alert(tr('viewer.thumbnailUpdated'))
+    thumbnailToast.showToast(tr('viewer.thumbnailUpdated'))
   }
 
   const handleShowInFolder = async () => {
@@ -185,6 +187,7 @@ export default function CbzViewerPage() {
       onCloseContextMenu={closeContextMenu}
       contextMenuId="cbz-context-menu"
     >
+      <Toast toast={thumbnailToast.toast} onClose={thumbnailToast.hideToast} />
       <div style={{ height: '100%', overflow: 'hidden', padding: 8 }}>
         {renderContent()}
       </div>

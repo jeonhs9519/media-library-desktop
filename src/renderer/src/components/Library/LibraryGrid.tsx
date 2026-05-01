@@ -80,7 +80,7 @@ export default function LibraryGrid({
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: Item } | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
-  const totalPages = Math.ceil(total / perPage)
+  const totalPages = Math.max(1, Math.ceil(total / perPage))
   const paginationItems = useMemo(() => getPaginationItems(page, totalPages), [page, totalPages])
 
   useEffect(() => {
@@ -293,45 +293,43 @@ export default function LibraryGrid({
         </div>
       </div>
 
-      {totalPages > 1 && (
-        <div className="library-pagination">
-          <button
-            className="btn-secondary library-pagination-edge"
-            title={tr('library.prev')}
-            aria-label={tr('library.prev')}
-            disabled={page === 1}
-            onClick={() => setPage(p => p - 1)}
-          >
-            <CaretLeftIcon />
-          </button>
-          <div className="library-pagination-pages" aria-label={tr('library.page', { page, total: totalPages })}>
-            {paginationItems.map((item) => (
-              typeof item === 'number' ? (
-                <button
-                  key={item}
-                  className={`btn-secondary library-page-button${item === page ? ' is-current' : ''}`}
-                  disabled={item === page}
-                  aria-current={item === page ? 'page' : undefined}
-                  onClick={() => setPage(item)}
-                >
-                  {item}
-                </button>
-              ) : (
-                <span key={item} className="library-pagination-ellipsis" aria-hidden="true">...</span>
-              )
-            ))}
-          </div>
-          <button
-            className="btn-secondary library-pagination-edge"
-            title={tr('library.next')}
-            aria-label={tr('library.next')}
-            disabled={page >= totalPages}
-            onClick={() => setPage(p => p + 1)}
-          >
-            <CaretRightIcon />
-          </button>
+      <div className="library-pagination">
+        <button
+          className="btn-secondary library-pagination-edge"
+          title={tr('library.prev')}
+          aria-label={tr('library.prev')}
+          disabled={page === 1}
+          onClick={() => setPage(p => p - 1)}
+        >
+          <CaretLeftIcon />
+        </button>
+        <div className="library-pagination-pages" aria-label={tr('library.page', { page, total: totalPages })}>
+          {paginationItems.map((item) => (
+            typeof item === 'number' ? (
+              <button
+                key={item}
+                className={`btn-secondary library-page-button${item === page ? ' is-current' : ''}`}
+                disabled={item === page}
+                aria-current={item === page ? 'page' : undefined}
+                onClick={() => setPage(item)}
+              >
+                {item}
+              </button>
+            ) : (
+              <span key={item} className="library-pagination-ellipsis" aria-hidden="true">...</span>
+            )
+          ))}
         </div>
-      )}
+        <button
+          className="btn-secondary library-pagination-edge"
+          title={tr('library.next')}
+          aria-label={tr('library.next')}
+          disabled={page >= totalPages}
+          onClick={() => setPage(p => p + 1)}
+        >
+          <CaretRightIcon />
+        </button>
+      </div>
 
       {contextMenu && (
         <ContextMenu

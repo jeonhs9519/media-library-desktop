@@ -76,6 +76,8 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
   } | null>(null)
   const [relinkErrorOpen, setRelinkErrorOpen] = useState(false)
   const [relinkErrorMessage, setRelinkErrorMessage] = useState('')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
   const { tr } = useI18n()
 
   useEffect(() => {
@@ -117,10 +119,19 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
     setItem(data)
   }
 
-  const handleDelete = async () => {
-    if (confirm(tr('detail.confirmDelete'))) {
+  const handleDelete = () => {
+    setDeleteConfirmOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    setDeleteBusy(true)
+    try {
       await api.items.delete(itemId)
+      setDeleteConfirmOpen(false)
       onClose()
+    } catch (error) {
+      console.error('Failed to delete item:', error)
+      setDeleteBusy(false)
     }
   }
 
@@ -479,6 +490,19 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
             setRelinkErrorOpen(false)
             setRelinkErrorMessage('')
           }}>{tr('common.ok')}</button>
+        </div>
+      </Modal>
+
+      <Modal open={deleteConfirmOpen} onClose={() => { if (!deleteBusy) setDeleteConfirmOpen(false) }} title={tr('common.delete')}>
+        <p style={{ marginBottom: 8 }}>{tr('detail.confirmDelete')}</p>
+        <p style={{ marginBottom: 16, color: 'var(--text-secondary)' }}>{tr('detail.deleteWarning')}</p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button className="btn-secondary" onClick={() => setDeleteConfirmOpen(false)} disabled={deleteBusy}>
+            {tr('common.cancel')}
+          </button>
+          <button className="btn-danger" onClick={handleDeleteConfirm} disabled={deleteBusy}>
+            {deleteBusy ? tr('common.loading') : tr('common.delete')}
+          </button>
         </div>
       </Modal>
     </div>

@@ -19,6 +19,7 @@ import {
   VolumeMuteIcon,
 } from '../components/icons'
 import ContextMenu, { ContextMenuEntry } from '../components/ContextMenu'
+import Toast, { useToast } from '../components/Toast'
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00'
@@ -48,6 +49,7 @@ export default function VideoPlayerPage() {
   const [isControlsVisible, setIsControlsVisible] = useState(false)
   const [hoverRatio, setHoverRatio] = useState<number | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const thumbnailToast = useToast()
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -406,7 +408,7 @@ export default function VideoPlayerPage() {
     ctx.drawImage(video, 0, 0)
     const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1]
     await api.thumbnail.setFromImageData(itemId, base64)
-    alert(tr('viewer.thumbnailUpdated'))
+    thumbnailToast.showToast(tr('viewer.thumbnailUpdated'))
   }
 
   const handleExternalOpen = async () => {
@@ -504,6 +506,7 @@ export default function VideoPlayerPage() {
           onMouseMove={showControls}
           onMouseLeave={hideControlsWithDelay}
         >
+          <Toast toast={thumbnailToast.toast} onClose={thumbnailToast.hideToast} />
           {videoUrl && !error && (
             <div
               style={{

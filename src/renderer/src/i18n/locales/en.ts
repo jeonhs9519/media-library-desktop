@@ -164,6 +164,7 @@ export const enMessages: Record<string, string> = {
 
   'detail.openViewer': 'Open Viewer',
   'detail.confirmDelete': 'Delete this item?',
+  'detail.deleteWarning': 'Deleted file information cannot be restored and must be added again if needed.',
   'detail.metadata': 'Metadata',
   'detail.contentType': 'Content Type',
   'detail.language': 'Language',

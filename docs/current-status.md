@@ -25,11 +25,12 @@ Last updated: 2026-05-01
 - 라이브러리 검색 툴바의 새로고침, 설정 버튼은 SVG 아이콘 버튼으로 정리되어 있으며 `title`/`aria-label`을 함께 제공합니다.
 - 라이브러리 목록은 단일 Tab 진입 영역이며, 썸네일 간 이동은 방향키 기반 roving focus로 동작합니다.
 - 페이지네이션은 목록 하단 고정 영역에 있으며, 이전/다음 caret 버튼과 최대 9개 범위의 페이지 번호 버튼을 제공합니다.
-- 페이지네이션은 한 페이지만 존재해도 항상 표시되도록 수정할 예정입니다.
+- 페이지네이션은 한 페이지만 존재해도 항상 표시합니다.
 - PDF, CBZ, 비디오에 대해 각기 다른 뷰어 화면이 연결되어 있습니다.
 - 상세 정보 모달에서 태그, 리뷰, 진행률, 파일 열기 등의 관리 흐름이 있습니다.
-- 편집과 삭제는 상세보기 팝업에서만 수행하는 방향으로 결정했습니다.
-- 삭제 확인은 `confirm()` 대신 복구 불가 안내가 포함된 별도 Modal로 구현할 예정입니다.
+- 편집과 삭제는 상세보기 팝업에서만 수행합니다.
+- 삭제 확인은 `confirm()` 대신 복구 불가 안내가 포함된 공용 Modal로 구현했습니다.
+- PDF, CBZ, 비디오 뷰어의 썸네일 업데이트 완료 알림은 `alert()` 대신 상단 툴바 아래 우측 toast로 표시합니다.
 - 플레이리스트는 라이브러리 목록 좌/우에 표시 가능하게 구현할 예정이며, 기본값은 우측입니다.
 - 플레이리스트 위치는 설정 팝업의 `표시 설정`에서 선택할 수 있게 할 예정입니다.
 - 플레이리스트는 최초 실행 시 접힌 상태로 표시하고, 항목 추가 시 자동으로 펼치는 방향입니다.
@@ -59,6 +60,8 @@ Last updated: 2026-05-01
 - 라이브러리 렌더링 컴포넌트: `src/renderer/src/components/Library/`
 - 라이브러리 모달: `src/renderer/src/components/Library/modals/`
 - 라이브러리 전용 hook: `src/renderer/src/components/Library/hooks/`
+- 공용 Modal: `src/renderer/src/components/Modal/index.tsx`
+- 공용 Toast: `src/renderer/src/components/Toast.tsx`
 - 공용 아이콘: `src/renderer/src/components/icons/`
 - DB 스키마: `src/main/db/schema.ts`
 - 아이템 IPC 진입점: `src/main/ipc/items/index.ts`
@@ -77,12 +80,13 @@ Last updated: 2026-05-01
 ## 현재 한계와 리스크
 
 - `LibraryPage.tsx`에서 툴바, 카드, 목록, 주요 모달 렌더링과 파일 추가/HDT/설정 흐름 hook이 분리되었습니다.
-- 공용 `Modal`에 focus trap과 dialog ARIA 속성을 추가했습니다.
+- 공용 `Modal`에 focus trap과 dialog ARIA 속성을 추가했으며, 중첩 Modal에서는 최상단 Modal만 `Escape`/`Tab` 키 이벤트를 처리합니다.
 - 라이브러리 카드 컨텍스트 메뉴에서 상세 정보, 뷰어 열기, 외부에서 열기, 출처 URL 열기, 파일 위치 열기를 사용할 수 있습니다.
 - `items:getAll` 목록 응답에 `sourceUrl`을 포함해 컨텍스트 메뉴와 상세 팝업의 출처 URL 동작을 맞췄습니다.
 - `LibraryPage.tsx`의 주요 렌더링, 검색/필터, 썸네일, metadata fill 흐름은 전용 컴포넌트와 hook으로 분리되었습니다.
 - `items` IPC는 진입점과 core/relink/imports/metadata 세부 모듈로 분리되었습니다. renderer/preload의 `api.items.*` 호출명은 유지합니다.
 - 뷰어 화면의 `ESC`, `Backspace`, 라이브러리/상세 팝업 포커스 이동, 검색 툴바/페이지네이션/설정 팝업 `title` 동작은 확인 완료했습니다.
+- renderer 코드의 `alert()`, `confirm()`, `prompt()` 호출은 제거했습니다.
 - 테스트는 현재 얇은 편이며, 핵심 사용자 흐름을 충분히 보호하지 못합니다.
 - 미사용 태그 정리 기능은 단위 테스트가 추가되었지만, 현재 로컬 `better-sqlite3` 네이티브 모듈 잠금 이슈 때문에 실제 SQLite 통합 테스트 대신 호출 계약 중심으로 검증합니다.
 - 개선 전 병목 후보는 DB 초기화보다 창 생성과 renderer 로드 구간이었습니다.
@@ -91,6 +95,6 @@ Last updated: 2026-05-01
 ## 작업 트리 메모
 
 - 현재 브랜치는 `main`입니다.
-- 현재 startup 흐름 개선 코드와 관련 문서 변경이 작업 트리에 남아 있습니다.
+- 현재 페이지네이션 상시 표시, 상세 삭제 확인 Modal, 뷰어 썸네일 toast 관련 코드와 문서 변경이 작업 트리에 남아 있습니다.
 
 이 문서는 기능 상태 중심으로 유지하고, 세부 구현 계획은 `next-task.md`와 `backlog.md`에서 관리합니다.
