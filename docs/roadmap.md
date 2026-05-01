@@ -1,10 +1,9 @@
 # Roadmap
 
-Last reviewed: 2026-04-29
+Last reviewed: 2026-05-01
 
 ## 단기
 
-- 재부팅 직후 startup 화면 확인
 - 플레이리스트 기능 범위 확정
 - 접근성 및 UX 잔여 항목 정리
 - 테스트 범위 보강

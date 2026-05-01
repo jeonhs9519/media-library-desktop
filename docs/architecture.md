@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-04-30
+Last updated: 2026-05-01
 
 ## 개요
 
@@ -28,6 +28,7 @@ Last updated: 2026-04-30
 ### `src/renderer`
 
 - `src/App.tsx`: 라우트 구성
+- `src/routes/viewerPages.ts`: 뷰어 route lazy loading과 idle preload 진입점
 - `src/pages/LibraryPage.tsx`: 메인 라이브러리 화면
 - `src/pages/*ViewerPage.tsx`: 포맷별 뷰어 화면
 - `src/components/`: 공용 UI 조각
@@ -40,19 +41,30 @@ Last updated: 2026-04-30
 1. Electron 앱 시작
 2. 포터블 경로 및 userData/sessionData 경로 설정
 3. startup 상태 IPC 등록
-4. 브라우저 창 생성 및 startup 화면 표시
+4. 브라우저 창 조기 표시 및 startup 화면 로드
 5. SQLite DB 열기 및 마이그레이션 실행
 6. IPC 핸들러 등록
 7. startup ready 이벤트 전송
-8. 렌더러에서 라이브러리 화면 mount 후 `window.api`를 통해 IPC 호출
+8. 렌더러에서 라이브러리 화면 mount 후 `window.api`를 통해 최초 목록 조회
+9. 최초 라이브러리 목록 표시 시점에 `library:list-ready` 로그 기록
+10. 썸네일 로드와 뷰어 route preload는 목록 표시 이후 비동기로 진행
 
 ## Startup 흐름
 
 - `src/main/index.ts`는 startup 단계별 상태를 저장하고 renderer에 `startup:status`, `startup:ready` 이벤트로 전달합니다.
 - 각 단계는 `performance.now()` 기준으로 소요 시간을 console에 남깁니다.
-- `src/preload/index.ts`는 `window.api.startup` 아래에 `getStatus`, `onStatus`, `onReady`를 노출합니다.
+- `src/preload/index.ts`는 `window.api.startup` 아래에 `getStatus`, `markLibraryReady`, `onStatus`, `onReady`를 노출합니다.
 - `src/renderer/src/App.tsx`의 `StartupGate`는 ready 전까지 startup 화면을 보여주며, ready 이후에만 라우터와 라이브러리 화면을 mount합니다.
 - 현재 단계는 창 생성, 레거시 DB 확인, DB 열기, 마이그레이션, 런타임 스키마 확인, IPC 등록입니다.
+- 앱 창은 `ready-to-show`를 기다리지 않고 먼저 표시합니다.
+- 최초 라이브러리 목록이 준비되면 renderer가 `startup:markLibraryReady`를 호출하고, main process는 `[startup] library:list-ready ...ms` 로그를 남깁니다.
+- 준비 완료 기준은 startup ready 이벤트가 아니라 최초 라이브러리 목록 표시 시점입니다.
+
+## Renderer Route Loading
+
+- 라이브러리 화면은 초기 route에 포함합니다.
+- PDF, CBZ, 비디오 뷰어 route는 `React.lazy`로 분리해 첫 라이브러리 화면 로드에 함께 묶이지 않도록 합니다.
+- 최초 라이브러리 목록 표시 이후 idle 시점에 뷰어 route를 미리 import합니다.
 
 ## 핵심 도메인
 

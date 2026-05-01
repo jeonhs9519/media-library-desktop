@@ -134,6 +134,7 @@ type StartupStatus = {
   startedAt: number
   updatedAt: number
   completedAt?: number
+  interactiveAt?: number
   elapsedMs?: number
   steps: Array<{
     phase: string
@@ -235,6 +236,15 @@ function markStartupReady() {
 
 function registerStartupIPC() {
   ipcMain.handle('startup:getStatus', async () => startupStatus)
+  ipcMain.handle('startup:markLibraryReady', async () => {
+    if (startupStatus.interactiveAt) return startupStatus
+
+    const now = performance.now()
+    startupStatus.interactiveAt = now
+    startupStatus.updatedAt = now
+    console.log(`[startup] library:list-ready ${(now - startupStatus.startedAt).toFixed(1)}ms`)
+    return startupStatus
+  })
 }
 
 process.on('uncaughtException', (error) => {
@@ -277,13 +287,20 @@ async function createWindow() {
     mainWindow.setMenuBarVisibility(false)
   }
 
+  mainWindow.center()
+  mainWindow.show()
+  mainWindow.focus()
+  console.log(`[startup] window:shown-early ${(performance.now() - startupStartedAt).toFixed(1)}ms`)
+
   mainWindow.once('ready-to-show', () => {
     console.log(`[startup] window:ready-to-show ${(performance.now() - startupStartedAt).toFixed(1)}ms`)
     if (!mainWindow) return
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.center()
-    mainWindow.show()
-    mainWindow.focus()
+    if (!mainWindow.isVisible()) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.center()
+      mainWindow.show()
+      mainWindow.focus()
+    }
   })
 
   mainWindow.on('show', () => {

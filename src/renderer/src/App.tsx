@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import LibraryPage from './pages/LibraryPage'
-import PdfViewerPage from './pages/PdfViewerPage'
-import CbzViewerPage from './pages/CbzViewerPage'
-import VideoPlayerPage from './pages/VideoPlayerPage'
 import { api } from './api'
+import { loadCbzViewerPage, loadPdfViewerPage, loadVideoPlayerPage } from './routes/viewerPages'
+
+const PdfViewerPage = lazy(loadPdfViewerPage)
+const CbzViewerPage = lazy(loadCbzViewerPage)
+const VideoPlayerPage = lazy(loadVideoPlayerPage)
 
 type StartupStep = {
   phase: string
@@ -116,17 +118,33 @@ function StartupGate({ children }: { children: React.ReactNode }) {
   )
 }
 
+function RouteFallback() {
+  return (
+    <main className="startup-screen">
+      <section className="startup-panel" aria-live="polite">
+        <div className="startup-kicker">Media Library</div>
+        <h1 className="startup-title">{STARTUP_LABELS.boot}</h1>
+        <div className="startup-progress" aria-hidden="true">
+          <div className="startup-progress-bar" />
+        </div>
+      </section>
+    </main>
+  )
+}
+
 export default function App() {
   return (
     <StartupGate>
       <HashRouter>
-        <Routes>
-          <Route path="/" element={<LibraryPage />} />
-          <Route path="/items/:id" element={<LibraryPage />} />
-          <Route path="/view/pdf/:id" element={<PdfViewerPage />} />
-          <Route path="/view/cbz/:id" element={<CbzViewerPage />} />
-          <Route path="/view/video/:id" element={<VideoPlayerPage />} />
-        </Routes>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/" element={<LibraryPage />} />
+            <Route path="/items/:id" element={<LibraryPage />} />
+            <Route path="/view/pdf/:id" element={<PdfViewerPage />} />
+            <Route path="/view/cbz/:id" element={<CbzViewerPage />} />
+            <Route path="/view/video/:id" element={<VideoPlayerPage />} />
+          </Routes>
+        </Suspense>
       </HashRouter>
     </StartupGate>
   )

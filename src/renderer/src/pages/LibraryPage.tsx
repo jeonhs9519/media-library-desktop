@@ -18,6 +18,17 @@ import { useLibrarySettings } from '../components/Library/hooks/useLibrarySettin
 import { useLibrarySearchFilters } from '../components/Library/hooks/useLibrarySearchFilters'
 import { useLibraryThumbnails } from '../components/Library/hooks/useLibraryThumbnails'
 import { useLibraryMetadataFill } from '../components/Library/hooks/useLibraryMetadataFill'
+import { preloadViewerPages } from '../routes/viewerPages'
+
+function runWhenIdle(task: () => void) {
+  if ('requestIdleCallback' in window) {
+    const callbackId = window.requestIdleCallback(task, { timeout: 3000 })
+    return () => window.cancelIdleCallback(callbackId)
+  }
+
+  const timeoutId = window.setTimeout(task, 500)
+  return () => window.clearTimeout(timeoutId)
+}
 
 export default function LibraryPage() {
   const navigate = useNavigate()
@@ -32,6 +43,8 @@ export default function LibraryPage() {
   const [detailItemId, setDetailItemId] = useState<number | null>(null)
   const [libraryFocusRequest, setLibraryFocusRequest] = useState(0)
   const searchRef = useRef<HTMLButtonElement>(null)
+  const initialListReadyReportedRef = useRef(false)
+  const [initialListReady, setInitialListReady] = useState(false)
   const perPage = 100
 
   const loadItems = useCallback(async () => {
@@ -54,6 +67,10 @@ export default function LibraryPage() {
       })
       setItems(result.items)
       setTotal(result.total)
+      if (!initialListReadyReportedRef.current) {
+        initialListReadyReportedRef.current = true
+        setInitialListReady(true)
+      }
     } finally {
       setLoading(false)
     }
@@ -81,6 +98,20 @@ export default function LibraryPage() {
   useEffect(() => {
     loadItems()
   }, [loadItems])
+
+  useEffect(() => {
+    if (!initialListReady) return
+
+    api.startup.markLibraryReady().catch((error: unknown) => {
+      console.error('Failed to mark library ready:', error)
+    })
+
+    return runWhenIdle(() => {
+      preloadViewerPages().catch((error: unknown) => {
+        console.error('Failed to preload viewer pages:', error)
+      })
+    })
+  }, [initialListReady])
 
   useLibraryMetadataFill({ total, loadItems })
 

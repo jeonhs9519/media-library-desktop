@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 const api = {
   startup: {
     getStatus: () => ipcRenderer.invoke('startup:getStatus'),
+    markLibraryReady: () => ipcRenderer.invoke('startup:markLibraryReady'),
     onStatus: (callback: (status: any) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, status: any) => callback(status)
       ipcRenderer.on('startup:status', listener)

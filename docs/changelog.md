@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-05-01
+
+- 재부팅 직후 stdout/stderr 리다이렉션 방식의 개발 앱 startup 확인 결과를 문서화
+- startup ready까지 약 `4410.2ms`가 걸렸고, 주요 소요 구간이 창 생성/renderer 로드임을 기록
+- `next-task.md`의 다음 우선순위를 플레이리스트 기능 범위 확정부터 시작하도록 조정
+- startup 준비 완료 기준을 최초 라이브러리 목록 표시 시점으로 정리
+- 썸네일 로드는 준비 완료 이후 비동기로 유지하고, 뷰어 페이지는 lazy loading과 idle preload 방향으로 정리
+- startup 흐름 개선을 `next-task.md`의 다음 우선 작업으로 승격
+- 창을 `ready-to-show` 전에 조기 표시하도록 변경
+- 라이브러리 목록 첫 로드 완료 시 `[startup] library:list-ready ...ms` 로그를 남기도록 추가
+- PDF, CBZ, 비디오 뷰어 route를 `React.lazy`로 분리하고 목록 표시 이후 idle 시점에 preload하도록 변경
+- 개선 후 개발 앱 재실행 기준 창 조기 표시 약 `118.2ms`, main startup ready 약 `1260.4ms`, 라이브러리 목록 준비 완료 약 `1433.5ms` 확인
+- startup 흐름 개선 완료에 따라 `next-task.md`의 다음 우선순위를 플레이리스트 범위 확정으로 조정
+
 ## 2026-04-30
 
 - 미사용 태그를 삭제하는 `cleanupUnusedTags` 기능 추가

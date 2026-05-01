@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-04-30
+Last updated: 2026-05-01
 
 `media-library-desktop`는 Electron + React + SQLite 기반의 개인용 미디어 라이브러리 앱입니다. PDF, CBZ, 비디오 파일을 등록하고, 썸네일, 진행률, 태그, 리뷰, 다국어 UI를 함께 관리하는 방향으로 구현되어 있습니다.
 
@@ -35,12 +35,19 @@ Last updated: 2026-04-30
 - 다국어 리소스는 `en`, `ko`, `ja`, `zh`를 사용합니다.
 - 앱 시작 시 창을 먼저 표시하고, DB/IPC 준비 상태를 renderer의 startup 화면에 단계별로 표시합니다.
 - startup 단계별 로그는 `performance.now()` 기준으로 main process 콘솔에 기록합니다.
+- 2026-05-01 개선 전 재부팅 직후 stdout/stderr 리다이렉션 실행 기준 startup ready까지 약 `4410.2ms`가 걸렸습니다.
+- 개선 전 주요 소요 시간은 창 생성/renderer 로드 구간이었습니다. `window:ready-to-show`는 약 `4232.5ms`, `window:did-finish-load`는 약 `4280.3ms`였습니다.
+- 개선 전 DB 관련 단계는 상대적으로 짧았습니다. `db:open`은 약 `95.8ms`, `db:migrate`는 약 `14.3ms`, `db:cleanup-tags`는 약 `13.0ms`였습니다.
+- 2026-05-01 startup 개선 후 개발 앱 재실행 기준 창 조기 표시는 약 `118.2ms`, main startup ready는 약 `1260.4ms`, 라이브러리 목록 준비 완료는 약 `1433.5ms`였습니다.
+- 라이브러리 목록 표시 시점을 준비 완료 상태로 보고, 썸네일 로드는 그 이후 비동기로 계속 진행합니다.
+- PDF, CBZ, 비디오 뷰어 route는 `React.lazy` 기반으로 분리하고, 목록 표시 이후 idle 시점에 미리 import합니다.
 
 ## 현재 구조 요약
 
 - 메인 엔트리: `src/main/index.ts`
 - 프리로드 브리지: `src/preload/index.ts`
 - 렌더러 앱 엔트리: `src/renderer/src/App.tsx`
+- 뷰어 route lazy loading 진입점: `src/renderer/src/routes/viewerPages.ts`
 - 메인 화면 허브: `src/renderer/src/pages/LibraryPage.tsx`
 - 라이브러리 렌더링 컴포넌트: `src/renderer/src/components/Library/`
 - 라이브러리 모달: `src/renderer/src/components/Library/modals/`
@@ -70,25 +77,12 @@ Last updated: 2026-04-30
 - `items` IPC는 진입점과 core/relink/imports/metadata 세부 모듈로 분리되었습니다. renderer/preload의 `api.items.*` 호출명은 유지합니다.
 - 테스트는 현재 얇은 편이며, 핵심 사용자 흐름을 충분히 보호하지 못합니다.
 - 미사용 태그 정리 기능은 단위 테스트가 추가되었지만, 현재 로컬 `better-sqlite3` 네이티브 모듈 잠금 이슈 때문에 실제 SQLite 통합 테스트 대신 호출 계약 중심으로 검증합니다.
-- startup 화면은 캐시가 따뜻한 상태에서는 매우 짧게 지나가므로, 재부팅 직후 느린 실행 환경에서 다시 확인이 필요합니다.
+- 개선 전 병목 후보는 DB 초기화보다 창 생성과 renderer 로드 구간이었습니다.
+- 뷰어 route lazy loading 적용 후 production renderer 초기 JS는 약 `1,705.13 kB`에서 약 `847.29 kB`로 줄었습니다.
 
 ## 작업 트리 메모
 
-- 현재 수정 중인 파일이 이미 존재합니다.
-- 확인된 변경 파일:
-  - `docs/AI_WORKFLOW.md`
-  - `docs/architecture.md`
-  - `docs/backlog.md`
-  - `docs/changelog.md`
-  - `docs/current-status.md`
-  - `docs/next-task.md`
-  - `docs/roadmap.md`
-  - `src/main/ipc/items/`
-  - `src/main/ipc/items.ts`
-  - `src/renderer/src/components/Library/`
-  - `src/renderer/src/i18n/locales/`
-  - `src/renderer/src/pages/ItemDetailPage.tsx`
-  - `src/renderer/src/pages/LibraryPage.tsx`
-  - `src/renderer/src/styles.css`
+- 현재 브랜치는 `main`입니다.
+- 현재 startup 흐름 개선 코드와 관련 문서 변경이 작업 트리에 남아 있습니다.
 
 이 문서는 기능 상태 중심으로 유지하고, 세부 구현 계획은 `next-task.md`와 `backlog.md`에서 관리합니다.

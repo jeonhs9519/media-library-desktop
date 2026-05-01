@@ -1,6 +1,6 @@
 # Backlog
 
-Last updated: 2026-04-30
+Last updated: 2026-05-01
 
 아직 착수하지 않았거나, 범위 정리가 더 필요한 항목을 모아 둡니다.
 
