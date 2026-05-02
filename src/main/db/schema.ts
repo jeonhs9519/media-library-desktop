@@ -44,6 +44,23 @@ export const itemTags = sqliteTable('itemTags', {
   pk: primaryKey({ columns: [table.itemId, table.tagId] }),
 }))
 
+export const playlists = sqliteTable('playlists', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull().unique(),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
+})
+
+export const playlistItems = sqliteTable('playlistItems', {
+  playlistId: integer('playlistId').notNull().references(() => playlists.id, { onDelete: 'cascade' }),
+  itemId: integer('itemId').notNull().references(() => items.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),
+  createdAt: integer('createdAt').notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.playlistId, table.itemId] }),
+  idxPlaylistPosition: index('idx_playlist_items_playlist_position').on(table.playlistId, table.position),
+}))
+
 export const reviews = sqliteTable('reviews', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   itemId: integer('itemId').notNull().unique().references(() => items.id, { onDelete: 'cascade' }),

@@ -55,6 +55,14 @@ const api = {
     get: (key: string) => ipcRenderer.invoke('settings:get', { key }),
     set: (key: string, value: string) => ipcRenderer.invoke('settings:set', { key, value }),
   },
+  playlists: {
+    getDefault: () => ipcRenderer.invoke('playlists:getDefault'),
+    getItems: () => ipcRenderer.invoke('playlists:getItems'),
+    addItem: (itemId: number, position?: number) => ipcRenderer.invoke('playlists:addItem', { itemId, position }),
+    removeItem: (itemId: number) => ipcRenderer.invoke('playlists:removeItem', { itemId }),
+    reorderItems: (itemIds: number[]) => ipcRenderer.invoke('playlists:reorderItems', { itemIds }),
+    clear: () => ipcRenderer.invoke('playlists:clear'),
+  },
   file: {
     openDialog: (filters?: Electron.FileFilter[]) => ipcRenderer.invoke('file:open-dialog', { filters }),
     openFolderDialog: () => ipcRenderer.invoke('file:open-folder-dialog'),

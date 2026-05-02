@@ -68,6 +68,18 @@ export const enMessages: Record<string, string> = {
   'library.context.detail': 'Open Details',
   'library.context.openSourceUrl': 'Open Source URL',
 
+  'playlist.title': 'Playlist',
+  'playlist.count': '{count} items',
+  'playlist.empty': 'Drop items here or add them from the menu.',
+  'playlist.addToList': 'Add to List',
+  'playlist.remove': 'Remove from list',
+  'playlist.clear': 'Clear',
+  'playlist.expand': 'Expand playlist',
+  'playlist.collapse': 'Collapse playlist',
+  'playlist.viewerToggle': 'Show Playlist',
+  'playlist.previousItem': 'Previous List Item',
+  'playlist.nextItem': 'Next List Item',
+
   'modal.duplicate.title': 'Duplicate File',
   'modal.duplicate.message': '"{fileName}" is already in your library.',
   'modal.hdtImport.title': 'HDT Bulk Import',
@@ -112,6 +124,9 @@ export const enMessages: Record<string, string> = {
 
   'settings.title': 'Settings',
   'settings.display.title': 'Display Settings',
+  'settings.playlistPosition.title': 'Playlist Position',
+  'settings.playlistPosition.right': 'Right',
+  'settings.playlistPosition.left': 'Left',
   'settings.filePolicy.title': 'File Modified Date Policy',
   'settings.filePolicy.help': "When to read the file's modification date.",
   'settings.filePolicy.once': 'Once (default)',

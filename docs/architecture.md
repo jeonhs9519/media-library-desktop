@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-05-01
+Last updated: 2026-05-02
 
 ## 개요
 
@@ -73,6 +73,8 @@ Last updated: 2026-05-01
 - `itemTags`: 아이템-태그 매핑
 - `reviews`: 별점/코멘트
 - `settings`: 간단한 키-값 설정
+- `playlists`: 기본 플레이리스트
+- `playlistItems`: 플레이리스트 항목과 표시 순서
 
 ## 태그 유지보수
 
@@ -98,6 +100,12 @@ Last updated: 2026-05-01
 - 목록 조회 응답은 라이브러리 카드와 컨텍스트 메뉴에서 필요한 `sourceUrl` 같은 표시/액션 필드를 포함합니다.
 - 목록 검색어는 제목, 파일명, 작가, 메모, 원본 URL을 대상으로 합니다.
 
+### `src/main/ipc/playlists.ts`
+
+- 기본 플레이리스트 조회, 항목 추가, 항목 제거, 초기화, 순서 변경을 담당합니다.
+- 항목 추가 시 target position을 받을 수 있으며, 이미 포함된 항목이면 중복 추가 대신 해당 위치로 이동합니다.
+- 항목 응답에는 뷰어와 패널에서 즉시 사용할 수 있도록 `thumbnailBase64`를 포함합니다.
+
 ### `src/renderer/src/pages/LibraryPage.tsx`
 
 - 메인 라이브러리 화면의 데이터 로드와 조립을 담당하는 허브입니다.
@@ -115,6 +123,14 @@ Last updated: 2026-05-01
 - 목록은 단일 Tab 진입 영역이며, 썸네일 간 이동은 현재 그리드 폭으로 계산한 방향키 roving focus를 사용합니다.
 - 상세 팝업 종료 후 focus request를 받아 다시 목록으로 포커스를 복귀시킵니다.
 - 페이지네이션은 이전/다음 caret 버튼과 최대 9개 범위의 페이지 번호 버튼을 표시합니다.
+
+### `src/renderer/src/components/Library/PlaylistPanel.tsx`
+
+- 라이브러리와 뷰어에서 공유하는 플레이리스트 패널입니다.
+- 라이브러리 화면에서는 좌/우 표시 설정을 지원하되, HTML 순서는 툴바 다음, 라이브러리 본문 이전으로 유지합니다.
+- 항목 클릭으로 뷰어를 열고, 항목별 제거와 전체 초기화를 제공합니다.
+- 플레이리스트 항목은 pointer 기반 drag and drop으로 재정렬하며, 삽입 위치 placeholder를 표시합니다.
+- 라이브러리 카드 drag and drop으로 플레이리스트에 항목을 추가할 때도 표시된 위치에 삽입합니다.
 
 ### `src/renderer/src/components/Library/LibraryToolbar.tsx`
 

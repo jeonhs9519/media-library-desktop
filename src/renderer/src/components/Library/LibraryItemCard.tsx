@@ -31,6 +31,7 @@ interface Props {
   thumbnailUrl?: string
   onOpenDetail: () => void
   onContextMenu: (event: React.MouseEvent) => void
+  onDragStart?: (event: React.DragEvent<HTMLButtonElement>) => void
   active?: boolean
   tabIndex?: number
 }
@@ -80,6 +81,7 @@ const LibraryItemCard = forwardRef<HTMLButtonElement, Props>(function LibraryIte
   thumbnailUrl,
   onOpenDetail,
   onContextMenu,
+  onDragStart,
   active = false,
   tabIndex = -1,
 }, ref) {
@@ -115,6 +117,8 @@ const LibraryItemCard = forwardRef<HTMLButtonElement, Props>(function LibraryIte
       onClick={onOpenDetail}
       onKeyDown={handleKeyDown}
       onContextMenu={onContextMenu}
+      draggable={!!onDragStart}
+      onDragStart={onDragStart}
       title={item.title}
       style={{
         width: CARD_SIZE,

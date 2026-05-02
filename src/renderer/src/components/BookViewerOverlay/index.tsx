@@ -9,10 +9,13 @@ import {
   DoublePageRtlModeIcon,
   FullscreenIcon,
   FolderOpenIcon,
+  MenuIcon,
   SinglePageModeIcon,
   ThumbnailIcon,
 } from '../icons'
 import ContextMenu, { ContextMenuEntry } from '../ContextMenu/index'
+import PlaylistPanel from '../Library/PlaylistPanel'
+import type { PlaylistItem } from '../../types'
 
 export type BookViewerViewMode = 'single' | 'double-ltr' | 'double-rtl'
 
@@ -37,6 +40,20 @@ type BookViewerOverlayProps = {
   onToggleFullscreen: () => void
   onShowInFolder: () => void
   onExitViewer: () => void
+  currentItemId: number
+  playlistItems: PlaylistItem[]
+  playlistThumbnails: Record<number, string>
+  playlistVisible: boolean
+  playlistAvailable: boolean
+  playlistCanGoPrevious: boolean
+  playlistCanGoNext: boolean
+  onTogglePlaylist: () => void
+  onPlaylistPrevious: () => void
+  onPlaylistNext: () => void
+  onRemovePlaylistItem: (itemId: number) => void
+  onReorderPlaylistItems: (itemIds: number[]) => void
+  onClearPlaylist: () => void
+  viewerReturnTo: string
   contextMenu: { x: number; y: number } | null
   onCloseContextMenu: () => void
   contextMenuId: string
@@ -127,6 +144,12 @@ const THUMBNAIL_BUTTON_STYLE: React.CSSProperties = {
   color: '#fff',
 }
 
+const PLAYLIST_BUTTON_STYLE = (isActive: boolean): React.CSSProperties => ({
+  ...BUTTON_BASE_STYLE,
+  color: isActive ? '#4a9eff' : '#d2d8e2',
+  background: isActive ? 'rgba(74, 158, 255, 0.14)' : 'transparent',
+})
+
 const BUTTON_GROUP_STYLE: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -178,6 +201,20 @@ export default function BookViewerOverlay({
   onToggleFullscreen,
   onShowInFolder,
   onExitViewer,
+  currentItemId,
+  playlistItems,
+  playlistThumbnails,
+  playlistVisible,
+  playlistAvailable,
+  playlistCanGoPrevious,
+  playlistCanGoNext,
+  onTogglePlaylist,
+  onPlaylistPrevious,
+  onPlaylistNext,
+  onRemovePlaylistItem,
+  onReorderPlaylistItems,
+  onClearPlaylist,
+  viewerReturnTo,
   contextMenu,
   onCloseContextMenu,
   contextMenuId,
@@ -197,6 +234,9 @@ export default function BookViewerOverlay({
     fullscreenShortcut: tr('viewer.video.shortcut.fullscreen'),
     showInFolder: tr('viewer.video.showInFolder'),
     exitViewer: tr('viewer.cbz.exitViewer'),
+    playlistToggle: tr('playlist.viewerToggle'),
+    playlistPrevious: tr('playlist.previousItem'),
+    playlistNext: tr('playlist.nextItem'),
   }
   const leftDirectionLabel = viewMode === 'double-rtl' ? tr('viewer.cbz.nextPage') : tr('viewer.cbz.prevPage')
   const rightDirectionLabel = viewMode === 'double-rtl' ? tr('viewer.cbz.prevPage') : tr('viewer.cbz.nextPage')
@@ -294,6 +334,31 @@ export default function BookViewerOverlay({
       onSelect: onToggleFullscreen,
     },
     { key: 'sep-2', type: 'separator' },
+    {
+      key: 'playlist-toggle',
+      label: labels.playlistToggle,
+      icon: <MenuIcon size={16} />,
+      shortcut: 'L',
+      disabled: !playlistAvailable,
+      tone: playlistVisible ? 'accent' : 'default',
+      checked: playlistVisible,
+      onSelect: onTogglePlaylist,
+    },
+    {
+      key: 'playlist-prev',
+      label: labels.playlistPrevious,
+      shortcut: 'PgUp',
+      disabled: !playlistCanGoPrevious,
+      onSelect: onPlaylistPrevious,
+    },
+    {
+      key: 'playlist-next',
+      label: labels.playlistNext,
+      shortcut: 'PgDown',
+      disabled: !playlistCanGoNext,
+      onSelect: onPlaylistNext,
+    },
+    { key: 'sep-playlist', type: 'separator' },
     {
       key: 'show-in-folder',
       label: labels.showInFolder,
@@ -422,10 +487,27 @@ export default function BookViewerOverlay({
                   aria-label={labels.setThumbnail}
                   style={{
                     ...THUMBNAIL_BUTTON_STYLE,
-                    ...getGroupedButtonRadiusStyle(false, false),
+                    ...getGroupedButtonRadiusStyle(false, true),
                   }}
                 >
                   <ThumbnailIcon size={24} />
+                </button>
+              </div>
+
+              <div style={BUTTON_GROUP_STYLE}>
+                <button
+                  className="video-control-button"
+                  tabIndex={overlayTabIndex}
+                  onClick={onTogglePlaylist}
+                  title={labels.playlistToggle}
+                  aria-label={labels.playlistToggle}
+                  disabled={!playlistAvailable}
+                  style={{
+                    ...PLAYLIST_BUTTON_STYLE(playlistVisible),
+                    ...getGroupedButtonRadiusStyle(false, false),
+                  }}
+                >
+                  <MenuIcon size={24} />
                 </button>
               </div>
             </div>
@@ -433,6 +515,26 @@ export default function BookViewerOverlay({
         </div>
 
         {children}
+        {playlistVisible && isTopOverlayVisible && (
+          <div className="viewer-playlist-panel-wrap">
+            <PlaylistPanel
+              items={playlistItems}
+              thumbnails={playlistThumbnails}
+              collapsed={false}
+              position="right"
+              onToggleCollapsed={onTogglePlaylist}
+              onDropItem={() => undefined}
+              onRemoveItem={onRemovePlaylistItem}
+              onClear={onClearPlaylist}
+              onReorderItems={onReorderPlaylistItems}
+              showCollapseButton={false}
+              viewerMode
+              currentItemId={currentItemId}
+              viewerReturnTo={viewerReturnTo}
+              tr={tr}
+            />
+          </div>
+        )}
       </div>
 
       {contextMenu && (

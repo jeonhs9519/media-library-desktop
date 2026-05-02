@@ -12,6 +12,7 @@ type UseLibrarySettingsOptions = {
 export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: UseLibrarySettingsOptions) {
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [fileModifiedPolicy, setFileModifiedPolicy] = useState('once')
+  const [playlistPosition, setPlaylistPosition] = useState<'left' | 'right'>('right')
   const [bulkFromFolder, setBulkFromFolder] = useState('')
   const [bulkToFolder, setBulkToFolder] = useState('')
   const [bulkMatchCount, setBulkMatchCount] = useState(0)
@@ -27,6 +28,9 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: Use
   useEffect(() => {
     api.settings.get('fileModifiedAt.updatePolicy').then((value: string | undefined) => {
       if (value) setFileModifiedPolicy(value)
+    })
+    api.settings.get('playlist.position').then((value: string | undefined) => {
+      if (value === 'left' || value === 'right') setPlaylistPosition(value)
     })
   }, [])
 
@@ -65,6 +69,11 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: Use
   const handleChangeFileModifiedPolicy = useCallback(async (value: string) => {
     setFileModifiedPolicy(value)
     await api.settings.set('fileModifiedAt.updatePolicy', value)
+  }, [])
+
+  const handleChangePlaylistPosition = useCallback(async (value: 'left' | 'right') => {
+    setPlaylistPosition(value)
+    await api.settings.set('playlist.position', value)
   }, [])
 
   const handleChangeLanguageSetting = useCallback(async (value: LanguageSetting) => {
@@ -143,6 +152,7 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: Use
   return {
     settingsModalOpen,
     fileModifiedPolicy,
+    playlistPosition,
     bulkFromFolder,
     bulkToFolder,
     bulkMatchCount,
@@ -158,6 +168,7 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: Use
     closeSettingsModal,
     handleChangeLanguageSetting,
     handleChangeFileModifiedPolicy,
+    handleChangePlaylistPosition,
     handlePickBulkFromFolder,
     handlePickBulkToFolder,
     openBulkRelinkConfirm: () => setBulkRelinkConfirmOpen(true),

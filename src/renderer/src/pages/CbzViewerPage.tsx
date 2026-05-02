@@ -1,18 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useI18n } from '../useI18n'
 import { api } from '../api'
 import BookViewerOverlay, { useBookViewerViewMode } from '../components/BookViewerOverlay/index'
 import { useBookViewerOverlayUx } from '../components/BookViewerOverlay/useBookViewerOverlayUx.ts'
 import { useBookViewerKeyboard } from '../components/BookViewerOverlay/useBookViewerKeyboard.ts'
 import Toast, { useToast } from '../components/Toast'
+import { getNextPlaylistViewerPath } from '../playlistAutoAdvance'
+import { useViewerPlaylist } from '../useViewerPlaylist'
 
 const CBZ_VIEW_MODE_SETTING_KEY = 'cbz.viewMode'
 
 export default function CbzViewerPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const itemId = parseInt(id!)
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo || `/items/${itemId}`
 
   const [item, setItem] = useState<any>(null)
   const [pages, setPages] = useState<string[]>([])
@@ -21,6 +25,7 @@ export default function CbzViewerPage() {
   const [loading, setLoading] = useState(true)
   const { tr } = useI18n()
   const thumbnailToast = useToast()
+  const viewerPlaylist = useViewerPlaylist(itemId, navigate, returnTo)
   const {
     viewMode,
     setViewMode,
@@ -93,15 +98,31 @@ export default function CbzViewerPage() {
     api.items.update(itemId, { lastPageIndex: currentPage, progress }).catch(console.error)
   }, [currentPage, pages.length, itemId])
 
+  const goToNextPageByStep = useCallback((step: number) => {
+    if (pages.length > 0 && currentPage + step >= pages.length) {
+      getNextPlaylistViewerPath(itemId)
+        .then((nextPath) => {
+          if (nextPath) navigate(nextPath, { state: { returnTo } })
+        })
+        .catch(console.error)
+      return
+    }
+
+    setCurrentPage((p) => Math.min(pages.length - 1, p + step))
+  }, [currentPage, itemId, navigate, pages.length, returnTo])
+
   useBookViewerKeyboard({
     viewMode,
     isContextMenuOpen,
     onViewModeChange: setViewMode,
     onPrevPage: (step) => setCurrentPage((p) => Math.max(0, p - step)),
-    onNextPage: (step) => setCurrentPage((p) => Math.min(pages.length - 1, p + step)),
+    onNextPage: goToNextPageByStep,
     onGoHome: () => setCurrentPage(0),
     onToggleFullscreen: toggleFullscreen,
-    onExitViewer: () => navigate(`/items/${itemId}`),
+    onExitViewer: () => navigate(returnTo),
+    onPlaylistPrevious: viewerPlaylist.goPrevious,
+    onPlaylistNext: viewerPlaylist.goNext,
+    onTogglePlaylist: viewerPlaylist.toggleVisible,
   })
 
   const handleSetThumbnail = async () => {
@@ -127,7 +148,7 @@ export default function CbzViewerPage() {
   }
 
   const goToNextPage = () => {
-    setCurrentPage(p => Math.min(pages.length - 1, p + pageStep))
+    goToNextPageByStep(pageStep)
   }
 
   const renderContent = () => {
@@ -171,7 +192,7 @@ export default function CbzViewerPage() {
       onMouseMove={showTopOverlay}
       onMouseLeave={hideTopOverlayWithDelay}
       onContextMenu={handleContextMenu}
-      onBack={() => navigate(`/items/${itemId}`)}
+      onBack={() => navigate(returnTo)}
       itemTitle={item?.title}
       viewMode={viewMode}
       onViewModeChange={setViewMode}
@@ -182,7 +203,21 @@ export default function CbzViewerPage() {
       isFullscreen={isFullscreen}
       onToggleFullscreen={toggleFullscreen}
       onShowInFolder={handleShowInFolder}
-      onExitViewer={() => navigate(`/items/${itemId}`)}
+      onExitViewer={() => navigate(returnTo)}
+      currentItemId={itemId}
+      playlistItems={viewerPlaylist.items}
+      playlistThumbnails={viewerPlaylist.thumbnails}
+      playlistVisible={viewerPlaylist.visible}
+      playlistAvailable={viewerPlaylist.available}
+      playlistCanGoPrevious={viewerPlaylist.canGoPrevious}
+      playlistCanGoNext={viewerPlaylist.canGoNext}
+      onTogglePlaylist={viewerPlaylist.toggleVisible}
+      onPlaylistPrevious={viewerPlaylist.goPrevious}
+      onPlaylistNext={viewerPlaylist.goNext}
+      onRemovePlaylistItem={viewerPlaylist.removeItem}
+      onReorderPlaylistItems={viewerPlaylist.reorderItems}
+      onClearPlaylist={viewerPlaylist.clear}
+      viewerReturnTo={returnTo}
       contextMenu={contextMenu}
       onCloseContextMenu={closeContextMenu}
       contextMenuId="cbz-context-menu"

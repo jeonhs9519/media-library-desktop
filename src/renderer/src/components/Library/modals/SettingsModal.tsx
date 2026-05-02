@@ -9,6 +9,7 @@ interface Props {
   open: boolean
   languageSetting: LanguageSetting
   fileModifiedPolicy: string
+  playlistPosition: 'left' | 'right'
   bulkFromFolder: string
   bulkToFolder: string
   bulkMatchCount: number
@@ -18,6 +19,7 @@ interface Props {
   onClose: () => void
   onChangeLanguageSetting: (value: LanguageSetting) => void
   onChangeFileModifiedPolicy: (value: string) => void
+  onChangePlaylistPosition: (value: 'left' | 'right') => void
   onPickBulkFromFolder: () => void
   onPickBulkToFolder: () => void
   onOpenBulkRelinkConfirm: () => void
@@ -28,6 +30,7 @@ export default function SettingsModal({
   open,
   languageSetting,
   fileModifiedPolicy,
+  playlistPosition,
   bulkFromFolder,
   bulkToFolder,
   bulkMatchCount,
@@ -37,6 +40,7 @@ export default function SettingsModal({
   onClose,
   onChangeLanguageSetting,
   onChangeFileModifiedPolicy,
+  onChangePlaylistPosition,
   onPickBulkFromFolder,
   onPickBulkToFolder,
   onOpenBulkRelinkConfirm,
@@ -123,6 +127,21 @@ export default function SettingsModal({
                   <option value="ko">{tr('settings.language.ko')}</option>
                   <option value="ja">{tr('settings.language.ja')}</option>
                   <option value="zh">{tr('settings.language.zh')}</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <h4>{tr('settings.playlistPosition.title')}</h4>
+              </div>
+              <div className="settings-row-control">
+                <select
+                  value={playlistPosition}
+                  onChange={e => onChangePlaylistPosition(e.target.value as 'left' | 'right')}
+                >
+                  <option value="right">{tr('settings.playlistPosition.right')}</option>
+                  <option value="left">{tr('settings.playlistPosition.left')}</option>
                 </select>
               </div>
             </div>

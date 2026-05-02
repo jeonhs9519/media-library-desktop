@@ -1,10 +1,11 @@
 ﻿import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Item } from '../types'
+import { Item, PlaylistItem } from '../types'
 import { useI18n } from '../useI18n'
 import { api } from '../api'
 import LibraryGrid from '../components/Library/LibraryGrid'
 import LibraryToolbar from '../components/Library/LibraryToolbar'
+import PlaylistPanel from '../components/Library/PlaylistPanel'
 import DuplicateFileModal from '../components/Library/modals/DuplicateFileModal'
 import FileDropModal from '../components/Library/modals/FileDropModal'
 import HdtImportModal from '../components/Library/modals/HdtImportModal'
@@ -41,11 +42,15 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(false)
   const [searchFiltersOpen, setSearchFiltersOpen] = useState(false)
   const [detailItemId, setDetailItemId] = useState<number | null>(null)
+  const [playlistItems, setPlaylistItems] = useState<PlaylistItem[]>([])
+  const [playlistCollapsed, setPlaylistCollapsed] = useState(true)
   const [libraryFocusRequest, setLibraryFocusRequest] = useState(0)
   const searchRef = useRef<HTMLButtonElement>(null)
   const initialListReadyReportedRef = useRef(false)
   const [initialListReady, setInitialListReady] = useState(false)
   const perPage = 100
+
+  const playlistThumbnails = useLibraryThumbnails(playlistItems.map((entry) => entry.item))
 
   const loadItems = useCallback(async () => {
     setLoading(true)
@@ -87,6 +92,21 @@ export default function LibraryPage() {
     searchFilters.reconcileTagUsageCounts,
   ])
 
+  const loadPlaylistItems = useCallback(async () => {
+    const result = await api.playlists.getItems()
+    setPlaylistItems(result)
+  }, [])
+
+  const updatePlaylistCollapsed = useCallback((next: boolean | ((value: boolean) => boolean)) => {
+    setPlaylistCollapsed((current) => {
+      const resolved = typeof next === 'function'
+        ? (next as (value: boolean) => boolean)(current)
+        : next
+      void api.settings.set('library.playlist.collapsed', resolved ? '1' : '0')
+      return resolved
+    })
+  }, [])
+
   const fileImport = useFileImport({ tr, loadItems })
   const hdtImport = useHdtImport({ tr, loadItems })
   const librarySettings = useLibrarySettings({ tr, changeLanguageSetting, loadItems })
@@ -98,6 +118,16 @@ export default function LibraryPage() {
   useEffect(() => {
     loadItems()
   }, [loadItems])
+
+  useEffect(() => {
+    loadPlaylistItems()
+  }, [loadPlaylistItems])
+
+  useEffect(() => {
+    api.settings.get('library.playlist.collapsed').then((value: string | undefined) => {
+      if (value === '0' || value === '1') setPlaylistCollapsed(value === '1')
+    })
+  }, [])
 
   useEffect(() => {
     if (!initialListReady) return
@@ -146,6 +176,59 @@ export default function LibraryPage() {
     await loadItems()
     setLibraryFocusRequest((value) => value + 1)
   }
+
+  const handleAddToPlaylist = async (item: Item) => {
+    if (item.contentType === 'other') return
+    await api.playlists.addItem(item.id)
+    await loadPlaylistItems()
+    updatePlaylistCollapsed(false)
+  }
+
+  const handleDropToPlaylist = async (itemId: number, position?: number) => {
+    const item = items.find((candidate) => candidate.id === itemId)
+    if (item?.contentType === 'other') return
+    await api.playlists.addItem(itemId, position)
+    await loadPlaylistItems()
+    updatePlaylistCollapsed(false)
+  }
+
+  const handleRemoveFromPlaylist = async (itemId: number) => {
+    await api.playlists.removeItem(itemId)
+    await loadPlaylistItems()
+  }
+
+  const handleClearPlaylist = async () => {
+    await api.playlists.clear()
+    await loadPlaylistItems()
+  }
+
+  const handleReorderPlaylistItems = async (itemIds: number[]) => {
+    setPlaylistItems((currentItems) => {
+      const itemById = new Map(currentItems.map((entry) => [entry.itemId, entry]))
+      return itemIds.map((itemId, position) => {
+        const entry = itemById.get(itemId)
+        return entry ? { ...entry, position } : entry
+      }).filter((entry): entry is PlaylistItem => Boolean(entry))
+    })
+    await api.playlists.reorderItems(itemIds)
+    await loadPlaylistItems()
+  }
+
+  const playlistPanel = (
+    <PlaylistPanel
+      items={playlistItems}
+      thumbnails={playlistThumbnails}
+      collapsed={playlistCollapsed}
+      position={librarySettings.playlistPosition}
+      onToggleCollapsed={() => updatePlaylistCollapsed((value) => !value)}
+      onDropItem={handleDropToPlaylist}
+      onRemoveItem={handleRemoveFromPlaylist}
+      onClear={handleClearPlaylist}
+      onReorderItems={handleReorderPlaylistItems}
+      viewerReturnTo="/"
+      tr={tr}
+    />
+  )
 
   return (
     <div
@@ -200,19 +283,24 @@ export default function LibraryPage() {
         tr={tr}
       />
 
-      <LibraryGrid
-        items={items}
-        thumbnails={thumbnails}
-        total={total}
-        loading={loading}
-        filterSummary={searchFilters.filterSummary}
-        page={searchFilters.page}
-        perPage={perPage}
-        setPage={searchFilters.setPage}
-        onOpenDetail={handleOpenDetail}
-        focusRequest={libraryFocusRequest}
-        tr={tr}
-      />
+      <div className="library-main-area">
+        <LibraryGrid
+          items={items}
+          thumbnails={thumbnails}
+          total={total}
+          loading={loading}
+          filterSummary={searchFilters.filterSummary}
+          page={searchFilters.page}
+          perPage={perPage}
+          setPage={searchFilters.setPage}
+          onOpenDetail={handleOpenDetail}
+          onAddToPlaylist={handleAddToPlaylist}
+          playlistPanel={playlistPanel}
+          playlistPosition={librarySettings.playlistPosition}
+          focusRequest={libraryFocusRequest}
+          tr={tr}
+        />
+      </div>
 
       <DuplicateFileModal
         fileName={fileImport.duplicateModal?.fileName}
@@ -271,7 +359,7 @@ export default function LibraryPage() {
         tr={tr}
       />
 
-      <ItemDetailModal itemId={detailItemId} onClose={handleCloseDetail} />
+      <ItemDetailModal itemId={detailItemId} onClose={handleCloseDetail} onAddToPlaylist={handleAddToPlaylist} />
 
       <SearchFiltersModal
         open={searchFiltersOpen}
@@ -304,6 +392,7 @@ export default function LibraryPage() {
         open={librarySettings.settingsModalOpen}
         languageSetting={languageSetting}
         fileModifiedPolicy={librarySettings.fileModifiedPolicy}
+        playlistPosition={librarySettings.playlistPosition}
         bulkFromFolder={librarySettings.bulkFromFolder}
         bulkToFolder={librarySettings.bulkToFolder}
         bulkMatchCount={librarySettings.bulkMatchCount}
@@ -313,6 +402,7 @@ export default function LibraryPage() {
         onClose={librarySettings.closeSettingsModal}
         onChangeLanguageSetting={librarySettings.handleChangeLanguageSetting}
         onChangeFileModifiedPolicy={librarySettings.handleChangeFileModifiedPolicy}
+        onChangePlaylistPosition={librarySettings.handleChangePlaylistPosition}
         onPickBulkFromFolder={librarySettings.handlePickBulkFromFolder}
         onPickBulkToFolder={librarySettings.handlePickBulkToFolder}
         onOpenBulkRelinkConfirm={librarySettings.openBulkRelinkConfirm}

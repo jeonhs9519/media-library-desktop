@@ -18,6 +18,9 @@ interface Props {
   perPage: number
   setPage: React.Dispatch<React.SetStateAction<number>>
   onOpenDetail: (itemId: number) => void
+  onAddToPlaylist: (item: Item) => void
+  playlistPanel?: React.ReactNode
+  playlistPosition?: 'left' | 'right'
   focusRequest?: number
   tr: Translate
 }
@@ -72,6 +75,9 @@ export default function LibraryGrid({
   perPage,
   setPage,
   onOpenDetail,
+  onAddToPlaylist,
+  playlistPanel,
+  playlistPosition = 'right',
   focusRequest = 0,
   tr,
 }: Props) {
@@ -131,8 +137,14 @@ export default function LibraryGrid({
         label: tr('detail.openViewer'),
         disabled: !viewerPath || item.fileExists === false,
         onSelect: () => {
-          if (viewerPath) navigate(viewerPath)
+          if (viewerPath) navigate(viewerPath, { state: { returnTo: '/' } })
         },
+      },
+      {
+        key: 'playlist-add',
+        label: tr('playlist.addToList'),
+        disabled: item.contentType === 'other',
+        onSelect: () => onAddToPlaylist(item),
       },
       { key: 'separator-open', type: 'separator' },
       {
@@ -156,7 +168,7 @@ export default function LibraryGrid({
         onSelect: () => api.file.showInFolder(fullPath),
       },
     ]
-  }, [contextMenu, navigate, onOpenDetail, tr])
+  }, [contextMenu, navigate, onAddToPlaylist, onOpenDetail, tr])
 
   const getColumnCount = () => {
     const grid = gridRef.current
@@ -247,49 +259,63 @@ export default function LibraryGrid({
 
   return (
     <>
-      <div className="library-active-filters" title={filterSummary}>
-        {filterSummary.split(' / ').map((part) => (
-          <span key={part} className="library-active-filter-item">{part}</span>
-        ))}
-      </div>
+      <div className={`library-list-shell playlist-${playlistPosition}`}>
+        {playlistPanel}
+        <div className="library-list-content">
+          <div className="library-active-filters" title={filterSummary}>
+            {filterSummary.split(' / ').map((part) => (
+              <span key={part} className="library-active-filter-item">{part}</span>
+            ))}
+          </div>
 
-      <div className="library-count-row">
-        {tr('library.items', { count: total })} {loading && tr('library.loading')}
-      </div>
+          <div className="library-count-row">
+            {tr('library.items', { count: total })} {loading && tr('library.loading')}
+          </div>
 
-      <div className="library-list-scroll">
-        <div
-          ref={gridRef}
-          className="library-grid"
-          role="grid"
-          tabIndex={items.length ? 0 : -1}
-          aria-label={tr('library.items', { count: total })}
-          onFocus={handleGridFocus}
-          onKeyDown={handleGridKeyDown}
-          onContextMenu={(event) => event.preventDefault()}
-        >
-          {items.map((item, index) => (
-            <LibraryItemCard
-              key={item.id}
-              ref={(element) => {
-                cardRefs.current[index] = element
-              }}
-              item={item}
-              thumbnailUrl={thumbnails[item.id]}
-              active={index === activeIndex}
-              tabIndex={-1}
-              onOpenDetail={() => {
-                setActiveIndex(index)
-                onOpenDetail(item.id)
-              }}
-              onContextMenu={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                setActiveIndex(index)
-                setContextMenu({ x: event.clientX, y: event.clientY, item })
-              }}
-            />
-          ))}
+          <div className="library-list-scroll">
+            <div
+              ref={gridRef}
+              className="library-grid"
+              role="grid"
+              tabIndex={items.length ? 0 : -1}
+              aria-label={tr('library.items', { count: total })}
+              onFocus={handleGridFocus}
+              onKeyDown={handleGridKeyDown}
+              onContextMenu={(event) => event.preventDefault()}
+            >
+              {items.map((item, index) => (
+                <LibraryItemCard
+                  key={item.id}
+                  ref={(element) => {
+                    cardRefs.current[index] = element
+                  }}
+                  item={item}
+                  thumbnailUrl={thumbnails[item.id]}
+                  active={index === activeIndex}
+                  tabIndex={-1}
+                  onOpenDetail={() => {
+                    setActiveIndex(index)
+                    onOpenDetail(item.id)
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    setActiveIndex(index)
+                    setContextMenu({ x: event.clientX, y: event.clientY, item })
+                  }}
+                  onDragStart={(event) => {
+                    if (item.contentType === 'other') {
+                      event.preventDefault()
+                      return
+                    }
+                    event.dataTransfer.effectAllowed = 'copy'
+                    event.dataTransfer.setData('application/x-media-library-item-id', String(item.id))
+                    event.dataTransfer.setData('text/plain', String(item.id))
+                  }}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

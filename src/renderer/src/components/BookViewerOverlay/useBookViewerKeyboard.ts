@@ -10,6 +10,9 @@ type UseBookViewerKeyboardParams = {
   onGoHome: () => void
   onToggleFullscreen: () => void
   onExitViewer: () => void
+  onPlaylistPrevious?: () => void
+  onPlaylistNext?: () => void
+  onTogglePlaylist?: () => void
 }
 
 export function useBookViewerKeyboard({
@@ -21,6 +24,9 @@ export function useBookViewerKeyboard({
   onGoHome,
   onToggleFullscreen,
   onExitViewer,
+  onPlaylistPrevious,
+  onPlaylistNext,
+  onTogglePlaylist,
 }: UseBookViewerKeyboardParams) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -35,6 +41,24 @@ export function useBookViewerKeyboard({
       const goPrev = () => onPrevPage(step)
       const goNext = () => onNextPage(step)
       const isPrevPageKey = ['KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyB', 'KeyN', 'KeyM', 'Comma', 'Period', 'Slash'].includes(e.code)
+
+      if (e.key === 'PageUp') {
+        e.preventDefault()
+        onPlaylistPrevious?.()
+        return
+      }
+
+      if (e.key === 'PageDown') {
+        e.preventDefault()
+        onPlaylistNext?.()
+        return
+      }
+
+      if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault()
+        onTogglePlaylist?.()
+        return
+      }
 
       if (e.key === '1') {
         onViewModeChange('single')
@@ -93,5 +117,8 @@ export function useBookViewerKeyboard({
     onGoHome,
     onToggleFullscreen,
     onExitViewer,
+    onPlaylistPrevious,
+    onPlaylistNext,
+    onTogglePlaylist,
   ])
 }

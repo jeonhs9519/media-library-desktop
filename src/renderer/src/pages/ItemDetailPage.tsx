@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
-import { Tag } from '../types'
+import { Item, Tag } from '../types'
 import Modal from '../components/Modal'
 import StarRating from '../components/StarRating'
 import { useI18n } from '../useI18n'
@@ -54,9 +54,10 @@ function isReservedTagName(name: string, untaggedLabel: string) {
 interface ItemDetailPageProps {
   itemId: number
   onClose: () => void
+  onAddToPlaylist?: (item: Item) => void
 }
 
-export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps) {
+export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist }: ItemDetailPageProps) {
   const navigate = useNavigate()
   const [item, setItem] = useState<any>(null)
   const [allTags, setAllTags] = useState<Tag[]>([])
@@ -169,9 +170,10 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
   }
 
   const handleOpenViewer = () => {
-    if (item.containerType === 'pdf') navigate(`/view/pdf/${itemId}`)
-    else if (item.containerType === 'zip') navigate(`/view/cbz/${itemId}`)
-    else if (item.containerType === 'video') navigate(`/view/video/${itemId}`)
+    const state = { returnTo: `/items/${itemId}` }
+    if (item.containerType === 'pdf') navigate(`/view/pdf/${itemId}`, { state })
+    else if (item.containerType === 'zip') navigate(`/view/cbz/${itemId}`, { state })
+    else if (item.containerType === 'video') navigate(`/view/video/${itemId}`, { state })
   }
 
   const handleAddTag = async () => {
@@ -256,6 +258,16 @@ export default function ItemDetailPage({ itemId, onClose }: ItemDetailPageProps)
             <button className="btn-primary" style={{ width: 128 }} onClick={handleOpenViewer} disabled={item.fileExists === false}>
               {tr('detail.openViewer')}
             </button>
+            {onAddToPlaylist && (
+              <button
+                className="btn-secondary"
+                style={{ width: 128 }}
+                onClick={() => onAddToPlaylist(item)}
+                disabled={item.contentType === 'other'}
+              >
+                {tr('playlist.addToList')}
+              </button>
+            )}
             <button className="btn-secondary" style={{ width: 128 }} onClick={() => api.file.openExternal(fullPath)}>
               {tr('detail.openExternal')}
             </button>

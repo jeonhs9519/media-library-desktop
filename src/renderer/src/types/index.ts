@@ -16,6 +16,7 @@ export interface Item {
   lastPositionSeconds?: number | null
   totalContent?: number | null // Pages for book/comic, seconds for video
   thumbnail?: Buffer | null
+  thumbnailBase64?: string | null
   createdAt: number
   updatedAt: number
   fileModifiedAt?: number | null
@@ -36,6 +37,14 @@ export interface Review {
   comment?: string | null
   createdAt: number
   updatedAt: number
+}
+
+export interface PlaylistItem {
+  playlistId: number
+  itemId: number
+  position: number
+  createdAt: number
+  item: Item
 }
 
 export type SortField = 'title' | 'createdAt' | 'updatedAt' | 'fileModifiedAt' | 'rating'

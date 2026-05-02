@@ -68,6 +68,18 @@ export const koMessages: Record<string, string> = {
   'library.context.detail': '상세 정보 열기',
   'library.context.openSourceUrl': '출처 URL로 이동',
 
+  'playlist.title': '플레이리스트',
+  'playlist.count': '{count}개 항목',
+  'playlist.empty': '항목을 여기에 놓거나 메뉴에서 추가하세요.',
+  'playlist.addToList': '리스트에 추가',
+  'playlist.remove': '리스트에서 제거',
+  'playlist.clear': '초기화',
+  'playlist.expand': '플레이리스트 펼치기',
+  'playlist.collapse': '플레이리스트 접기',
+  'playlist.viewerToggle': '플레이리스트 표시',
+  'playlist.previousItem': '리스트 이전 항목',
+  'playlist.nextItem': '리스트 다음 항목',
+
   'modal.duplicate.title': '중복 파일',
   'modal.duplicate.message': '"{fileName}"은(는) 이미 라이브러리에 있습니다.',
   'modal.hdtImport.title': 'HDT 일괄 가져오기',
@@ -112,6 +124,9 @@ export const koMessages: Record<string, string> = {
 
   'settings.title': '설정',
   'settings.display.title': '표시 설정',
+  'settings.playlistPosition.title': '플레이리스트 위치',
+  'settings.playlistPosition.right': '오른쪽',
+  'settings.playlistPosition.left': '왼쪽',
   'settings.filePolicy.title': '파일 수정일 변경 규칙',
   'settings.filePolicy.help': '파일 수정일을 언제 다시 읽을지 지정합니다.',
   'settings.filePolicy.once': '한 번만 (기본값)',

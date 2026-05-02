@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useI18n } from '../useI18n'
 import {
@@ -8,6 +8,7 @@ import {
   FullscreenIcon,
   LoopIcon,
   LoopOffIcon,
+  MenuIcon,
   PauseIcon,
   PlayIcon,
   ShareIcon,
@@ -20,6 +21,9 @@ import {
 } from '../components/icons'
 import ContextMenu, { ContextMenuEntry } from '../components/ContextMenu'
 import Toast, { useToast } from '../components/Toast'
+import { getNextPlaylistViewerPath } from '../playlistAutoAdvance'
+import { useViewerPlaylist } from '../useViewerPlaylist'
+import PlaylistPanel from '../components/Library/PlaylistPanel'
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00'
@@ -33,7 +37,9 @@ function formatTime(seconds: number): string {
 export default function VideoPlayerPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const itemId = parseInt(id || '0', 10)
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo || `/items/${itemId}`
   const { tr } = useI18n()
 
   const [item, setItem] = useState<any>(null)
@@ -50,6 +56,7 @@ export default function VideoPlayerPage() {
   const [hoverRatio, setHoverRatio] = useState<number | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const thumbnailToast = useToast()
+  const viewerPlaylist = useViewerPlaylist(itemId, navigate, returnTo)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -175,16 +182,29 @@ export default function VideoPlayerPage() {
         case 'R':
           handleToggleLoop()
           break
+        case 'PageUp':
+          e.preventDefault()
+          viewerPlaylist.goPrevious()
+          break
+        case 'PageDown':
+          e.preventDefault()
+          viewerPlaylist.goNext()
+          break
+        case 'l':
+        case 'L':
+          e.preventDefault()
+          viewerPlaylist.toggleVisible()
+          break
         case 'Escape':
         case 'Backspace':
-          navigate(`/items/${itemId}`)
+          navigate(returnTo)
           break
       }
     }
 
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [itemId, navigate, contextMenu])
+  }, [itemId, navigate, contextMenu, viewerPlaylist, returnTo])
 
   useEffect(() => {
     if (!contextMenu) return
@@ -304,6 +324,9 @@ export default function VideoPlayerPage() {
       progress: 1,
       lastPositionSeconds: video?.duration ?? 0,
     })
+
+    const nextPath = await getNextPlaylistViewerPath(itemId)
+    if (nextPath) navigate(nextPath, { state: { returnTo } })
   }
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -478,6 +501,31 @@ export default function VideoPlayerPage() {
     },
     { key: 'sep-2', type: 'separator' },
     {
+      key: 'playlist-toggle',
+      label: tr('playlist.viewerToggle'),
+      icon: <MenuIcon size={16} />,
+      shortcut: 'L',
+      disabled: !viewerPlaylist.available,
+      tone: viewerPlaylist.visible ? 'accent' : 'default',
+      checked: viewerPlaylist.visible,
+      onSelect: viewerPlaylist.toggleVisible,
+    },
+    {
+      key: 'playlist-prev',
+      label: tr('playlist.previousItem'),
+      shortcut: 'PgUp',
+      disabled: !viewerPlaylist.canGoPrevious,
+      onSelect: viewerPlaylist.goPrevious,
+    },
+    {
+      key: 'playlist-next',
+      label: tr('playlist.nextItem'),
+      shortcut: 'PgDown',
+      disabled: !viewerPlaylist.canGoNext,
+      onSelect: viewerPlaylist.goNext,
+    },
+    { key: 'sep-playlist', type: 'separator' },
+    {
       key: 'show-in-folder',
       label: tr('viewer.video.showInFolder'),
       icon: <FolderOpenIcon size={16} />,
@@ -554,7 +602,7 @@ export default function VideoPlayerPage() {
                 <button
                   className="video-control-button"
                   tabIndex={controlsTabIndex}
-                  onClick={() => navigate(`/items/${itemId}`)}
+                  onClick={() => navigate(returnTo)}
                   title={tr('common.back')}
                   aria-label={tr('common.back')}
                   style={{
@@ -578,6 +626,26 @@ export default function VideoPlayerPage() {
                   <button
                     className="video-control-button"
                     tabIndex={controlsTabIndex}
+                    onClick={handleExternalOpen}
+                    title={tr('viewer.video.externalPlayer')}
+                    aria-label={tr('viewer.video.externalPlayer')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0 2px',
+                      color: '#fff',
+                      background: 'transparent',
+                      border: 'none',
+                      boxShadow: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <ShareIcon size={24} />
+                  </button>
+                  <button
+                    className="video-control-button"
+                    tabIndex={controlsTabIndex}
                     onClick={handleSetThumbnail}
                     title={tr('viewer.setThumbnail')}
                     aria-label={tr('viewer.setThumbnail')}
@@ -598,22 +666,23 @@ export default function VideoPlayerPage() {
                   <button
                     className="video-control-button"
                     tabIndex={controlsTabIndex}
-                    onClick={handleExternalOpen}
-                    title={tr('viewer.video.externalPlayer')}
-                    aria-label={tr('viewer.video.externalPlayer')}
+                    onClick={viewerPlaylist.toggleVisible}
+                    title={tr('playlist.viewerToggle')}
+                    aria-label={tr('playlist.viewerToggle')}
+                    disabled={!viewerPlaylist.available}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       padding: '0 2px',
-                      color: '#fff',
-                      background: 'transparent',
+                      color: viewerPlaylist.visible ? '#4a9eff' : '#d2d8e2',
+                      background: viewerPlaylist.visible ? 'rgba(74, 158, 255, 0.14)' : 'transparent',
                       border: 'none',
                       boxShadow: 'none',
-                      cursor: 'pointer',
+                      cursor: viewerPlaylist.available ? 'pointer' : 'default',
                     }}
                   >
-                    <ShareIcon size={24} />
+                    <MenuIcon size={24} />
                   </button>
                 </div>
               </div>
@@ -839,6 +908,27 @@ export default function VideoPlayerPage() {
                 <FullscreenIcon size={24} />
               </button>
             </div>
+            </div>
+          )}
+
+          {viewerPlaylist.visible && isControlsVisible && (
+            <div className="viewer-playlist-panel-wrap">
+              <PlaylistPanel
+                items={viewerPlaylist.items}
+                thumbnails={viewerPlaylist.thumbnails}
+                collapsed={false}
+                position="right"
+                onToggleCollapsed={viewerPlaylist.toggleVisible}
+                onDropItem={() => undefined}
+                onRemoveItem={viewerPlaylist.removeItem}
+                onClear={viewerPlaylist.clear}
+                onReorderItems={viewerPlaylist.reorderItems}
+                viewerReturnTo={returnTo}
+                showCollapseButton={false}
+                viewerMode
+                currentItemId={itemId}
+                tr={tr}
+              />
             </div>
           )}
         </div>

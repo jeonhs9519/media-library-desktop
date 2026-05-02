@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import * as pdfjsLib from 'pdfjs-dist'
 import { useI18n } from '../useI18n'
 import { api } from '../api'
@@ -7,6 +7,8 @@ import BookViewerOverlay, { useBookViewerViewMode } from '../components/BookView
 import { useBookViewerOverlayUx } from '../components/BookViewerOverlay/useBookViewerOverlayUx.ts'
 import { useBookViewerKeyboard } from '../components/BookViewerOverlay/useBookViewerKeyboard.ts'
 import Toast, { useToast } from '../components/Toast'
+import { getNextPlaylistViewerPath } from '../playlistAutoAdvance'
+import { useViewerPlaylist } from '../useViewerPlaylist'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
@@ -23,7 +25,9 @@ function clampPage(page: number, max: number): number {
 export default function PdfViewerPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const itemId = parseInt(id!)
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo || `/items/${itemId}`
 
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
@@ -38,6 +42,7 @@ export default function PdfViewerPage() {
   const rightRenderTaskRef = useRef<pdfjsLib.RenderTask | null>(null)
   const { tr } = useI18n()
   const thumbnailToast = useToast()
+  const viewerPlaylist = useViewerPlaylist(itemId, navigate, returnTo)
   const {
     containerRef,
     isTopOverlayVisible,
@@ -208,15 +213,31 @@ export default function PdfViewerPage() {
     }).catch(console.error)
   }, [currentPage, pageCount, itemId])
 
+  const goToNextPageByStep = useCallback((step: number) => {
+    if (pageCount > 0 && currentPage + step > pageCount) {
+      getNextPlaylistViewerPath(itemId)
+        .then((nextPath) => {
+          if (nextPath) navigate(nextPath, { state: { returnTo } })
+        })
+        .catch(console.error)
+      return
+    }
+
+    setCurrentPage((p) => clampPage(p + step, pageCount))
+  }, [currentPage, itemId, navigate, pageCount, returnTo])
+
   useBookViewerKeyboard({
     viewMode,
     isContextMenuOpen,
     onViewModeChange: setViewMode,
     onPrevPage: (step) => setCurrentPage((p) => clampPage(p - step, pageCount)),
-    onNextPage: (step) => setCurrentPage((p) => clampPage(p + step, pageCount)),
+    onNextPage: goToNextPageByStep,
     onGoHome: () => setCurrentPage(1),
     onToggleFullscreen: toggleFullscreen,
-    onExitViewer: () => navigate(`/items/${itemId}`),
+    onExitViewer: () => navigate(returnTo),
+    onPlaylistPrevious: viewerPlaylist.goPrevious,
+    onPlaylistNext: viewerPlaylist.goNext,
+    onTogglePlaylist: viewerPlaylist.toggleVisible,
   })
 
   const handleSetThumbnail = async () => {
@@ -243,7 +264,7 @@ export default function PdfViewerPage() {
   }
 
   const goToNextPage = () => {
-    setCurrentPage(p => clampPage(p + pageStep, pageCount))
+    goToNextPageByStep(pageStep)
   }
 
   const renderContent = () => {
@@ -305,7 +326,7 @@ export default function PdfViewerPage() {
       onMouseMove={showTopOverlay}
       onMouseLeave={hideTopOverlayWithDelay}
       onContextMenu={handleContextMenu}
-      onBack={() => navigate(`/items/${itemId}`)}
+      onBack={() => navigate(returnTo)}
       itemTitle={item?.title}
       viewMode={viewMode}
       onViewModeChange={setViewMode}
@@ -316,7 +337,21 @@ export default function PdfViewerPage() {
       isFullscreen={isFullscreen}
       onToggleFullscreen={toggleFullscreen}
       onShowInFolder={handleShowInFolder}
-      onExitViewer={() => navigate(`/items/${itemId}`)}
+      onExitViewer={() => navigate(returnTo)}
+      currentItemId={itemId}
+      playlistItems={viewerPlaylist.items}
+      playlistThumbnails={viewerPlaylist.thumbnails}
+      playlistVisible={viewerPlaylist.visible}
+      playlistAvailable={viewerPlaylist.available}
+      playlistCanGoPrevious={viewerPlaylist.canGoPrevious}
+      playlistCanGoNext={viewerPlaylist.canGoNext}
+      onTogglePlaylist={viewerPlaylist.toggleVisible}
+      onPlaylistPrevious={viewerPlaylist.goPrevious}
+      onPlaylistNext={viewerPlaylist.goNext}
+      onRemovePlaylistItem={viewerPlaylist.removeItem}
+      onReorderPlaylistItems={viewerPlaylist.reorderItems}
+      onClearPlaylist={viewerPlaylist.clear}
+      viewerReturnTo={returnTo}
       contextMenu={contextMenu}
       onCloseContextMenu={closeContextMenu}
       contextMenuId="pdf-context-menu"

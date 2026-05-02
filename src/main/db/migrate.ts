@@ -26,4 +26,26 @@ export function ensureRuntimeSchema(sqlite: Database.Database) {
     sqlite.exec('ALTER TABLE `items` ADD COLUMN `totalContent` real;')
     console.log('[main] Added missing items.totalContent column')
   }
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS playlists (
+      id integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      name text NOT NULL UNIQUE,
+      createdAt integer NOT NULL,
+      updatedAt integer NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS playlistItems (
+      playlistId integer NOT NULL,
+      itemId integer NOT NULL,
+      position integer NOT NULL,
+      createdAt integer NOT NULL,
+      PRIMARY KEY (playlistId, itemId),
+      FOREIGN KEY (playlistId) REFERENCES playlists(id) ON DELETE cascade,
+      FOREIGN KEY (itemId) REFERENCES items(id) ON DELETE cascade
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_position
+      ON playlistItems (playlistId, position);
+  `)
 }
