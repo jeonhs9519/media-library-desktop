@@ -1,17 +1,28 @@
-name: CI — Build Electron ZIP
+name: CI - Build Electron ZIP
 
 on:
   push:
     tags: [ 'v*' ]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      upload_artifact:
+        description: 'Upload dist ZIP as a short-lived Actions artifact'
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write
+
+concurrency:
+  group: build-electron-zip-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-windows:
     name: Build on Windows
     runs-on: windows-latest
+    timeout-minutes: 30
     env:
       CSC_LINK: ${{ secrets.CSC_LINK }}
       CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -19,6 +30,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -36,8 +49,23 @@ jobs:
           restore-keys: |
             electron-cache-${{ runner.os }}-
 
-      - name: Install dependencies (skip lifecycle scripts)
-        run: npm ci --ignore-scripts
+      - name: Install dependencies
+        run: npm ci
+        shell: pwsh
+
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $expectedTag = "v$packageVersion"
+          if ("${{ github.ref_name }}" -ne $expectedTag) {
+            Write-Error "Tag ${{ github.ref_name }} does not match package.json version $packageVersion. Expected $expectedTag."
+            exit 1
+          }
+
+      - name: Run unit tests
+        run: npm test
         shell: pwsh
 
       - name: Build app (renderer & main)
@@ -56,8 +84,25 @@ jobs:
         run: npx electron-builder --win zip --x64 --publish never
         shell: pwsh
 
-      - name: Upload build artifacts (수동 실행 시에만)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Verify ZIP artifact
+        shell: pwsh
+        run: |
+          $zipFiles = Get-ChildItem -Path dist -Filter '*.zip' -File
+          if ($zipFiles.Count -ne 1) {
+            Write-Error "Expected exactly one ZIP artifact in dist, found $($zipFiles.Count)."
+            $zipFiles | ForEach-Object { Write-Host "Found ZIP: $($_.FullName)" }
+            exit 1
+          }
+
+          if ($zipFiles[0].Length -le 0) {
+            Write-Error "ZIP artifact is empty: $($zipFiles[0].FullName)"
+            exit 1
+          }
+
+          Write-Host "ZIP artifact ready: $($zipFiles[0].Name) ($($zipFiles[0].Length) bytes)"
+
+      - name: Upload build artifact
+        if: github.event_name == 'workflow_dispatch' && inputs.upload_artifact
         uses: actions/upload-artifact@v4
         with:
           name: dist-windows-latest
@@ -65,11 +110,40 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+      - name: Build release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $previousTag = git tag --sort=-creatordate | Where-Object { $_ -ne $tag } | Select-Object -First 1
+
+          if ($previousTag) {
+            $commits = git log --pretty=format:"- %s (%h)" "$previousTag..$tag"
+          } else {
+            $commits = git log --pretty=format:"- %s (%h)" $tag
+          }
+
+          if (-not $commits) {
+            $commits = "- 변경 내역 없음"
+          }
+
+          $lines = @(
+            "## 릴리즈 개요",
+            "- 버전: $tag",
+            "- 비교 기준: $(if ($previousTag) { $previousTag } else { '첫 릴리즈' })",
+            "",
+            "## 변경 사항",
+            $commits
+          )
+
+          $lines | Set-Content -Path RELEASE_NOTES.md -Encoding UTF8
+
       - name: Publish or Update GitHub Release (ZIP)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          body: Automated release for ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
           files: dist/*.zip
+          fail_on_unmatched_files: true

@@ -6,10 +6,15 @@ on:
 permissions:
   actions: read
 
+concurrency:
+  group: check-artifact-storage
+  cancel-in-progress: true
+
 jobs:
   check-storage:
     name: Artifact Storage & Quota Report
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       REPO: ${{ github.repository }}
@@ -17,9 +22,12 @@ jobs:
 
     steps:
       - name: List all artifacts and calculate total size
+        shell: bash
         run: |
+          set -euo pipefail
+
           echo "======================================================"
-          echo "  Artifact Storage Usage — ${REPO}"
+          echo "  Artifact Storage Usage - ${REPO}"
           echo "======================================================"
           echo ""
 
@@ -37,8 +45,8 @@ jobs:
 
           TOTAL_COUNT=$(echo "$ALL_ARTIFACTS" | jq 'length')
           TOTAL_BYTES=$(echo "$ALL_ARTIFACTS" | jq '[.[].size_in_bytes] | add // 0')
-          TOTAL_MB=$(echo "scale=2; $TOTAL_BYTES / 1048576" | bc)
-          TOTAL_GB=$(echo "scale=3; $TOTAL_BYTES / 1073741824" | bc)
+          TOTAL_MB=$(awk "BEGIN { printf \"%.2f\", $TOTAL_BYTES / 1048576 }")
+          TOTAL_GB=$(awk "BEGIN { printf \"%.3f\", $TOTAL_BYTES / 1073741824 }")
 
           echo "총 아티팩트 수 (Total artifacts): $TOTAL_COUNT"
           echo "전체 사용 용량 (Total used):       ${TOTAL_BYTES} bytes  (${TOTAL_MB} MB / ${TOTAL_GB} GB)"
@@ -54,7 +62,10 @@ jobs:
           fi
 
       - name: Check billing storage info
+        shell: bash
         run: |
+          set -euo pipefail
+
           echo ""
           echo "======================================================"
           echo "  Billing Storage Info"
@@ -74,13 +85,13 @@ jobs:
 
           echo ""
           echo "======================================================"
-          echo "  Quota 재계산 안내"
+          echo "  Quota Recalculation Guide"
           echo "======================================================"
           echo ""
           echo "GitHub는 아티팩트 스토리지 quota를 6~12시간마다 재계산합니다."
           echo "Quota 초과 오류가 발생했다면, 재계산까지 기다리거나 아래 방법으로"
           echo "아티팩트를 삭제해 여유 공간을 확보하세요."
           echo ""
-          echo "  • 웹 UI: Actions 탭 → 해당 워크플로우 실행 → Artifacts 섹션 → 삭제 아이콘"
-          echo "  • gh CLI: gh api --method DELETE /repos/${REPO}/actions/artifacts/<artifact_id>"
-          echo "  • 아티팩트 목록 조회: gh api /repos/${REPO}/actions/artifacts | jq '.artifacts[] | {id, name, size_in_bytes, created_at}'"
+          echo "  - 웹 UI: Actions 탭 -> 해당 워크플로 실행 -> Artifacts 섹션 -> 삭제 아이콘"
+          echo "  - gh CLI: gh api --method DELETE /repos/${REPO}/actions/artifacts/<artifact_id>"
+          echo "  - 아티팩트 목록 조회: gh api /repos/${REPO}/actions/artifacts | jq '.artifacts[] | {id, name, size_in_bytes, created_at}'"

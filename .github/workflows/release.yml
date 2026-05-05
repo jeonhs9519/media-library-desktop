@@ -1,14 +1,25 @@
-name: Create Release
+name: Create or Update Release Notes
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create or update, for example v0.0.7'
+        required: true
+        type: string
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-notes-${{ inputs.tag }}
+  cancel-in-progress: false
+
 jobs:
   release:
+    name: Create or update GitHub Release notes
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
@@ -17,10 +28,27 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag }}"
+
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must look like v0.0.7. Received: $TAG" >&2
+            exit 1
+          fi
+
+          if ! git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag does not exist in this repository: $TAG" >&2
+            exit 1
+          fi
+
       - name: Build Korean release notes
         shell: bash
         run: |
-          TAG="${GITHUB_REF_NAME}"
+          set -euo pipefail
+          TAG="${{ inputs.tag }}"
           PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${TAG}$" | head -n 1 || true)
 
           if [ -n "$PREV_TAG" ]; then
@@ -49,6 +77,6 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          tag_name: ${{ inputs.tag }}
+          name: ${{ inputs.tag }}
           body_path: RELEASE_NOTES.md

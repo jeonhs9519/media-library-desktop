@@ -2,6 +2,12 @@
 
 ## 2026-05-02
 
+- 릴리즈 문서에 태그 기반 정식 릴리즈 경로, 로컬 사전 검증, CI와 같은 패키징 순서, 릴리즈 노트 재생성 절차를 보강
+- Windows 로컬 패키징 전 실행 중인 Electron 앱을 종료해야 하는 native 모듈 파일 잠금 주의사항을 추가
+- GitHub Actions Windows ZIP 빌드 워크플로에 테스트 실행, 태그/`package.json` 버전 일치 검증, 릴리즈 노트 생성, 동시 실행 제어를 추가
+- 릴리즈 빌드 워크플로가 clean runner에서 native dependency 설치 스크립트를 건너뛰지 않도록 `npm ci`를 사용하고, Release 업로드 전 ZIP 산출물 검증 단계를 추가
+- 릴리즈 노트 워크플로를 기존 태그 입력 기반 수동 보조 워크플로로 정리
+- Actions artifact quota 점검 워크플로에 timeout, concurrency, 명시적 shell, 더 안전한 용량 계산과 안내 문구를 적용
 - 플레이리스트 완료 상태를 기준으로 `next-task.md`, `backlog.md`, `roadmap.md`의 완료 항목을 제거하고 상태/결정 문서로 흡수
 - `architecture.md`에 플레이리스트 IPC, 패널, 데이터 도메인 구조를 반영
 - 라이브러리 화면에서 플레이리스트 패널의 HTML 순서를 툴바 다음, 라이브러리 목록 이전으로 고정하고 CSS `order`로 좌우 표시만 바꾸도록 조정
