@@ -25,6 +25,7 @@
 - `architecture.md`: 앱 구조와 주요 파일 맵
 - `setup.md`: 개발 환경, 실행, 테스트, 트러블슈팅
 - `release-ci.md`: Windows 패키징, 코드 서명, CI 아티팩트 운영 가이드
+- `release-notes/`: 태그별 릴리즈 노트
 - `backlog.md`: 아이디어, 개선안, 아직 착수하지 않은 항목
 - `decisions.md`: 프로젝트 운영/구조 관련 의사결정 기록
 - `changelog.md`: 문서 체계 변경 기록
@@ -33,4 +34,5 @@
 
 - 루트 `README.md`는 저장소 진입 문서로 간결하게 유지합니다.
 - 상세 운영 문서와 작업 메모는 모두 `docs/` 아래에서 관리합니다.
+- 공개 저장소 첫 화면에 노출되는 내용은 현재 구현 사실과 보안상 공개 가능한 정보만 남깁니다.
 - 작업이 끝나면 필요 시 `current-status.md`, `next-task.md`, `backlog.md`를 함께 갱신합니다.

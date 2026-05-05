@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-05-05
+Last updated: 2026-05-06
 
 `media-library-desktop`는 Electron + React + SQLite 기반의 개인용 미디어 라이브러리 앱입니다. PDF, CBZ, 비디오 파일을 등록하고, 썸네일, 진행률, 태그, 리뷰, 다국어 UI를 함께 관리하는 방향으로 구현되어 있습니다.
 
@@ -139,6 +139,7 @@ Last updated: 2026-05-05
 ## 작업 트리 메모
 
 - 현재 브랜치는 `main`입니다.
-- 현재 과거 DB/HDT 가져오기 설정 팝업 정리 관련 코드와 문서 변경이 작업 트리에 남아 있습니다.
+- 작업 시작 시점의 작업 트리는 clean 상태였습니다.
+- 공개 저장소 기준으로 루트 `README.md`와 릴리즈 관련 문서를 점검했습니다.
 
 이 문서는 기능 상태 중심으로 유지하고, 세부 구현 계획은 `next-task.md`와 `backlog.md`에서 관리합니다.

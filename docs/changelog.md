@@ -2,6 +2,12 @@
 
 ## 2026-05-06
 
+- 공개 저장소 전환에 맞춰 루트 `README.md`의 기능 요약, 빌드/테스트, 로컬 실행 파일 주의사항을 갱신
+- 과거 DB 자동 복사 설명을 현재 구현인 설정 팝업의 `과거 데이터 불러오기` 흐름으로 수정
+- `docs/README.md`와 `release-ci.md`에 `docs/release-notes/` 기준을 추가
+- `docs/release-notes/v0.0.1.md`부터 `docs/release-notes/v0.0.7.md`까지 태그별 릴리즈 노트 추가
+- `release-ci.md`의 테스트용 인증서 안내를 공개 저장소 기준으로 보강하고 예시 비밀번호를 placeholder로 교체
+- `setup.md`의 남아 있던 `pnpm` 명령 예시를 현재 npm 기준으로 수정
 - 태그 간 `git log`를 주요 기능, UI/UX, 구조 및 성능, 배포 및 CI, 문서 및 계획으로 묶어 릴리즈 노트를 생성하는 `scripts/build-release-notes.js` 추가
 - 태그 릴리즈 워크플로와 수동 릴리즈 노트 재생성 워크플로가 공통 릴리즈 노트 스크립트를 사용하도록 정리
 - `release-ci.md`에 그룹형 릴리즈 노트 생성 방식과 로컬 미리보기 명령을 추가

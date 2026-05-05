@@ -1,6 +1,6 @@
 # Setup
 
-Last updated: 2026-04-29
+Last updated: 2026-05-06
 
 ## 사전 요구사항
 
@@ -55,7 +55,7 @@ npm run test:e2e
 ### `Electron failed to install correctly`
 
 ```bash
-pnpm rebuild electron
+npm rebuild electron
 node node_modules/electron/install.js
 ```
 
@@ -81,7 +81,7 @@ Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force
 Remove-Item ".\media-library.db" -Force -ErrorAction SilentlyContinue
 Remove-Item ".\media-library.db-shm" -Force -ErrorAction SilentlyContinue
 Remove-Item ".\media-library.db-wal" -Force -ErrorAction SilentlyContinue
-pnpm dev
+npm run dev
 ```
 
 ## i18n 작업 가이드

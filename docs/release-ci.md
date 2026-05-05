@@ -1,6 +1,6 @@
 # Release And CI
 
-Last updated: 2026-05-02
+Last updated: 2026-05-06
 
 ## 릴리즈 경로 요약
 
@@ -101,6 +101,7 @@ gh run download <run-id> --name dist-windows-latest
 태그는 이미 있는데 Release 본문만 다시 만들고 싶다면 `Create or Update Release Notes` 워크플로를 수동 실행하고 `tag` 입력에 `v0.0.7`처럼 기존 태그명을 넣습니다. 이 워크플로는 ZIP을 빌드하거나 첨부하지 않습니다.
 
 릴리즈 노트는 `scripts/build-release-notes.js`가 이전 semver 태그와 현재 태그 사이의 `git log`를 읽어 자동 생성합니다. 커밋 제목과 본문을 기준으로 주요 기능, UI/UX 개선, 구조 및 성능, 배포 및 CI, 문서 및 계획 항목으로 묶습니다.
+저장소에 남기는 수동 정리본은 `docs/release-notes/v0.0.7.md`처럼 버전별 파일로 관리합니다.
 
 로컬 미리보기:
 
@@ -128,12 +129,13 @@ PowerShell 예시:
 ```powershell
 $base = Get-Content .\test-cert.pfx.base64 -Raw
 gh secret set CSC_LINK --body "$base"
-gh secret set CSC_KEY_PASSWORD --body "password"
+gh secret set CSC_KEY_PASSWORD --body "<password>"
 ```
 
 ## 테스트용 인증서 주의
 
-- 루트에 있는 `test-cert.pfx`, `test-cert.pfx.base64`는 테스트 목적입니다.
+- 로컬에 있는 `test-cert.pfx`, `test-cert.pfx.base64`는 테스트 목적입니다.
+- 공개 저장소에는 실제 배포용 인증서나 비밀번호를 포함하지 않습니다.
 - 실제 릴리스용 인증서는 신뢰 가능한 CA 발급본을 별도로 관리해야 합니다.
 
 ## Artifact quota 이슈
