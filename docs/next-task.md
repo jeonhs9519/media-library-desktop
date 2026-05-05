@@ -1,6 +1,6 @@
 # Next Task
 
-Last updated: 2026-05-02
+Last updated: 2026-05-05
 
 이 문서는 다음 작업 세션에서 바로 이어받기 좋은 우선순위만 남깁니다. 완료된 작업의 상태 기록은 `current-status.md`, 변경 이력은 `changelog.md`, 장기 후보는 `backlog.md`에서 관리합니다.
 
@@ -42,3 +42,8 @@ Last updated: 2026-05-02
 - TODO성 아이템은 `backlog.md`로 누적합니다.
 - 실제 착수 항목만 이 문서로 승격합니다.
 - 완료된 작업은 이 문서에서 제거하고 `current-status.md` 또는 `changelog.md`에 흡수합니다.
+
+## 재구축 전제 조건
+
+- Tauri 재구축은 현재 Electron 앱의 핵심 기능 마무리와 최종 동작 확인 이후 진행합니다.
+- 재구축 전에 테스트 시나리오, 소스 분석 문서, 재구축 계획서를 먼저 작성합니다.
