@@ -33,6 +33,33 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $expectedTag = "v$packageVersion"
+          if ("${{ github.ref_name }}" -ne $expectedTag) {
+            Write-Error "Tag ${{ github.ref_name }} does not match package.json version $packageVersion. Expected $expectedTag."
+            exit 1
+          }
+
+      - name: Verify release notes file
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          $notesPath = "docs/release-notes/${{ github.ref_name }}.md"
+          if (!(Test-Path $notesPath)) {
+            Write-Error "Missing release notes file: $notesPath. Run npm run release:patch so the release commit includes it."
+            exit 1
+          }
+
+          $firstLine = Get-Content $notesPath -TotalCount 1
+          if ($firstLine -ne "## 릴리즈 개요") {
+            Write-Error "Release notes must start with '## 릴리즈 개요' to avoid duplicate GitHub Release titles."
+            exit 1
+          }
+        shell: pwsh
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -52,17 +79,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
         shell: pwsh
-
-      - name: Verify tag matches package version
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: pwsh
-        run: |
-          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $expectedTag = "v$packageVersion"
-          if ("${{ github.ref_name }}" -ne $expectedTag) {
-            Write-Error "Tag ${{ github.ref_name }} does not match package.json version $packageVersion. Expected $expectedTag."
-            exit 1
-          }
 
       - name: Run unit tests
         run: npm test
@@ -110,17 +126,12 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-      - name: Build release notes
-        if: startsWith(github.ref, 'refs/tags/')
-        run: npm run release:notes -- --tag ${{ github.ref_name }} --out RELEASE_NOTES.md
-        shell: pwsh
-
       - name: Publish or Update GitHub Release (ZIP)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          body_path: RELEASE_NOTES.md
+          body_path: docs/release-notes/${{ github.ref_name }}.md
           files: dist/*.zip
           fail_on_unmatched_files: true

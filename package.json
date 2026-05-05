@@ -9,6 +9,7 @@
     "icon:build": "node ./scripts/build-icon.js",
     "release:patch": "node ./scripts/release.js",
     "release:notes": "node ./scripts/build-release-notes.js",
+    "release:notes:docs": "node ./scripts/build-release-notes.js --save-docs",
     "bundle:main": "esbuild src/main/index.ts --bundle --platform=node --target=node22 --outfile=out/main/index.js --external:electron --external:sharp --external:better-sqlite3",
     "package:win": "electron-builder --win zip",
     "preview": "electron-vite preview",

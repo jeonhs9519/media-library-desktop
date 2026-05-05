@@ -1,5 +1,6 @@
 const { execFileSync } = require('child_process')
 const fs = require('fs')
+const path = require('path')
 
 function runGit(args) {
   return execFileSync('git', args, { encoding: 'utf8' }).trim()
@@ -9,14 +10,18 @@ function parseArgs(argv) {
   const args = {
     tag: process.env.GITHUB_REF_NAME || '',
     from: '',
+    to: '',
     out: 'RELEASE_NOTES.md',
+    saveDocs: false,
   }
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
     if (arg === '--tag') args.tag = argv[++i] || ''
     else if (arg === '--from') args.from = argv[++i] || ''
+    else if (arg === '--to') args.to = argv[++i] || ''
     else if (arg === '--out') args.out = argv[++i] || ''
+    else if (arg === '--save-docs') args.saveDocs = true
     else {
       console.error(`Unknown argument: ${arg}`)
       process.exit(1)
@@ -164,8 +169,6 @@ function buildNotes({ tag, previousTag, commits }) {
   }
 
   const lines = [
-    `# ${tag}`,
-    '',
     '## 릴리즈 개요',
     '',
     `- 버전: ${tag}`,
@@ -195,6 +198,12 @@ function buildNotes({ tag, previousTag, commits }) {
   return `${lines.join('\n').trim()}\n`
 }
 
+function writeFile(filePath, content) {
+  const directory = path.dirname(filePath)
+  if (directory && directory !== '.') fs.mkdirSync(directory, { recursive: true })
+  fs.writeFileSync(filePath, content, 'utf8')
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2))
   if (!args.tag) {
@@ -203,12 +212,18 @@ function main() {
   }
 
   const previousTag = args.from || findPreviousTag(args.tag)
-  const range = previousTag ? `${previousTag}..${args.tag}` : args.tag
+  const toRef = args.to || args.tag
+  const range = previousTag ? `${previousTag}..${toRef}` : toRef
   const commits = getCommits(range)
   const notes = buildNotes({ tag: args.tag, previousTag, commits })
 
-  fs.writeFileSync(args.out, notes, 'utf8')
+  writeFile(args.out, notes)
   console.log(`Release notes written to ${args.out}`)
+  if (args.saveDocs) {
+    const docsOut = path.join('docs', 'release-notes', `${args.tag}.md`)
+    writeFile(docsOut, notes)
+    console.log(`Release notes saved to ${docsOut}`)
+  }
   console.log(`Range: ${range}`)
 }
 

@@ -6,6 +6,10 @@
 - 과거 DB 자동 복사 설명을 현재 구현인 설정 팝업의 `과거 데이터 불러오기` 흐름으로 수정
 - `docs/README.md`와 `release-ci.md`에 `docs/release-notes/` 기준을 추가
 - `docs/release-notes/v0.0.1.md`부터 `docs/release-notes/v0.0.7.md`까지 태그별 릴리즈 노트 추가
+- GitHub Release 화면에서 제목이 중복 표시되지 않도록 버전별 릴리즈 노트의 최상위 제목을 제거
+- 릴리즈 노트 생성 스크립트가 최상위 제목 없이 본문을 생성하고, `--save-docs`로 `docs/release-notes/`에 저장할 수 있도록 수정
+- 릴리즈 스크립트가 `docs/release-notes/<tag>.md`를 release commit에 포함하고, GitHub Actions가 해당 파일을 Release 본문으로 사용하도록 변경
+- GitHub Actions가 릴리즈 노트 파일을 의존성 설치와 ZIP 빌드 전에 먼저 검증하도록 순서 조정
 - `release-ci.md`의 테스트용 인증서 안내를 공개 저장소 기준으로 보강하고 예시 비밀번호를 placeholder로 교체
 - `setup.md`의 남아 있던 `pnpm` 명령 예시를 현재 npm 기준으로 수정
 - 태그 간 `git log`를 주요 기능, UI/UX, 구조 및 성능, 배포 및 CI, 문서 및 계획으로 묶어 릴리즈 노트를 생성하는 `scripts/build-release-notes.js` 추가

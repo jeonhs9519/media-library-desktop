@@ -28,11 +28,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
       - name: Validate tag
         shell: bash
         run: |
@@ -49,12 +44,27 @@ jobs:
             exit 1
           fi
 
-      - name: Build Korean release notes
-        run: npm run release:notes -- --tag ${{ inputs.tag }} --out RELEASE_NOTES.md
+      - name: Verify release notes file
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOTES_PATH="docs/release-notes/${{ inputs.tag }}.md"
+
+          if [[ ! -f "$NOTES_PATH" ]]; then
+            echo "Missing release notes file: $NOTES_PATH" >&2
+            echo "Run npm run release:patch so the release commit includes it, or add the file before rerunning this workflow." >&2
+            exit 1
+          fi
+
+          FIRST_LINE="$(head -n 1 "$NOTES_PATH")"
+          if [[ "$FIRST_LINE" != "## 릴리즈 개요" ]]; then
+            echo "Release notes must start with '## 릴리즈 개요' to avoid duplicate GitHub Release titles." >&2
+            exit 1
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
           name: ${{ inputs.tag }}
-          body_path: RELEASE_NOTES.md
+          body_path: docs/release-notes/${{ inputs.tag }}.md
