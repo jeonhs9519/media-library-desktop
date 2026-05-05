@@ -28,6 +28,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Validate tag
         shell: bash
         run: |
@@ -45,34 +50,7 @@ jobs:
           fi
 
       - name: Build Korean release notes
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${{ inputs.tag }}"
-          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${TAG}$" | head -n 1 || true)
-
-          if [ -n "$PREV_TAG" ]; then
-            COMMITS=$(git log --pretty=format:'- %s (%h)' "${PREV_TAG}..${TAG}")
-          else
-            COMMITS=$(git log --pretty=format:'- %s (%h)' "${TAG}")
-          fi
-
-          if [ -z "$COMMITS" ]; then
-            COMMITS='- 변경 내역 없음'
-          fi
-
-          {
-            echo "## 릴리즈 개요"
-            echo "- 버전: ${TAG}"
-            if [ -n "$PREV_TAG" ]; then
-              echo "- 비교 기준: ${PREV_TAG}"
-            else
-              echo "- 비교 기준: 첫 릴리즈"
-            fi
-            echo
-            echo "## 변경 사항"
-            echo "$COMMITS"
-          } > RELEASE_NOTES.md
+        run: npm run release:notes -- --tag ${{ inputs.tag }} --out RELEASE_NOTES.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

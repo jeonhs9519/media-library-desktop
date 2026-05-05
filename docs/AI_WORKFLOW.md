@@ -97,6 +97,9 @@
 - 사용자가 개발 앱 실행을 요청하면 샌드박스 내부 실행을 먼저 시도하지 말고, 승인된 `npm.cmd run dev` 방식으로 바로 실행합니다.
 - 단순 텍스트 일부 변경이 아닌 코드/구조 변경 후 개발 앱 동작 확인을 요청받으면, 기존 개발 앱 프로세스를 먼저 종료한 뒤 새로 `npm.cmd run dev`를 실행합니다.
 - 특히 main/preload 변경, 큰 renderer 구조 변경, 라우팅/모달/포커스 동작 변경 후에는 새로 실행한 앱에서 확인합니다.
+- 릴리즈 요청을 처리할 때는 `release:patch` 실행과 push 성공, 가능하면 Actions run 생성 여부까지만 확인합니다.
+- `CI - Build Electron ZIP`은 Windows ZIP 패키징에 20분 이상 걸릴 수 있으므로, Codex 세션에서 완료까지 장시간 polling하지 않습니다.
+- Actions 실패 확인이나 로그 분석은 사용자가 실패 상태를 확인한 뒤 별도 요청했을 때 수행합니다.
 
 ## 8. Future Sessions
 

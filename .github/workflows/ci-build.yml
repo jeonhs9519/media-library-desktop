@@ -112,31 +112,8 @@ jobs:
 
       - name: Build release notes
         if: startsWith(github.ref, 'refs/tags/')
+        run: npm run release:notes -- --tag ${{ github.ref_name }} --out RELEASE_NOTES.md
         shell: pwsh
-        run: |
-          $tag = "${{ github.ref_name }}"
-          $previousTag = git tag --sort=-creatordate | Where-Object { $_ -ne $tag } | Select-Object -First 1
-
-          if ($previousTag) {
-            $commits = git log --pretty=format:"- %s (%h)" "$previousTag..$tag"
-          } else {
-            $commits = git log --pretty=format:"- %s (%h)" $tag
-          }
-
-          if (-not $commits) {
-            $commits = "- 변경 내역 없음"
-          }
-
-          $lines = @(
-            "## 릴리즈 개요",
-            "- 버전: $tag",
-            "- 비교 기준: $(if ($previousTag) { $previousTag } else { '첫 릴리즈' })",
-            "",
-            "## 변경 사항",
-            $commits
-          )
-
-          $lines | Set-Content -Path RELEASE_NOTES.md -Encoding UTF8
 
       - name: Publish or Update GitHub Release (ZIP)
         if: startsWith(github.ref, 'refs/tags/')
