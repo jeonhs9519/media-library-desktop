@@ -33,6 +33,55 @@ export type HdtPreviewResponse = {
   stats: HdtPreviewStats
 }
 
+export type LegacyDatabasePreviewItem = {
+  previewId: string
+  legacyId: number
+  title: string
+  filePath: string
+  fileName: string
+  fileExtension: string
+  contentType: string
+  watched: number
+  progress: number
+  hasThumbnail: boolean
+  tagNames: string[]
+  reviewRating?: number
+  hasReview: boolean
+  duplicate: boolean
+  disabledReason?: 'duplicate' | 'invalid_entry'
+}
+
+export type LegacyDatabasePreviewSetting = {
+  key: string
+  value: string
+  exists: boolean
+}
+
+export type LegacyDatabasePreviewTag = {
+  id: number
+  name: string
+  exists: boolean
+}
+
+export type LegacyDatabasePreview = {
+  ok: boolean
+  filePath?: string
+  message?: string
+  settings: LegacyDatabasePreviewSetting[]
+  tags: LegacyDatabasePreviewTag[]
+  items: LegacyDatabasePreviewItem[]
+  stats: {
+    sourceItemCount: number
+    importableItemCount: number
+    duplicateItemCount: number
+    invalidItemCount: number
+    tagCount: number
+    reviewCount: number
+    playlistCount: number
+    playlistItemCount: number
+  }
+}
+
 export type BulkRelinkConflict = {
   movingTitle?: string
   movingPath: string

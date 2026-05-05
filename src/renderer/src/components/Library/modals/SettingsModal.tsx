@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { LanguageSetting } from '../../../i18n/index'
 import { api } from '../../../api'
 import Modal from '../../Modal'
@@ -16,6 +16,12 @@ interface Props {
   bulkCounting: boolean
   bulkRelinking: boolean
   bulkRelinkNotice: string
+  legacyDbPath: string
+  legacyDbNotice: string
+  legacyDbPreviewing: boolean
+  hdtFilePaths: string[]
+  hdtNotice: string
+  hdtPreviewing: boolean
   onClose: () => void
   onChangeLanguageSetting: (value: LanguageSetting) => void
   onChangeFileModifiedPolicy: (value: string) => void
@@ -23,6 +29,10 @@ interface Props {
   onPickBulkFromFolder: () => void
   onPickBulkToFolder: () => void
   onOpenBulkRelinkConfirm: () => void
+  onSelectLegacyDbFile: (file: File | null) => void
+  onPreviewLegacyDbImport: () => void
+  onSelectHdtFiles: (files: File[]) => void
+  onPreviewHdtImport: () => void
   tr: Translate
 }
 
@@ -37,6 +47,12 @@ export default function SettingsModal({
   bulkCounting,
   bulkRelinking,
   bulkRelinkNotice,
+  legacyDbPath,
+  legacyDbNotice,
+  legacyDbPreviewing,
+  hdtFilePaths,
+  hdtNotice,
+  hdtPreviewing,
   onClose,
   onChangeLanguageSetting,
   onChangeFileModifiedPolicy,
@@ -44,9 +60,15 @@ export default function SettingsModal({
   onPickBulkFromFolder,
   onPickBulkToFolder,
   onOpenBulkRelinkConfirm,
+  onSelectLegacyDbFile,
+  onPreviewLegacyDbImport,
+  onSelectHdtFiles,
+  onPreviewHdtImport,
   tr,
 }: Props) {
   const [zoomFactor, setZoomFactor] = useState(1)
+  const legacyDbFileInputRef = useRef<HTMLInputElement>(null)
+  const hdtFileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -68,6 +90,31 @@ export default function SettingsModal({
   const handleZoomReset = async () => {
     const next = await api.app.zoomReset()
     setZoomFactor(next || 1)
+  }
+
+  const handleOpenLegacyDbFileDialog = () => {
+    onSelectLegacyDbFile(null)
+    if (legacyDbFileInputRef.current) {
+      legacyDbFileInputRef.current.value = ''
+      legacyDbFileInputRef.current.click()
+    }
+  }
+
+  const legacyDbFileName = legacyDbPath
+    ? legacyDbPath.split(/[\\/]/).filter(Boolean).pop() ?? legacyDbPath
+    : ''
+  const hdtFileLabel = hdtFilePaths.length === 0
+    ? ''
+    : hdtFilePaths.length === 1
+      ? hdtFilePaths[0].split(/[\\/]/).filter(Boolean).pop() ?? hdtFilePaths[0]
+      : tr('settings.hdtImport.selectedCount', { count: hdtFilePaths.length })
+
+  const handleOpenHdtFileDialog = () => {
+    onSelectHdtFiles([])
+    if (hdtFileInputRef.current) {
+      hdtFileInputRef.current.value = ''
+      hdtFileInputRef.current.click()
+    }
   }
 
   return (
@@ -179,6 +226,43 @@ export default function SettingsModal({
           </section>
 
           <section className="settings-section">
+            <h3>{tr('settings.hdtImport.title')}</h3>
+            <p className="settings-section-help">{tr('settings.hdtImport.help')}</p>
+
+            <div className="settings-folder-grid">
+              <input
+                value={hdtFileLabel}
+                readOnly
+                placeholder={tr('settings.hdtImport.placeholder')}
+                onClick={handleOpenHdtFileDialog}
+              />
+              <input
+                ref={hdtFileInputRef}
+                className="settings-hidden-file-input"
+                type="file"
+                accept=".hdt"
+                multiple
+                onChange={(event) => onSelectHdtFiles(Array.from(event.target.files ?? []))}
+              />
+              <button
+                className="btn-secondary"
+                disabled={!hdtFilePaths.length || hdtPreviewing}
+                onClick={onPreviewHdtImport}
+              >
+                {hdtPreviewing ? tr('common.loading') : tr('settings.hdtImport.load')}
+              </button>
+            </div>
+
+            {hdtFilePaths.length > 0 && (
+              <div className="settings-meta" title={hdtFilePaths.join('\n')}>{hdtFilePaths.join(', ')}</div>
+            )}
+
+            {hdtNotice && (
+              <div className="settings-notice">{hdtNotice}</div>
+            )}
+          </section>
+
+          <section className="settings-section">
             <h3>{tr('settings.bulkRelink.title')}</h3>
             <p className="settings-section-help">{tr('settings.bulkRelink.help')}</p>
 
@@ -202,17 +286,16 @@ export default function SettingsModal({
               </button>
             </div>
 
-            <div className="settings-meta">
-              {bulkCounting
-                ? tr('settings.bulkRelink.matchCountLoading')
-                : tr('settings.bulkRelink.matchCount', { count: bulkMatchCount })}
-            </div>
-
             {bulkRelinkNotice && (
               <div className="settings-notice">{bulkRelinkNotice}</div>
             )}
 
             <div className="settings-section-actions">
+              <div className="settings-meta settings-section-action-meta">
+                {bulkCounting
+                  ? tr('settings.bulkRelink.matchCountLoading')
+                  : tr('settings.bulkRelink.matchCount', { count: bulkMatchCount })}
+              </div>
               <button
                 className="btn-primary"
                 disabled={!bulkFromFolder || !bulkToFolder || bulkMatchCount <= 0 || bulkRelinking}
@@ -221,6 +304,42 @@ export default function SettingsModal({
                 {tr('settings.bulkRelink.apply')}
               </button>
             </div>
+          </section>
+
+          <section className="settings-section">
+            <h3>{tr('settings.legacyDb.title')}</h3>
+            <p className="settings-section-help">{tr('settings.legacyDb.help')}</p>
+
+            <div className="settings-folder-grid">
+              <input
+                value={legacyDbFileName}
+                readOnly
+                placeholder={tr('settings.legacyDb.placeholder')}
+                onClick={handleOpenLegacyDbFileDialog}
+              />
+              <input
+                ref={legacyDbFileInputRef}
+                className="settings-hidden-file-input"
+                type="file"
+                accept=".db"
+                onChange={(event) => onSelectLegacyDbFile(event.target.files?.[0] ?? null)}
+              />
+              <button
+                className="btn-secondary"
+                disabled={!legacyDbPath || legacyDbPreviewing}
+                onClick={onPreviewLegacyDbImport}
+              >
+                {legacyDbPreviewing ? tr('common.loading') : tr('settings.legacyDb.load')}
+              </button>
+            </div>
+
+            {legacyDbPath && (
+              <div className="settings-meta" title={legacyDbPath}>{legacyDbPath}</div>
+            )}
+
+            {legacyDbNotice && (
+              <div className="settings-notice">{legacyDbNotice}</div>
+            )}
           </section>
         </div>
 

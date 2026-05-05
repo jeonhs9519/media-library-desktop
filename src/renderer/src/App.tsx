@@ -29,7 +29,6 @@ type StartupStatus = {
 const STARTUP_LABELS: Record<string, string> = {
   boot: '앱을 시작하는 중',
   'window:create': '창을 여는 중',
-  'paths:legacy-db': '기존 라이브러리 데이터를 확인하는 중',
   'db:open': '라이브러리 데이터베이스를 여는 중',
   'db:migrate': '데이터베이스 구조를 확인하는 중',
   'db:runtime-schema': '런타임 스키마를 점검하는 중',

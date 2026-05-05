@@ -10,6 +10,7 @@ import DuplicateFileModal from '../components/Library/modals/DuplicateFileModal'
 import FileDropModal from '../components/Library/modals/FileDropModal'
 import HdtImportModal from '../components/Library/modals/HdtImportModal'
 import ItemDetailModal from '../components/Library/modals/ItemDetailModal'
+import LegacyDatabaseImportModal from '../components/Library/modals/LegacyDatabaseImportModal'
 import SearchFiltersModal from '../components/Library/modals/SearchFiltersModal'
 import SettingsModal from '../components/Library/modals/SettingsModal'
 import { BulkRelinkConfirmModal, BulkRelinkConflictModal, BulkRelinkErrorModal } from '../components/Library/modals/BulkRelinkModals'
@@ -277,7 +278,6 @@ export default function LibraryPage() {
         onResetSearch={searchFilters.resetSearch}
         onOpenSearchFilters={() => setSearchFiltersOpen(true)}
         onOpenFileUploadModal={fileImport.openFileUploadModal}
-        onOpenHdtUploadModal={hdtImport.openHdtUploadModal}
         onReload={() => api.app.reload()}
         onOpenSettings={librarySettings.openSettingsModal}
         tr={tr}
@@ -399,6 +399,12 @@ export default function LibraryPage() {
         bulkCounting={librarySettings.bulkCounting}
         bulkRelinking={librarySettings.bulkRelinking}
         bulkRelinkNotice={librarySettings.bulkRelinkNotice}
+        legacyDbPath={librarySettings.legacyDbPath}
+        legacyDbNotice={librarySettings.legacyDbNotice}
+        legacyDbPreviewing={librarySettings.legacyDbPreviewing}
+        hdtFilePaths={hdtImport.hdtSelectedFilePaths}
+        hdtNotice={hdtImport.hdtUploadNotice}
+        hdtPreviewing={hdtImport.hdtPreviewing}
         onClose={librarySettings.closeSettingsModal}
         onChangeLanguageSetting={librarySettings.handleChangeLanguageSetting}
         onChangeFileModifiedPolicy={librarySettings.handleChangeFileModifiedPolicy}
@@ -406,6 +412,19 @@ export default function LibraryPage() {
         onPickBulkFromFolder={librarySettings.handlePickBulkFromFolder}
         onPickBulkToFolder={librarySettings.handlePickBulkToFolder}
         onOpenBulkRelinkConfirm={librarySettings.openBulkRelinkConfirm}
+        onSelectLegacyDbFile={librarySettings.handleSelectLegacyDbFile}
+        onPreviewLegacyDbImport={librarySettings.handlePreviewLegacyDbImport}
+        onSelectHdtFiles={hdtImport.handleSelectHdtFiles}
+        onPreviewHdtImport={hdtImport.handlePreviewSelectedHdtFiles}
+        tr={tr}
+      />
+
+      <LegacyDatabaseImportModal
+        open={librarySettings.legacyDbPreviewOpen}
+        preview={librarySettings.legacyDbPreview}
+        importing={librarySettings.legacyDbImporting}
+        onClose={librarySettings.closeLegacyDbPreview}
+        onApply={librarySettings.handleApplyLegacyDbImport}
         tr={tr}
       />
 

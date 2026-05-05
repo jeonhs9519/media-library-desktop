@@ -765,8 +765,16 @@ input:focus, select:focus, textarea:focus {
 
 .settings-folder-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 132px;
   gap: 10px 8px;
+}
+
+.settings-folder-grid > button {
+  width: 132px;
+}
+
+.settings-hidden-file-input {
+  display: none;
 }
 
 .settings-meta {
@@ -784,7 +792,17 @@ input:focus, select:focus, textarea:focus {
 .settings-section-actions {
   margin-top: 12px;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-section-actions > button {
+  width: 132px;
+}
+
+.settings-section-action-meta {
+  margin-top: 0;
 }
 
 .settings-footer {
@@ -797,7 +815,188 @@ input:focus, select:focus, textarea:focus {
 }
 
 .settings-footer button {
-  min-width: 140px;
+  width: 157px;
+}
+
+.legacy-db-preview-summary {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.legacy-db-preview-error {
+  color: #ffb6bf;
+}
+
+.legacy-db-inline-notice {
+  margin-bottom: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.legacy-db-preview-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.legacy-db-accordion-list {
+  max-height: min(56vh, 520px);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  align-content: start;
+}
+
+.legacy-db-accordion-section + .legacy-db-accordion-section {
+  border-top: 1px solid var(--border);
+}
+
+.legacy-db-accordion-header {
+  width: 100%;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 0;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.legacy-db-accordion-header:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.legacy-db-accordion-caret,
+.legacy-db-accordion-count,
+.legacy-db-data-state {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.legacy-db-accordion-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.legacy-db-accordion-title,
+.legacy-db-data-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.legacy-db-accordion-count {
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.legacy-db-accordion-body {
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.legacy-db-data-list,
+.legacy-db-item-list {
+  display: grid;
+  gap: 8px;
+}
+
+.legacy-db-data-row,
+.legacy-db-item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.legacy-db-item-row {
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+}
+
+.legacy-db-data-row.is-muted,
+.legacy-db-item-row.is-muted,
+.legacy-db-tag-chip.is-muted {
+  opacity: 0.33;
+}
+
+.legacy-db-data-main,
+.legacy-db-item-main {
+  min-width: 0;
+}
+
+.legacy-db-data-subline {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legacy-db-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.legacy-db-tag-chip {
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 12px;
+}
+
+.legacy-db-tag-chip span {
+  color: var(--text-secondary);
+}
+
+.legacy-db-item-icon {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+  font-weight: 700;
+}
+
+.legacy-db-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.legacy-db-empty {
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
 }
 
 .library-icon-button {

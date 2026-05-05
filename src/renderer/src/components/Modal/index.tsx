@@ -13,6 +13,7 @@ interface Props {
   contentMaxWidth?: number | string
   contentMaxHeight?: number | string
   contentPadding?: number | string
+  zIndex?: number
 }
 
 export default function Modal({
@@ -25,6 +26,7 @@ export default function Modal({
   contentMaxWidth,
   contentMaxHeight,
   contentPadding,
+  zIndex,
 }: Props) {
   const contentRef = useRef<HTMLDivElement>(null)
   const modalIdRef = useRef<number | null>(null)
@@ -120,7 +122,7 @@ export default function Modal({
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000,
+        zIndex: zIndex ?? 1000,
       }}
       onClick={onClose}
     >

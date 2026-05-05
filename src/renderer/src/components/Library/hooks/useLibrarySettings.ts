@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { LanguageSetting } from '../../../i18n/index'
 import { api } from '../../../api'
-import type { BulkRelinkConflict, BulkRelinkFailedTarget, Translate } from '../types'
+import type { BulkRelinkConflict, BulkRelinkFailedTarget, LegacyDatabasePreview, Translate } from '../types'
 
 type UseLibrarySettingsOptions = {
   tr: Translate
@@ -24,6 +24,12 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: Use
   const [bulkRelinkErrorOpen, setBulkRelinkErrorOpen] = useState(false)
   const [bulkRelinkErrorMessage, setBulkRelinkErrorMessage] = useState('')
   const [bulkRelinkFailedTarget, setBulkRelinkFailedTarget] = useState<BulkRelinkFailedTarget | null>(null)
+  const [legacyDbPath, setLegacyDbPath] = useState('')
+  const [legacyDbNotice, setLegacyDbNotice] = useState('')
+  const [legacyDbPreviewOpen, setLegacyDbPreviewOpen] = useState(false)
+  const [legacyDbPreview, setLegacyDbPreview] = useState<LegacyDatabasePreview | null>(null)
+  const [legacyDbPreviewing, setLegacyDbPreviewing] = useState(false)
+  const [legacyDbImporting, setLegacyDbImporting] = useState(false)
 
   useEffect(() => {
     api.settings.get('fileModifiedAt.updatePolicy').then((value: string | undefined) => {
@@ -149,6 +155,64 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: Use
     setBulkRelinkFailedTarget(null)
   }, [])
 
+  const handleSelectLegacyDbFile = useCallback((file: File | null) => {
+    if (!file) {
+      setLegacyDbPath('')
+      setLegacyDbNotice('')
+      return
+    }
+
+    const nextPath = api.file.getPathForFile(file)
+    setLegacyDbPath(nextPath)
+    setLegacyDbNotice(nextPath ? '' : tr('settings.legacyDb.pathBlocked'))
+  }, [tr])
+
+  const handlePreviewLegacyDbImport = useCallback(async () => {
+    if (!legacyDbPath || legacyDbPreviewing) return
+
+    setLegacyDbPreviewing(true)
+    setLegacyDbNotice('')
+    try {
+      const preview = await api.legacyDatabase.preview(legacyDbPath) as LegacyDatabasePreview
+      setLegacyDbPreview(preview)
+      setLegacyDbPreviewOpen(true)
+    } catch (error: any) {
+      setLegacyDbNotice(String(error?.message || ''))
+    } finally {
+      setLegacyDbPreviewing(false)
+    }
+  }, [legacyDbPath, legacyDbPreviewing])
+
+  const closeLegacyDbPreview = useCallback(() => {
+    if (legacyDbImporting) return
+    setLegacyDbPreviewOpen(false)
+  }, [legacyDbImporting])
+
+  const handleApplyLegacyDbImport = useCallback(async () => {
+    if (!legacyDbPath || legacyDbImporting) return
+
+    setLegacyDbImporting(true)
+    try {
+      const result = await api.legacyDatabase.import(legacyDbPath)
+      if (result?.ok === false) {
+        setLegacyDbNotice(String(result?.message || ''))
+        return
+      }
+
+      setLegacyDbNotice(tr('settings.legacyDb.done', {
+        imported: Number(result?.imported ?? 0),
+        skipped: Number(result?.skipped ?? 0),
+      }))
+      setLegacyDbPreviewOpen(false)
+      setLegacyDbPreview(null)
+      await loadItems()
+    } catch (error: any) {
+      setLegacyDbNotice(String(error?.message || ''))
+    } finally {
+      setLegacyDbImporting(false)
+    }
+  }, [legacyDbImporting, legacyDbPath, loadItems, tr])
+
   return {
     settingsModalOpen,
     fileModifiedPolicy,
@@ -164,6 +228,12 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: Use
     bulkRelinkErrorOpen,
     bulkRelinkErrorMessage,
     bulkRelinkFailedTarget,
+    legacyDbPath,
+    legacyDbNotice,
+    legacyDbPreviewOpen,
+    legacyDbPreview,
+    legacyDbPreviewing,
+    legacyDbImporting,
     openSettingsModal,
     closeSettingsModal,
     handleChangeLanguageSetting,
@@ -176,5 +246,9 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: Use
     closeBulkRelinkConflict: () => setBulkRelinkConflict(null),
     closeBulkRelinkError,
     handleApplyBulkRelink,
+    handleSelectLegacyDbFile,
+    handlePreviewLegacyDbImport,
+    closeLegacyDbPreview,
+    handleApplyLegacyDbImport,
   }
 }

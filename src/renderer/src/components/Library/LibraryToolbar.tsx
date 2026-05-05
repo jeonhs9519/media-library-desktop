@@ -26,7 +26,6 @@ interface Props {
   onResetSearch: () => void
   onOpenSearchFilters: () => void
   onOpenFileUploadModal: () => void
-  onOpenHdtUploadModal: () => void
   onReload: () => void
   onOpenSettings: () => void
   tr: Translate
@@ -46,7 +45,6 @@ export default function LibraryToolbar({
   onResetSearch,
   onOpenSearchFilters,
   onOpenFileUploadModal,
-  onOpenHdtUploadModal,
   onReload,
   onOpenSettings,
   tr,
@@ -80,7 +78,6 @@ export default function LibraryToolbar({
 
       <div className="library-toolbar-actions">
         <button className="btn-primary" onClick={onOpenFileUploadModal}>{tr('actions.addFile')}</button>
-        <button className="btn-secondary" onClick={onOpenHdtUploadModal}>{tr('actions.importHdt')}</button>
         <button className="btn-secondary library-icon-button" title={tr('app.reload')} aria-label={tr('app.reload')} onClick={onReload}>
           <RefreshIcon />
         </button>

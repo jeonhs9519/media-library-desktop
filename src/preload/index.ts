@@ -55,6 +55,10 @@ const api = {
     get: (key: string) => ipcRenderer.invoke('settings:get', { key }),
     set: (key: string, value: string) => ipcRenderer.invoke('settings:set', { key, value }),
   },
+  legacyDatabase: {
+    preview: (filePath: string) => ipcRenderer.invoke('legacyDatabase:preview', { filePath }),
+    import: (filePath: string) => ipcRenderer.invoke('legacyDatabase:import', { filePath }),
+  },
   playlists: {
     getDefault: () => ipcRenderer.invoke('playlists:getDefault'),
     getItems: () => ipcRenderer.invoke('playlists:getItems'),

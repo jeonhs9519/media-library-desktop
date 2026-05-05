@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-05-02
+Last updated: 2026-05-05
 
 ## 개요
 
@@ -55,10 +55,21 @@ Last updated: 2026-05-02
 - 각 단계는 `performance.now()` 기준으로 소요 시간을 console에 남깁니다.
 - `src/preload/index.ts`는 `window.api.startup` 아래에 `getStatus`, `markLibraryReady`, `onStatus`, `onReady`를 노출합니다.
 - `src/renderer/src/App.tsx`의 `StartupGate`는 ready 전까지 startup 화면을 보여주며, ready 이후에만 라우터와 라이브러리 화면을 mount합니다.
-- 현재 단계는 창 생성, 레거시 DB 확인, DB 열기, 마이그레이션, 런타임 스키마 확인, IPC 등록입니다.
+- 현재 단계는 창 생성, DB 열기, 마이그레이션, 런타임 스키마 확인, IPC 등록입니다.
 - 앱 창은 `ready-to-show`를 기다리지 않고 먼저 표시합니다.
 - 최초 라이브러리 목록이 준비되면 renderer가 `startup:markLibraryReady`를 호출하고, main process는 `[startup] library:list-ready ...ms` 로그를 남깁니다.
 - 준비 완료 기준은 startup ready 이벤트가 아니라 최초 라이브러리 목록 표시 시점입니다.
+
+## 과거 DB 가져오기
+
+- 앱 시작 시 과거 userData 위치의 `media-library.db`를 자동 복사하지 않습니다.
+- 설정 팝업의 `과거 데이터 불러오기`에서 사용자가 직접 기존 `media-library.db`를 선택합니다.
+- 설정 팝업 내 진입 UI는 숨김 `input:file`, 파일명을 표시하는 readonly text input, `불러오기` 버튼으로 구성합니다.
+- `src/main/ipc/legacyDatabase.ts`는 선택한 DB를 읽기 전용으로 열어 `items` 테이블과 주요 컬럼을 확인하고, 중복/제외 항목 통계를 미리보기로 반환합니다.
+- 미리보기 Modal은 720px 폭의 `설정`, `태그`, `파일 정보` 아코디언으로 구성하며, 가져오지 않는 항목은 낮은 opacity로 표시합니다.
+- 가져오기 적용 시 중복되지 않은 `items`를 먼저 추가하고, 연결 가능한 `tags`, `itemTags`, `reviews`, `settings`, `playlists`, `playlistItems`를 현재 DB id 기준으로 매핑합니다.
+- 기존 설정값은 현재 DB에 같은 key가 없을 때만 가져옵니다.
+- 가져오기 후 실제로 사용되지 않는 태그는 `cleanupUnusedTags`로 삭제합니다.
 
 ## Renderer Route Loading
 
@@ -111,6 +122,7 @@ Last updated: 2026-05-02
 - 메인 라이브러리 화면의 데이터 로드와 조립을 담당하는 허브입니다.
 - 검색/필터 툴바, 카드, 목록/페이지네이션, 주요 모달 렌더링은 `src/renderer/src/components/Library/` 아래로 분리되었습니다.
 - 파일 추가, `.hdt` 가져오기, 설정/bulk relink 흐름 일부는 전용 hook으로 분리되었습니다.
+- `.hdt` 가져오기 진입점은 설정 팝업의 `HDT 가져오기` 항목입니다.
 - 검색/필터 상태는 `useLibrarySearchFilters` hook으로 분리되었습니다.
 - 썸네일 로드는 `useLibraryThumbnails` hook으로 분리되었습니다.
 - metadata fill 흐름은 `useLibraryMetadataFill` hook으로 분리되었습니다.
@@ -134,7 +146,7 @@ Last updated: 2026-05-02
 
 ### `src/renderer/src/components/Library/LibraryToolbar.tsx`
 
-- 검색 조건 모달 진입, 검색 조건 초기화, 파일 추가, HDT 가져오기, 새로고침, 설정 액션을 담당합니다.
+- 검색 조건 모달 진입, 검색 조건 초기화, 파일 추가, 새로고침, 설정 액션을 담당합니다.
 - 검색 버튼은 `SearchIcon`, 텍스트, 플랫폼별 단축키 표기를 함께 보여줍니다.
 - 새로고침, 설정은 문자열 임시 버튼 대신 SVG 아이콘 버튼을 사용합니다.
 - 아이콘 버튼은 시각 텍스트 대신 `title`과 `aria-label`로 의미를 제공합니다.
@@ -150,7 +162,9 @@ Last updated: 2026-05-02
 ### `src/renderer/src/components/Library/modals/SettingsModal.tsx`
 
 - 검색 조건 모달과 같은 고정 header/body/footer 구조를 사용합니다.
-- 표시 설정, 파일 수정일 변경 규칙, 폴더 경로 일괄 변경 섹션으로 구분합니다.
+- 표시 설정, 파일 수정일 변경 규칙, `HDT 가져오기`, 폴더 경로 일괄 변경, 과거 데이터 불러오기 섹션으로 구분합니다.
+- `HDT 가져오기`와 과거 데이터 불러오기는 숨김 파일 입력, readonly text input, `불러오기` 버튼 패턴을 사용합니다.
+- 폴더 경로 일괄 변경의 대상 항목 수와 실행 버튼은 같은 행에 표시합니다.
 - 배율 컨트롤은 `app:getZoomFactor`, `app:zoomIn`, `app:zoomOut`, `app:zoomReset`을 사용해 현재 배율 표시를 즉시 갱신합니다.
 - 개발자 도구는 `CodeIcon` 아이콘 버튼으로 제공합니다.
 
@@ -158,6 +172,7 @@ Last updated: 2026-05-02
 
 - 공용 모달 래퍼입니다.
 - `role="dialog"`, `aria-modal`, focus trap, `Escape` 닫기를 제공합니다.
+- 중첩 Modal의 표시 순서를 조정할 수 있도록 선택적 `zIndex`를 받을 수 있습니다.
 
 ## 테스트 현황
 

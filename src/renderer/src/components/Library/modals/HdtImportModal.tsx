@@ -37,6 +37,7 @@ export default function HdtImportModal({
       onClose={onClose}
       title={tr('modal.hdtImport.title')}
       contentMaxHeight="88vh"
+      zIndex={1010}
     >
       <div style={{ marginBottom: 12, fontSize: 13, color: 'var(--text-secondary)' }}>
         {tr('modal.hdtImport.summaryDetailed', {

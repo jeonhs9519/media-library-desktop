@@ -16,6 +16,8 @@ export function useHdtImport({ tr, loadItems }: UseHdtImportOptions) {
   const [hdtPreviewItems, setHdtPreviewItems] = useState<HdtPreviewItem[]>([])
   const [hdtPreviewStats, setHdtPreviewStats] = useState<HdtPreviewStats>({ rawTotal: 0, visibleTotal: 0, selectableTotal: 0 })
   const [hdtSelectedIds, setHdtSelectedIds] = useState<string[]>([])
+  const [hdtSelectedFilePaths, setHdtSelectedFilePaths] = useState<string[]>([])
+  const [hdtPreviewing, setHdtPreviewing] = useState(false)
   const [hdtApplying, setHdtApplying] = useState(false)
 
   useEffect(() => {
@@ -77,6 +79,32 @@ export function useHdtImport({ tr, loadItems }: UseHdtImportOptions) {
     setHdtUploadModalOpen(false)
     setHdtModalOpen(true)
   }, [tr])
+
+  const handleSelectHdtFiles = useCallback((files: File[]) => {
+    if (!files.length) {
+      setHdtSelectedFilePaths([])
+      setHdtUploadNotice('')
+      return
+    }
+
+    const paths = files
+      .map((file) => api.file.getPathForFile(file))
+      .filter((filePath): filePath is string => Boolean(filePath))
+
+    setHdtSelectedFilePaths(paths)
+    setHdtUploadNotice(paths.length ? '' : tr('modal.hdtUpload.dropBlocked'))
+  }, [tr])
+
+  const handlePreviewSelectedHdtFiles = useCallback(async () => {
+    if (!hdtSelectedFilePaths.length || hdtPreviewing) return
+
+    setHdtPreviewing(true)
+    try {
+      await beginHdtPreview(hdtSelectedFilePaths)
+    } finally {
+      setHdtPreviewing(false)
+    }
+  }, [beginHdtPreview, hdtPreviewing, hdtSelectedFilePaths])
 
   const openHdtUploadModal = useCallback(() => {
     setHdtUploadNotice('')
@@ -203,6 +231,8 @@ export function useHdtImport({ tr, loadItems }: UseHdtImportOptions) {
     hdtModalOpen,
     hdtPreviewStats,
     hdtSelectedIds,
+    hdtSelectedFilePaths,
+    hdtPreviewing,
     hdtApplying,
     groupedHdtPreviewItems,
     isHdtModalOpen: hdtUploadModalOpen || hdtModalOpen,
@@ -210,6 +240,8 @@ export function useHdtImport({ tr, loadItems }: UseHdtImportOptions) {
     closeHdtUploadModal,
     closeHdtImport,
     handleBrowseHdtFiles,
+    handleSelectHdtFiles,
+    handlePreviewSelectedHdtFiles,
     handleHdtUploadDrop,
     handleHdtUploadDragOver,
     handleHdtUploadDragLeave,

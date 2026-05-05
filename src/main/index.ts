@@ -14,12 +14,12 @@ import { registerPdfIPC } from './ipc/pdf'
 import { registerCbzIPC } from './ipc/cbz'
 import { registerVideoIPC } from './ipc/video'
 import { registerThumbnailsIPC } from './ipc/thumbnails'
+import { registerLegacyDatabaseIPC } from './ipc/legacyDatabase'
 import { cleanupUnusedTags } from './services/tagMaintenance'
 
 const isDev = !app.isPackaged
 const isWindows = process.platform === 'win32'
 const shouldAutoOpenDevTools = process.env['OPEN_DEVTOOLS'] === '1'
-const defaultUserDataPath = app.getPath('userData')
 
 function getPortableAppDataRoot() {
   if (isDev) {
@@ -84,28 +84,6 @@ function getDbPath() {
 
   const executableDir = path.dirname(process.execPath)
   return path.join(executableDir, 'media-library.db')
-}
-
-function migrateLegacyDbIfNeeded(dbPath: string) {
-  const legacyDbPath = path.join(defaultUserDataPath, 'media-library.db')
-
-  if (path.resolve(legacyDbPath) === path.resolve(dbPath)) {
-    return
-  }
-
-  if (fs.existsSync(dbPath) || !fs.existsSync(legacyDbPath)) {
-    return
-  }
-
-  fs.copyFileSync(legacyDbPath, dbPath)
-
-  for (const suffix of ['-wal', '-shm']) {
-    const source = `${legacyDbPath}${suffix}`
-    const target = `${dbPath}${suffix}`
-    if (fs.existsSync(source)) {
-      fs.copyFileSync(source, target)
-    }
-  }
 }
 
 function getMigrationsPath() {
@@ -479,10 +457,6 @@ app.whenReady().then(async () => {
 
   console.log(`[main] DB path: ${dbPath} (mode=${isDev ? 'dev' : 'packaged'})`)
 
-  await measureStartupPhase('paths:legacy-db', 'Checking existing library data', () => {
-    migrateLegacyDbIfNeeded(dbPath)
-  }, dbPath)
-
   const { db, sqlite } = await measureStartupPhase('db:open', 'Opening library database', () => {
     return createDatabase(dbPath)
   })
@@ -517,6 +491,7 @@ app.whenReady().then(async () => {
     registerCbzIPC()
     registerVideoIPC()
     registerThumbnailsIPC(db)
+    registerLegacyDatabaseIPC(db)
   })
 
   markStartupReady()
