@@ -159,6 +159,12 @@ Last updated: 2026-05-05
 - 태그 초기화 버튼은 header 오른쪽에 항상 표시하고, 태그 조건이 없으면 비활성화합니다.
 - 정렬 방향은 select가 아니라 아이콘과 문구가 있는 토글 버튼으로 전환합니다.
 
+### `src/renderer/src/pages/ItemDetailPage.tsx`
+
+- 상세 정보 본문을 렌더링하고 태그, 리뷰, 진행률, 파일 정보, relink 흐름을 담당합니다.
+- 파일 경로 표시는 OS별 구분자로 정규화합니다. Windows는 `\`, 그 외 OS는 `/`를 사용합니다.
+- 파일 섹션 제목 오른쪽에는 `파일 위치 열기` 버튼을 표시하고 `api.file.showInFolder`로 연결합니다.
+
 ### `src/renderer/src/components/Library/modals/SettingsModal.tsx`
 
 - 검색 조건 모달과 같은 고정 header/body/footer 구조를 사용합니다.

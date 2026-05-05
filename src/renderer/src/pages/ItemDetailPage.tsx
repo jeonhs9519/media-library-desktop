@@ -51,6 +51,21 @@ function isReservedTagName(name: string, untaggedLabel: string) {
   return ['미지정', 'untagged', '未指定', untaggedLabel.toLocaleLowerCase()].includes(normalized)
 }
 
+function getDisplayPathSeparator() {
+  return /\bWin/i.test(navigator.platform) ? '\\' : '/'
+}
+
+function normalizeDisplayPath(input: string) {
+  return input.replace(/[\\/]+/g, getDisplayPathSeparator())
+}
+
+function buildDisplayItemPath(item: { filePath: string; fileName: string; fileExtension?: string }) {
+  const separator = getDisplayPathSeparator()
+  const normalizedDir = normalizeDisplayPath(item.filePath).replace(/[\\/]+$/, '')
+  const fileLabel = `${item.fileName}${item.fileExtension ? `.${item.fileExtension}` : ''}`
+  return `${normalizedDir}${separator}${fileLabel}`
+}
+
 interface ItemDetailPageProps {
   itemId: number
   onClose: () => void
@@ -108,7 +123,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist }: Ite
     return <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{tr('common.loading')}</div>
   }
 
-  const fullPath = item.filePath + '/' + item.fileName + (item.fileExtension ? '.' + item.fileExtension : '')
+  const fullPath = buildDisplayItemPath(item)
 
   const handleSave = async () => {
     await api.items.update(itemId, {
@@ -145,7 +160,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist }: Ite
         if (result?.ok === false && result?.reason === 'duplicate') {
           const dup = result.duplicate
           const duplicatePath = dup
-            ? `${dup.filePath}/${dup.fileName}${dup.fileExtension ? '.' + dup.fileExtension : ''}`
+            ? buildDisplayItemPath(dup)
             : ''
 
           setRelinkDuplicate({
@@ -421,7 +436,16 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist }: Ite
         </div>
 
         <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-          <h2 style={{ marginBottom: 12, fontSize: 16 }}>{tr('detail.file')}</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h2 style={{ fontSize: 16 }}>{tr('detail.file')}</h2>
+            <button
+              className="btn-secondary"
+              disabled={item.fileExists === false}
+              onClick={() => api.file.showInFolder(fullPath)}
+            >
+              {tr('viewer.video.showInFolder')}
+            </button>
+          </div>
           <div style={{ fontSize: 13, color: item.fileExists === false ? '#b94a57' : 'var(--text-secondary)', marginBottom: 8, wordBreak: 'break-all' }}>
             {fullPath} {item.fileExists === false && `(${tr('detail.fileMissing')})`}
           </div>
