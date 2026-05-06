@@ -33,8 +33,15 @@ type ContextMenuProps = {
   id?: string
   position: { x: number; y: number }
   items: ContextMenuEntry[]
-  onClose: () => void
+  onClose: (reason?: 'escape' | 'outside' | 'select' | 'tab', target?: EventTarget | null) => void
   minWidth?: number
+}
+
+type StoredRect = {
+  top: number
+  right: number
+  bottom: number
+  left: number
 }
 
 function isSeparator(item: ContextMenuEntry): item is ContextMenuSeparator {
@@ -90,6 +97,7 @@ export default function ContextMenu({
   minWidth = 260,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
+  const submenuRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const submenuItemRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const [safePosition, setSafePosition] = useState(position)
@@ -98,6 +106,7 @@ export default function ContextMenu({
   const [focusedKey, setFocusedKey] = useState<string | null>(null)
   const [submenuKey, setSubmenuKey] = useState<string | null>(null)
   const [submenuPosition, setSubmenuPosition] = useState<{ x: number; y: number } | null>(null)
+  const [submenuAnchorRect, setSubmenuAnchorRect] = useState<StoredRect | null>(null)
   const [submenuFocusedKey, setSubmenuFocusedKey] = useState<string | null>(null)
 
   const shortcutMinWidth = useMemo(() => getShortcutMinWidth(items), [items])
@@ -121,6 +130,7 @@ export default function ContextMenu({
   const closeSubmenu = () => {
     setSubmenuKey(null)
     setSubmenuPosition(null)
+    setSubmenuAnchorRect(null)
     setSubmenuFocusedKey(null)
   }
 
@@ -129,7 +139,7 @@ export default function ContextMenu({
     const item = items.find((entry): entry is ContextMenuItem => !isSeparator(entry) && entry.key === key)
     if (!item || item.disabled || !isActionItem(item)) return
     await item.onSelect()
-    onClose()
+    onClose('select')
   }
 
   const activateSubmenuItem = async (key: string | null) => {
@@ -137,7 +147,7 @@ export default function ContextMenu({
     const item = submenuItems.find((entry): entry is ContextMenuItem => !isSeparator(entry) && entry.key === key)
     if (!item || item.disabled || !isActionItem(item)) return
     await item.onSelect()
-    onClose()
+    onClose('select')
   }
 
   const openSubmenu = (item: ContextMenuItem, anchorEl: HTMLElement | null) => {
@@ -147,9 +157,13 @@ export default function ContextMenu({
     }
 
     const rect = anchorEl?.getBoundingClientRect()
-    const x = Math.max(8, Math.min((rect?.right || safePosition.x) + 6, window.innerWidth - 280))
-    const y = Math.max(8, Math.min((rect?.top || safePosition.y) - 4, window.innerHeight - 220))
+    const anchorRect = rect
+      ? { top: rect.top, right: rect.right, bottom: rect.bottom, left: rect.left }
+      : null
+    const x = Math.max(8, Math.min((anchorRect?.right || safePosition.x) + 6, window.innerWidth - 280))
+    const y = Math.max(8, Math.min((anchorRect?.top || safePosition.y) - 4, window.innerHeight - 220))
     setSubmenuKey(item.key)
+    setSubmenuAnchorRect(anchorRect)
     setSubmenuPosition({ x, y })
 
     const firstSubmenuKey = item.children.find((entry): entry is ContextMenuItem => !isSeparator(entry) && !entry.disabled)?.key || null
@@ -168,6 +182,39 @@ export default function ContextMenu({
     const y = Math.max(margin, Math.min(position.y, maxY))
     setSafePosition({ x, y })
   }, [position, items])
+
+  useLayoutEffect(() => {
+    const submenu = submenuRef.current
+    if (!submenuKey || !submenu || !submenuAnchorRect) return
+
+    const margin = 8
+    const gap = 6
+    const rect = submenu.getBoundingClientRect()
+    const rightX = submenuAnchorRect.right + gap
+    const leftX = submenuAnchorRect.left - rect.width - gap
+    const canOpenRight = rightX + rect.width <= window.innerWidth - margin
+    const canOpenLeft = leftX >= margin
+    const x = canOpenRight
+      ? rightX
+      : canOpenLeft
+        ? leftX
+        : Math.max(
+            margin,
+            Math.min(
+              window.innerWidth - rect.width - margin,
+              window.innerWidth - submenuAnchorRect.right > submenuAnchorRect.left
+                ? rightX
+                : leftX,
+            ),
+          )
+    const maxY = window.innerHeight - rect.height - margin
+    const y = Math.max(margin, Math.min(submenuAnchorRect.top - 4, maxY))
+
+    setSubmenuPosition((current) => {
+      if (current && Math.abs(current.x - x) < 0.5 && Math.abs(current.y - y) < 0.5) return current
+      return { x, y }
+    })
+  }, [submenuAnchorRect, submenuKey, submenuItems])
 
   useEffect(() => {
     const nextKey = actionableItems[0]?.key || null
@@ -193,6 +240,28 @@ export default function ContextMenu({
     })
     if (nextKey) submenuItemRefs.current[nextKey]?.focus()
   }, [submenuKey, submenuActionableItems])
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (menuRef.current?.contains(target) || submenuRef.current?.contains(target)) return
+      onClose('outside', event.target)
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      onClose('escape', event.target)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown, true)
+    document.addEventListener('keydown', handleKeyDown, true)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true)
+      document.removeEventListener('keydown', handleKeyDown, true)
+    }
+  }, [onClose])
 
   const moveFocus = (direction: 1 | -1) => {
     if (actionableItems.length === 0) return
@@ -257,13 +326,13 @@ export default function ContextMenu({
       return
     }
     if (e.key === 'Tab') {
-      onClose()
+      onClose('tab', e.target)
       return
     }
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
-      onClose()
+      onClose('escape', e.target)
       return
     }
     if (e.key === 'ArrowLeft') {
@@ -307,7 +376,7 @@ export default function ContextMenu({
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
-      onClose()
+      onClose('escape', e.target)
     }
   }
 
@@ -402,7 +471,7 @@ export default function ContextMenu({
                 }
                 if (!isActionItem(item)) return
                 await item.onSelect()
-                onClose()
+                onClose('select')
               }}
               onMouseEnter={() => {
                 setHoveredKey(item.key)
@@ -469,6 +538,7 @@ export default function ContextMenu({
 
       {submenuKey && submenuPosition && submenuItems.length > 0 && (
         <div
+          ref={submenuRef}
           role="menu"
           tabIndex={-1}
           style={{
@@ -541,7 +611,7 @@ export default function ContextMenu({
                 onClick={async () => {
                   if (item.disabled || !isActionItem(item)) return
                   await item.onSelect()
-                  onClose()
+                  onClose('select')
                 }}
                 onMouseEnter={() => setSubmenuFocusedKey(item.key)}
                 onFocus={() => setSubmenuFocusedKey(item.key)}

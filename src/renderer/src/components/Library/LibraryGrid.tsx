@@ -262,6 +262,11 @@ export default function LibraryGrid({
     if (!grid) return 1
 
     const styles = window.getComputedStyle(grid)
+    const templateColumns = styles.gridTemplateColumns
+      .split(' ')
+      .filter((column) => column && column !== 'none')
+    if (templateColumns.length > 0) return templateColumns.length
+
     const gap = Number.parseFloat(styles.columnGap || styles.gap || '16') || 16
     const cardWidth = cardRefs.current.find(Boolean)?.offsetWidth || 160
     return Math.max(1, Math.floor((grid.clientWidth + gap) / (cardWidth + gap)))
@@ -271,6 +276,19 @@ export default function LibraryGrid({
     const nextIndex = Math.min(Math.max(index, 0), items.length - 1)
     setActiveIndex(nextIndex)
     cardRefs.current[nextIndex]?.focus()
+  }
+
+  const handleContextMenuClose = (reason?: 'escape' | 'outside' | 'select' | 'tab') => {
+    setContextMenu(null)
+    if (reason !== 'escape') return
+
+    window.setTimeout(() => {
+      if (items.length > 0) {
+        focusCard(activeIndex)
+      } else {
+        gridRef.current?.focus()
+      }
+    }, 0)
   }
 
   const focusPreviousBeforeGrid = () => {
@@ -286,6 +304,7 @@ export default function LibraryGrid({
       '[tabindex]:not([tabindex="-1"])',
     ].join(','))).filter((element) => (
       element.offsetParent !== null
+      && element.tabIndex >= 0
       && !element.contains(grid)
       && !grid.contains(element)
     ))
@@ -449,7 +468,7 @@ export default function LibraryGrid({
           id="library-card-context-menu"
           position={{ x: contextMenu.x, y: contextMenu.y }}
           items={contextMenuItems}
-          onClose={() => setContextMenu(null)}
+          onClose={handleContextMenuClose}
         />
       )}
     </>

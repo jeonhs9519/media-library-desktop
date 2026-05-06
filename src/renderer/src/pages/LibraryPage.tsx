@@ -43,8 +43,11 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(false)
   const [searchFiltersOpen, setSearchFiltersOpen] = useState(false)
   const [detailItemId, setDetailItemId] = useState<number | null>(null)
+  const [detailReturnTarget, setDetailReturnTarget] = useState<'library' | 'playlist'>('library')
   const [playlistItems, setPlaylistItems] = useState<PlaylistItem[]>([])
   const [playlistCollapsed, setPlaylistCollapsed] = useState(true)
+  const [playlistFocusRequest, setPlaylistFocusRequest] = useState(0)
+  const [playlistFocusItemId, setPlaylistFocusItemId] = useState<number | null>(null)
   const [libraryFocusRequest, setLibraryFocusRequest] = useState(0)
   const [libraryToast, setLibraryToast] = useState<{ id: number; message: string; tone: 'success' | 'error' } | null>(null)
   const [libraryToastClosing, setLibraryToastClosing] = useState(false)
@@ -181,15 +184,27 @@ export default function LibraryPage() {
   }, [id])
 
   const handleOpenDetail = (itemId: number) => {
+    setDetailReturnTarget('library')
+    setDetailItemId(itemId)
+    navigate(`/items/${itemId}`)
+  }
+
+  const handleOpenDetailFromPlaylist = (itemId: number) => {
+    setDetailReturnTarget('playlist')
     setDetailItemId(itemId)
     navigate(`/items/${itemId}`)
   }
 
   const handleCloseDetail = async () => {
+    const returnTarget = detailReturnTarget
     setDetailItemId(null)
     navigate('/')
     await loadItems()
-    setLibraryFocusRequest((value) => value + 1)
+    if (returnTarget === 'playlist') {
+      setPlaylistFocusRequest((value) => value + 1)
+    } else {
+      setLibraryFocusRequest((value) => value + 1)
+    }
   }
 
   const handleAddToPlaylist = async (item: Item) => {
@@ -197,6 +212,14 @@ export default function LibraryPage() {
     await api.playlists.addItem(item.id)
     await loadPlaylistItems()
     updatePlaylistCollapsed(false)
+  }
+
+  const handleAddToPlaylistFromLibrary = async (item: Item) => {
+    await handleAddToPlaylist(item)
+    if (item.contentType !== 'other') {
+      setPlaylistFocusItemId(item.id)
+      setPlaylistFocusRequest((value) => value + 1)
+    }
   }
 
   const showLibraryToast = useCallback((message: string, tone: 'success' | 'error') => {
@@ -250,6 +273,8 @@ export default function LibraryPage() {
     await api.playlists.addItem(itemId, position)
     await loadPlaylistItems()
     updatePlaylistCollapsed(false)
+    setPlaylistFocusItemId(itemId)
+    setPlaylistFocusRequest((value) => value + 1)
   }
 
   const handleRemoveFromPlaylist = async (itemId: number) => {
@@ -285,7 +310,10 @@ export default function LibraryPage() {
       onRemoveItem={handleRemoveFromPlaylist}
       onClear={handleClearPlaylist}
       onReorderItems={handleReorderPlaylistItems}
+      onOpenDetail={handleOpenDetailFromPlaylist}
       viewerReturnTo="/"
+      focusRequest={playlistFocusRequest}
+      focusItemId={playlistFocusItemId}
       tr={tr}
     />
   )
@@ -353,7 +381,7 @@ export default function LibraryPage() {
           perPage={perPage}
           setPage={searchFilters.setPage}
           onOpenDetail={handleOpenDetail}
-          onAddToPlaylist={handleAddToPlaylist}
+          onAddToPlaylist={handleAddToPlaylistFromLibrary}
           onMoveToProfile={handleMoveToProfile}
           onCopyToProfile={handleCopyToProfile}
           playlistPanel={playlistPanel}

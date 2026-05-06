@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Modal from '../../Modal'
+import Dropdown from '../../Dropdown'
 import { SortAscendingIcon, SortDescendingIcon } from '../../icons'
 import type { TagUsageCount, Translate } from '../types'
 
@@ -93,57 +94,82 @@ export default function SearchFiltersModal({
                 />
               </label>
 
-              <label className="search-filter-field">
+              <div className="search-filter-field">
                 <span>{tr('detail.contentType')}</span>
-                <select value={contentType} onChange={(event) => onChangeContentType(event.target.value)}>
-                  <option value="">{tr('filters.allTypes')}</option>
-                  <option value="book">{tr('filters.type.book')}</option>
-                  <option value="comic">{tr('filters.type.comic')}</option>
-                  <option value="video">{tr('filters.type.video')}</option>
-                  <option value="other">{tr('filters.type.other')}</option>
-                </select>
-              </label>
+                <Dropdown
+                  value={contentType}
+                  options={[
+                    { value: '', label: tr('filters.allTypes') },
+                    { value: 'book', label: tr('filters.type.book') },
+                    { value: 'comic', label: tr('filters.type.comic') },
+                    { value: 'video', label: tr('filters.type.video') },
+                    { value: 'other', label: tr('filters.type.other') },
+                  ]}
+                  onChange={onChangeContentType}
+                  ariaLabel={tr('detail.contentType')}
+                />
+              </div>
 
-              <label className="search-filter-field">
+              <div className="search-filter-field">
                 <span>{tr('detail.language')}</span>
-                <select value={language} onChange={(event) => onChangeLanguage(event.target.value)}>
-                  <option value="">{tr('filters.allLanguages')}</option>
-                  <option value="ko">{tr('filters.language.ko')}</option>
-                  <option value="ja">{tr('filters.language.ja')}</option>
-                  <option value="en">{tr('filters.language.en')}</option>
-                  <option value="zh">{tr('filters.language.zh')}</option>
-                  <option value="other">{tr('filters.language.other')}</option>
-                </select>
-              </label>
+                <Dropdown
+                  value={language}
+                  options={[
+                    { value: '', label: tr('filters.allLanguages') },
+                    { value: 'ko', label: tr('filters.language.ko') },
+                    { value: 'ja', label: tr('filters.language.ja') },
+                    { value: 'en', label: tr('filters.language.en') },
+                    { value: 'zh', label: tr('filters.language.zh') },
+                    { value: 'other', label: tr('filters.language.other') },
+                  ]}
+                  onChange={onChangeLanguage}
+                  ariaLabel={tr('detail.language')}
+                />
+              </div>
 
-              <label className="search-filter-field">
+              <div className="search-filter-field">
                 <span>{tr('filters.progressState')}</span>
-                <select value={watchedState} onChange={(event) => onChangeWatchedState(event.target.value as WatchedState)}>
-                  <option value="all">{tr('filters.reading.all')}</option>
-                  <option value="unread">{tr('filters.reading.unread')}</option>
-                  <option value="inProgress">{tr('filters.reading.inProgress')}</option>
-                  <option value="completed">{tr('filters.reading.completed')}</option>
-                </select>
-              </label>
+                <Dropdown
+                  value={watchedState}
+                  options={[
+                    { value: 'all', label: tr('filters.reading.all') },
+                    { value: 'unread', label: tr('filters.reading.unread') },
+                    { value: 'inProgress', label: tr('filters.reading.inProgress') },
+                    { value: 'completed', label: tr('filters.reading.completed') },
+                  ]}
+                  onChange={(nextValue) => onChangeWatchedState(nextValue as WatchedState)}
+                  ariaLabel={tr('filters.progressState')}
+                />
+              </div>
 
-              <label className="search-filter-field">
+              <div className="search-filter-field">
                 <span>{tr('filters.fileState')}</span>
-                <select value={fileState} onChange={(event) => onChangeFileState(event.target.value as FileState)}>
-                  <option value="all">{tr('filters.file.all')}</option>
-                  <option value="normal">{tr('filters.file.normal')}</option>
-                  <option value="missing">{tr('filters.file.missing')}</option>
-                </select>
-              </label>
+                <Dropdown
+                  value={fileState}
+                  options={[
+                    { value: 'all', label: tr('filters.file.all') },
+                    { value: 'normal', label: tr('filters.file.normal') },
+                    { value: 'missing', label: tr('filters.file.missing') },
+                  ]}
+                  onChange={(nextValue) => onChangeFileState(nextValue as FileState)}
+                  ariaLabel={tr('filters.fileState')}
+                />
+              </div>
 
               <div className="search-filter-field is-wide">
                 <span>{tr('filters.sort')}</span>
                 <div className="search-filter-sort-row">
-                  <select value={sortBy} onChange={(event) => onChangeSortBy(event.target.value)}>
-                    <option value="createdAt">{tr('filters.sort.createdAt')}</option>
-                    <option value="updatedAt">{tr('filters.sort.updatedAt')}</option>
-                    <option value="title">{tr('filters.sort.title')}</option>
-                    <option value="fileModifiedAt">{tr('filters.sort.fileModifiedAt')}</option>
-                  </select>
+                  <Dropdown
+                    value={sortBy}
+                    options={[
+                      { value: 'createdAt', label: tr('filters.sort.createdAt') },
+                      { value: 'updatedAt', label: tr('filters.sort.updatedAt') },
+                      { value: 'title', label: tr('filters.sort.title') },
+                      { value: 'fileModifiedAt', label: tr('filters.sort.fileModifiedAt') },
+                    ]}
+                    onChange={onChangeSortBy}
+                    ariaLabel={tr('filters.sort')}
+                  />
                   <button
                     type="button"
                     className="btn-secondary search-filter-sort-toggle"

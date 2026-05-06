@@ -4,6 +4,10 @@ import { api } from '../api'
 import { Item, Tag } from '../types'
 import Modal from '../components/Modal'
 import StarRating from '../components/StarRating'
+import ChoiceInput from '../components/ChoiceInput'
+import Dropdown from '../components/Dropdown'
+import TagSearchInput from '../components/TagSearchInput'
+import { PlaylistAddIcon, ShareIcon } from '../components/icons'
 import { useI18n } from '../useI18n'
 
 function formatVideoProgress(currentRaw: number, totalRaw: number): string {
@@ -81,17 +85,20 @@ type ProfileMoveTarget = {
   reason?: string | null
 }
 
+type UsedTag = Tag & {
+  count: number
+}
+
 export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMoveToProfile, onCopyToProfile }: ItemDetailPageProps) {
   const navigate = useNavigate()
   const [item, setItem] = useState<any>(null)
-  const [allTags, setAllTags] = useState<Tag[]>([])
+  const [usedTags, setUsedTags] = useState<UsedTag[]>([])
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState<any>({})
   const [reviewModal, setReviewModal] = useState(false)
   const [reviewForm, setReviewForm] = useState({ rating: 0, comment: '' })
   const [thumbnail, setThumbnail] = useState<string | null>(null)
   const [newTagName, setNewTagName] = useState('')
-  const [isTagComposing, setIsTagComposing] = useState(false)
   const [tagInputError, setTagInputError] = useState('')
   const [relinkModal, setRelinkModal] = useState(false)
   const [relinkDuplicate, setRelinkDuplicate] = useState<{
@@ -129,7 +136,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
       if (thumb) setThumbnail(`data:image/jpeg;base64,${thumb}`)
     }
     load()
-    api.tags.getAll().then(setAllTags)
+    api.tags.getUsageCounts().then(setUsedTags)
   }, [itemId])
 
   const loadProfileMoveTargets = async () => {
@@ -227,6 +234,10 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
 
   const handleAddTag = async () => {
     const trimmed = newTagName.trim()
+    await commitTagName(trimmed)
+  }
+
+  const commitTagName = async (trimmed: string) => {
     if (!trimmed) return
     if (isReservedTagName(trimmed, tr('filters.untagged'))) {
       setTagInputError(tr('detail.invalidTagNameShort'))
@@ -234,15 +245,13 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
       return
     }
 
-    let tag = allTags.find(t => t.name === trimmed)
+    let tag: Tag | undefined = usedTags.find(t => t.name === trimmed)
 
     if (!tag) {
       try {
         tag = await api.tags.create(trimmed)
-        setAllTags(prev => [...prev, tag!])
       } catch {
         const refreshedTags = await api.tags.getAll()
-        setAllTags(refreshedTags)
         tag = refreshedTags.find((t: Tag) => t.name === trimmed)
       }
     }
@@ -253,19 +262,16 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
     setNewTagName('')
     const data = await api.items.getById(itemId)
     setItem(data)
-  }
-
-  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !isTagComposing) {
-      e.preventDefault()
-      handleAddTag()
-    }
+    const refreshedUsedTags = await api.tags.getUsageCounts()
+    setUsedTags(refreshedUsedTags)
   }
 
   const handleRemoveTag = async (tagId: number) => {
     await api.tags.removeFromItem(itemId, tagId)
     const data = await api.items.getById(itemId)
     setItem(data)
+    const refreshedUsedTags = await api.tags.getUsageCounts()
+    setUsedTags(refreshedUsedTags)
   }
 
   const handleReviewSave = async () => {
@@ -336,26 +342,32 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="detail-action-bar">
+          <div className="detail-primary-actions">
             <button className="btn-primary" style={{ width: 128 }} onClick={handleOpenViewer} disabled={item.fileExists === false}>
               {tr('detail.openViewer')}
             </button>
             {onAddToPlaylist && (
               <button
-                className="btn-secondary"
-                style={{ width: 128 }}
+                className="btn-secondary detail-square-action"
+                title={tr('playlist.addToList')}
+                aria-label={tr('playlist.addToList')}
                 onClick={() => onAddToPlaylist(item)}
                 disabled={item.contentType === 'other'}
               >
-                {tr('playlist.addToList')}
+                <PlaylistAddIcon size={18} />
               </button>
             )}
-            <button className="btn-secondary" style={{ width: 128 }} onClick={() => api.file.openExternal(fullPath)}>
-              {tr('detail.openExternal')}
+            <button
+              className="btn-secondary detail-square-action"
+              title={tr('detail.openExternal')}
+              aria-label={tr('detail.openExternal')}
+              onClick={() => api.file.openExternal(fullPath)}
+            >
+              <ShareIcon size={18} />
             </button>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+          <div className="detail-edit-actions">
             <button className="btn-secondary" onClick={() => setEditing(!editing)}>
               {editing ? tr('common.cancel') : tr('common.edit')}
             </button>
@@ -372,25 +384,39 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 12, rowGap: 12 }}>
             <Field label={tr('detail.contentType')}>
               {editing
-                ? <select value={editForm.contentType} onChange={e => setEditForm((f: any) => ({ ...f, contentType: e.target.value }))}>
-                    <option value="book">{tr('filters.type.book')}</option>
-                    <option value="comic">{tr('filters.type.comic')}</option>
-                    <option value="video">{tr('filters.type.video')}</option>
-                    <option value="other">{tr('filters.type.other')}</option>
-                  </select>
+                ? (
+                    <Dropdown
+                      value={editForm.contentType}
+                      options={[
+                        { value: 'book', label: tr('filters.type.book') },
+                        { value: 'comic', label: tr('filters.type.comic') },
+                        { value: 'video', label: tr('filters.type.video') },
+                        { value: 'other', label: tr('filters.type.other') },
+                      ]}
+                      onChange={(nextValue) => setEditForm((f: any) => ({ ...f, contentType: nextValue }))}
+                      ariaLabel={tr('detail.contentType')}
+                    />
+                  )
                 : tr(`filters.type.${item.contentType}`)
               }
             </Field>
             <Field label={tr('detail.language')}>
               {editing
-                ? <select value={editForm.language} onChange={e => setEditForm((f: any) => ({ ...f, language: e.target.value }))}>
-                    <option value="">{tr('detail.unknown')}</option>
-                    <option value="ko">{tr('filters.language.ko')}</option>
-                    <option value="ja">{tr('filters.language.ja')}</option>
-                    <option value="en">{tr('filters.language.en')}</option>
-                    <option value="zh">{tr('filters.language.zh')}</option>
-                    <option value="other">{tr('filters.language.other')}</option>
-                  </select>
+                ? (
+                    <Dropdown
+                      value={editForm.language}
+                      options={[
+                        { value: '', label: tr('detail.unknown') },
+                        { value: 'ko', label: tr('filters.language.ko') },
+                        { value: 'ja', label: tr('filters.language.ja') },
+                        { value: 'en', label: tr('filters.language.en') },
+                        { value: 'zh', label: tr('filters.language.zh') },
+                        { value: 'other', label: tr('filters.language.other') },
+                      ]}
+                      onChange={(nextValue) => setEditForm((f: any) => ({ ...f, language: nextValue }))}
+                      ariaLabel={tr('detail.language')}
+                    />
+                  )
                 : (item.language ? tr(`filters.language.${item.language}`) : tr('detail.unknown'))
               }
             </Field>
@@ -403,7 +429,16 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
             <Field label={tr('detail.progress')}>{formatProgressDetail(item)}</Field>
             <Field label={tr('detail.watched')}>
               {editing
-                ? <input type="checkbox" checked={editForm.watched} onChange={e => setEditForm((f: any) => ({ ...f, watched: e.target.checked }))} />
+                ? (
+                    <ChoiceInput
+                      className="detail-choice"
+                      type="checkbox"
+                      checked={editForm.watched}
+                      onChange={e => setEditForm((f: any) => ({ ...f, watched: e.target.checked }))}
+                    >
+                      <span>{tr('detail.watched')}</span>
+                    </ChoiceInput>
+                  )
                 : (item.watched ? '✓' : '✗')
               }
             </Field>
@@ -460,21 +495,19 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
             ))}
           </div>
           <div className={`detail-tag-input-row${tagInputError ? ' has-error' : ''}`}>
-            <input
+            <TagSearchInput
               value={newTagName}
-              onChange={e => {
-                setNewTagName(e.target.value)
+              options={usedTags.filter((tag) => !(item.tags || []).some((itemTag: Tag) => itemTag.id === tag.id))}
+              onChange={setNewTagName}
+              onClearError={() => {
                 if (tagInputError) setTagInputError('')
               }}
-              onKeyDown={handleTagInputKeyDown}
-              onCompositionStart={() => setIsTagComposing(true)}
-              onCompositionEnd={() => setIsTagComposing(false)}
+              onCommit={(tagName) => {
+                void commitTagName(tagName)
+              }}
               placeholder={tr('detail.addTagPlaceholder')}
-              list="all-tags"
+              ariaLabel={tr('detail.addTagPlaceholder')}
             />
-            <datalist id="all-tags">
-              {allTags.map(t => <option key={t.id} value={t.name} />)}
-            </datalist>
             <button className="btn-secondary" onClick={handleAddTag}>{tr('detail.add')}</button>
             <span
               className="detail-tag-input-error"
@@ -506,19 +539,23 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
         <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
           <h2 style={{ marginBottom: 12, fontSize: 16 }}>{tr('detail.profileTransfer')}</h2>
           <div className="detail-profile-transfer">
-            <select
-              value={profileTransferTargetId ?? ''}
-              onChange={(event) => setProfileTransferTargetId(Number(event.target.value))}
+            <Dropdown
+              value={profileTransferTargetId?.toString() ?? ''}
+              options={profileMoveTargets.length === 0
+                ? [{
+                    value: '',
+                    label: profileMoveTargetsLoading ? tr('common.loading') : tr('detail.profileTransferNoTargets'),
+                    disabled: true,
+                  }]
+                : profileMoveTargets.map((target) => ({
+                    value: target.id.toString(),
+                    label: getProfileTransferOptionLabel(target),
+                    disabled: target.disabled,
+                  }))}
+              onChange={(nextValue) => setProfileTransferTargetId(Number(nextValue))}
               disabled={profileMoveTargetsLoading || profileTransferBusy || profileMoveTargets.length === 0}
-            >
-              {profileMoveTargets.length === 0 ? (
-                <option value="">{profileMoveTargetsLoading ? tr('common.loading') : tr('detail.profileTransferNoTargets')}</option>
-              ) : profileMoveTargets.map((target) => (
-                <option key={target.id} value={target.id} disabled={target.disabled}>
-                  {getProfileTransferOptionLabel(target)}
-                </option>
-              ))}
-            </select>
+              ariaLabel={tr('detail.profileTransfer')}
+            />
             <div className="detail-profile-transfer-actions">
               <button
                 className="btn-secondary"

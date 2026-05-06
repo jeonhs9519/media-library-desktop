@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-05-06
+Last updated: 2026-05-07
 
 ## 개요
 
@@ -151,7 +151,9 @@ Last updated: 2026-05-06
 - 목록 카운터 위에 현재 검색 조건 요약을 표시합니다.
 - 검색 조건 요약은 조건별 inline-block 항목으로 렌더링해 좁은 폭에서도 조건 단위로 줄바꿈합니다.
 - 목록은 단일 Tab 진입 영역이며, 썸네일 간 이동은 현재 그리드 폭으로 계산한 방향키 roving focus를 사용합니다.
+- 썸네일 목록은 고정 카드 폭 기반 CSS grid로 배치해 각 줄의 칼럼 간격을 유지하고, 마지막 줄도 왼쪽부터 같은 칼럼 간격으로 표시합니다.
 - 상세 팝업 종료 후 focus request를 받아 다시 목록으로 포커스를 복귀시킵니다.
+- 카드 컨텍스트 메뉴는 공용 `ContextMenu`를 사용하며, `Escape`로 닫으면 현재 active 카드로 포커스를 명시적으로 복귀시킵니다.
 - 페이지네이션은 이전/다음 caret 버튼과 최대 9개 범위의 페이지 번호 버튼을 표시합니다.
 
 ### `src/renderer/src/components/Library/PlaylistPanel.tsx`
@@ -159,8 +161,34 @@ Last updated: 2026-05-06
 - 라이브러리와 뷰어에서 공유하는 플레이리스트 패널입니다.
 - 라이브러리 화면에서는 좌/우 표시 설정을 지원하되, HTML 순서는 툴바 다음, 라이브러리 본문 이전으로 유지합니다.
 - 항목 클릭으로 뷰어를 열고, 항목별 제거와 전체 초기화를 제공합니다.
+- 목록은 단일 Tab 진입 영역이며, 위/아래 방향키로 active 항목을 이동하고 `Delete` 키로 active 항목을 제거합니다.
+- 항목 제거 버튼은 Tab 순서에서 제외하며, 삭제 후 포커스는 목록 컨테이너로 돌아가 방향키 탐색을 이어갈 수 있습니다.
+- 항목 컨텍스트 메뉴는 공용 `ContextMenu`를 사용하며 재생, 한 칸 위/아래 이동, 상세정보 확인, 목록에서 제거 액션과 단축키 표기를 제공합니다.
 - 플레이리스트 항목은 pointer 기반 drag and drop으로 재정렬하며, 삽입 위치 placeholder를 표시합니다.
 - 라이브러리 카드 drag and drop으로 플레이리스트에 항목을 추가할 때도 표시된 위치에 삽입합니다.
+
+### `src/renderer/src/components/ContextMenu/index.tsx`
+
+- 라이브러리 카드, 플레이리스트 항목, 뷰어 메뉴에서 공유하는 컨텍스트 메뉴입니다.
+- 메뉴 바깥 클릭과 전역 `Escape` 닫기를 처리하고, 호출 컴포넌트가 닫힘 사유에 따라 포커스 복귀 여부를 결정할 수 있도록 `onClose`에 reason을 전달합니다.
+- 하위 메뉴는 호출한 상위 항목 위치와 실제 메뉴 크기를 기준으로 배치하며, 오른쪽 공간이 부족하면 왼쪽으로 열어 상위 메뉴를 덮지 않도록 합니다.
+
+### `src/renderer/src/components/ChoiceInput.tsx`
+
+- 체크박스와 라디오 버튼의 custom input 스타일을 공유하는 공용 컴포넌트입니다.
+- profile 선택 화면, 프로필 삭제 Modal, 설정 팝업 등에서 동일한 체크/라디오 스타일을 사용합니다.
+
+### `src/renderer/src/components/Dropdown.tsx`
+
+- native `select`를 대체하는 공용 드롭다운입니다.
+- Tab 포커스 진입/탈출, 위/아래 방향키 option 이동, Enter/Space 선택, Escape 닫기를 지원합니다.
+- disabled option은 클릭하거나 키보드로 접근해도 선택되지 않으며, 클릭으로 드롭다운이 닫히지 않습니다.
+
+### `src/renderer/src/components/TagSearchInput.tsx`
+
+- 상세 정보 태그 추가 입력에 사용하는 검색형 입력 컴포넌트입니다.
+- 현재 프로필에서 실제 사용 중인 태그 후보만 받아 필터링하고, 입력란에서 위/아래 방향키로 active option을 이동한 뒤 Enter로 등록합니다.
+- 옵션 목록은 포커스 가능한 버튼이 아니라 `aria-activedescendant` 기반 listbox로 렌더링해, Tab/Shift+Tab이 입력란 주변 컨트롤로 이동하도록 유지합니다.
 
 ### `src/renderer/src/components/Library/LibraryToolbar.tsx`
 

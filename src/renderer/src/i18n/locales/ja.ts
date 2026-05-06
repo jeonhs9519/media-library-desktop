@@ -253,7 +253,7 @@ export const jaMessages: Record<string, string> = {
   'viewer.video.fullscreen': 'フルスクリーン',
   'viewer.video.loopPlay': 'ループ再生',
   'viewer.video.showInFolder': 'ファイルの場所を開く',
-  'viewer.video.shortcut.space': 'スペース',
+  'viewer.video.shortcut.space': 'Space',
   'viewer.video.shortcut.fullscreen': 'F',
   'viewer.video.shortcut.loop': 'R',
 }

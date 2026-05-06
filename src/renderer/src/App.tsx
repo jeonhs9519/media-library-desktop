@@ -5,6 +5,8 @@ import { api } from './api'
 import { loadCbzViewerPage, loadPdfViewerPage, loadVideoPlayerPage } from './routes/viewerPages'
 import { TrashIcon } from './components/icons'
 import Modal from './components/Modal'
+import ChoiceInput from './components/ChoiceInput'
+import Dropdown from './components/Dropdown'
 
 const PdfViewerPage = lazy(loadPdfViewerPage)
 const CbzViewerPage = lazy(loadCbzViewerPage)
@@ -473,15 +475,15 @@ function ProfileGate({ children }: { children: React.ReactNode }) {
 
             <div className="profile-actions">
               {error ? <div className="profile-error">{error}</div> : null}
-              <label className="profile-remember-option">
-                <input
-                  type="checkbox"
-                  checked={useProfileOnNextStartup}
-                  onChange={(event) => setUseProfileOnNextStartup(event.target.checked)}
-                  disabled={submitting}
-                />
+              <ChoiceInput
+                className="profile-remember-option"
+                type="checkbox"
+                checked={useProfileOnNextStartup}
+                onChange={(event) => setUseProfileOnNextStartup(event.target.checked)}
+                disabled={submitting}
+              >
                 <span>다음 실행 시 이 프로필 사용</span>
-              </label>
+              </ChoiceInput>
               <button
                 className="btn-primary"
                 type="button"
@@ -511,78 +513,79 @@ function ProfileGate({ children }: { children: React.ReactNode }) {
                   </p>
 
                   <div className="profile-delete-options">
-                    <label className="profile-delete-radio">
-                      <input
-                        type="radio"
-                        name="profile-delete-mode"
-                        checked={deleteMode === 'transfer'}
-                        onChange={() => setDeleteMode('transfer')}
-                        disabled={deleteBusy}
-                      />
+                    <ChoiceInput
+                      className="profile-delete-radio"
+                      type="radio"
+                      name="profile-delete-mode"
+                      checked={deleteMode === 'transfer'}
+                      onChange={() => setDeleteMode('transfer')}
+                      disabled={deleteBusy}
+                    >
                       <span>데이터 이관</span>
-                    </label>
-                    <label className="profile-delete-radio">
-                      <input
-                        type="radio"
-                        name="profile-delete-mode"
-                        checked={deleteMode === 'delete'}
-                        onChange={() => setDeleteMode('delete')}
-                        disabled={deleteBusy}
-                      />
+                    </ChoiceInput>
+                    <ChoiceInput
+                      className="profile-delete-radio"
+                      type="radio"
+                      name="profile-delete-mode"
+                      checked={deleteMode === 'delete'}
+                      onChange={() => setDeleteMode('delete')}
+                      disabled={deleteBusy}
+                    >
                       <span>데이터 함께 삭제</span>
-                    </label>
+                    </ChoiceInput>
                   </div>
 
                   {deleteMode === 'transfer' ? (
                     <div className="profile-delete-transfer">
-                      <label className="profile-delete-field">
+                      <div className="profile-delete-field">
                         <span>이관 대상 프로필</span>
-                        <select
-                          value={deleteTargetProfileId ?? ''}
-                          onChange={(event) => setDeleteTargetProfileId(Number(event.target.value))}
+                        <Dropdown
+                          value={deleteTargetProfileId?.toString() ?? ''}
+                          options={deleteSummary.targets.map((target) => ({
+                            value: target.id.toString(),
+                            label: target.name,
+                          }))}
+                          onChange={(nextValue) => setDeleteTargetProfileId(Number(nextValue))}
                           disabled={deleteBusy}
-                        >
-                          {deleteSummary.targets.map((target) => (
-                            <option key={target.id} value={target.id}>{target.name}</option>
-                          ))}
-                        </select>
-                      </label>
+                          ariaLabel="이관 대상 프로필"
+                        />
+                      </div>
 
                       <div className="profile-delete-field">
                         <span>중복 데이터 처리 방식</span>
-                        <label className="profile-delete-radio">
-                          <input
-                            type="radio"
-                            name="profile-delete-duplicate"
-                            checked={deleteDuplicateStrategy === 'target'}
-                            onChange={() => setDeleteDuplicateStrategy('target')}
-                            disabled={deleteBusy}
-                          />
+                        <ChoiceInput
+                          className="profile-delete-radio"
+                          type="radio"
+                          name="profile-delete-duplicate"
+                          checked={deleteDuplicateStrategy === 'target'}
+                          onChange={() => setDeleteDuplicateStrategy('target')}
+                          disabled={deleteBusy}
+                        >
                           <span>대상 프로필의 데이터 사용</span>
-                        </label>
-                        <label className="profile-delete-radio">
-                          <input
-                            type="radio"
-                            name="profile-delete-duplicate"
-                            checked={deleteDuplicateStrategy === 'source'}
-                            onChange={() => setDeleteDuplicateStrategy('source')}
-                            disabled={deleteBusy}
-                          />
+                        </ChoiceInput>
+                        <ChoiceInput
+                          className="profile-delete-radio"
+                          type="radio"
+                          name="profile-delete-duplicate"
+                          checked={deleteDuplicateStrategy === 'source'}
+                          onChange={() => setDeleteDuplicateStrategy('source')}
+                          disabled={deleteBusy}
+                        >
                           <span>본 프로필의 데이터로 덮어쓰기</span>
-                        </label>
+                        </ChoiceInput>
                       </div>
                     </div>
                   ) : null}
 
-                  <label className="profile-delete-confirm">
-                    <input
-                      type="checkbox"
-                      checked={deleteConfirmed}
-                      onChange={(event) => setDeleteConfirmed(event.target.checked)}
-                      disabled={deleteBusy}
-                    />
+                  <ChoiceInput
+                    className="profile-delete-confirm"
+                    type="checkbox"
+                    checked={deleteConfirmed}
+                    onChange={(event) => setDeleteConfirmed(event.target.checked)}
+                    disabled={deleteBusy}
+                  >
                     <span>위 내용을 확인하였습니다.</span>
-                  </label>
+                  </ChoiceInput>
                 </>
               ) : (
                 <p className="profile-delete-message">

@@ -294,7 +294,7 @@ export const koMessages: Record<string, string> = {
   'viewer.video.fullscreen': '전체화면',
   'viewer.video.loopPlay': '반복 재생',
   'viewer.video.showInFolder': '파일 위치 열기',
-  'viewer.video.shortcut.space': '스페이스',
+  'viewer.video.shortcut.space': 'Space',
   'viewer.video.shortcut.fullscreen': 'F',
   'viewer.video.shortcut.loop': 'R',
 }

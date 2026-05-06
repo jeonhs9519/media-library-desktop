@@ -253,7 +253,7 @@ export const zhMessages: Record<string, string> = {
   'viewer.video.fullscreen': '全屏',
   'viewer.video.loopPlay': '循环播放',
   'viewer.video.showInFolder': '打开文件位置',
-  'viewer.video.shortcut.space': '空格',
+  'viewer.video.shortcut.space': 'Space',
   'viewer.video.shortcut.fullscreen': 'F',
   'viewer.video.shortcut.loop': 'R',
 }

@@ -25,6 +25,14 @@ export function CaretBottomIcon({ size = 16 }: IconProps) {
   )
 }
 
+export function CaretUpIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
+      <path d="M6.5 14.5L12 9l5.5 5.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function ChevronLeftIcon({ size = 16 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
@@ -177,6 +185,18 @@ export function MenuIcon({ size = 16 }: IconProps) {
       <path d="M5 7h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M5 17h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function PlaylistAddIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
+      <path d="M4.8 7h8.4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M4.8 12h7.2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M4.8 17h5.8" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M16.8 10.2v6.6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M13.5 13.5h6.6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
     </svg>
   )
 }

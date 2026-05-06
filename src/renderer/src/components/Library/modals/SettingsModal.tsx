@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { LanguageSetting } from '../../../i18n/index'
 import { api } from '../../../api'
 import Modal from '../../Modal'
+import ChoiceInput from '../../ChoiceInput'
+import Dropdown from '../../Dropdown'
 import { CodeIcon, MinusSquareIcon, PlusSquareIcon } from '../../icons'
 import type { Translate } from '../types'
 
@@ -237,16 +239,18 @@ export default function SettingsModal({
                 <h4>{tr('settings.language.title')}</h4>
               </div>
               <div className="settings-row-control">
-                <select
+                <Dropdown
                   value={languageSetting}
-                  onChange={e => onChangeLanguageSetting(e.target.value as LanguageSetting)}
-                >
-                  <option value="system">{tr('settings.language.system')}</option>
-                  <option value="en">{tr('settings.language.en')}</option>
-                  <option value="ko">{tr('settings.language.ko')}</option>
-                  <option value="ja">{tr('settings.language.ja')}</option>
-                  <option value="zh">{tr('settings.language.zh')}</option>
-                </select>
+                  options={[
+                    { value: 'system', label: tr('settings.language.system') },
+                    { value: 'en', label: tr('settings.language.en') },
+                    { value: 'ko', label: tr('settings.language.ko') },
+                    { value: 'ja', label: tr('settings.language.ja') },
+                    { value: 'zh', label: tr('settings.language.zh') },
+                  ]}
+                  onChange={(nextValue) => onChangeLanguageSetting(nextValue as LanguageSetting)}
+                  ariaLabel={tr('settings.language.title')}
+                />
               </div>
             </div>
 
@@ -255,13 +259,15 @@ export default function SettingsModal({
                 <h4>{tr('settings.playlistPosition.title')}</h4>
               </div>
               <div className="settings-row-control">
-                <select
+                <Dropdown
                   value={playlistPosition}
-                  onChange={e => onChangePlaylistPosition(e.target.value as 'left' | 'right')}
-                >
-                  <option value="right">{tr('settings.playlistPosition.right')}</option>
-                  <option value="left">{tr('settings.playlistPosition.left')}</option>
-                </select>
+                  options={[
+                    { value: 'right', label: tr('settings.playlistPosition.right') },
+                    { value: 'left', label: tr('settings.playlistPosition.left') },
+                  ]}
+                  onChange={(nextValue) => onChangePlaylistPosition(nextValue as 'left' | 'right')}
+                  ariaLabel={tr('settings.playlistPosition.title')}
+                />
               </div>
             </div>
           </section>
@@ -270,31 +276,31 @@ export default function SettingsModal({
             <h3>{tr('settings.filePolicy.title')}</h3>
             <p className="settings-section-help">{tr('settings.filePolicy.help')}</p>
 
-            <label className="settings-radio">
-              <input
-                type="radio"
-                value="once"
-                checked={fileModifiedPolicy === 'once'}
-                onChange={() => onChangeFileModifiedPolicy('once')}
-              />
+            <ChoiceInput
+              className="settings-radio"
+              type="radio"
+              value="once"
+              checked={fileModifiedPolicy === 'once'}
+              onChange={() => onChangeFileModifiedPolicy('once')}
+            >
               <div>
                 <div>{tr('settings.filePolicy.once')}</div>
                 <p>{tr('settings.filePolicy.onceHelp')}</p>
               </div>
-            </label>
+            </ChoiceInput>
 
-            <label className="settings-radio">
-              <input
-                type="radio"
-                value="always"
-                checked={fileModifiedPolicy === 'always'}
-                onChange={() => onChangeFileModifiedPolicy('always')}
-              />
+            <ChoiceInput
+              className="settings-radio"
+              type="radio"
+              value="always"
+              checked={fileModifiedPolicy === 'always'}
+              onChange={() => onChangeFileModifiedPolicy('always')}
+            >
               <div>
                 <div>{tr('settings.filePolicy.always')}</div>
                 <p>{tr('settings.filePolicy.alwaysHelp')}</p>
               </div>
-            </label>
+            </ChoiceInput>
           </section>
 
           <section className="settings-section">

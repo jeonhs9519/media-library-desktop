@@ -4,6 +4,7 @@ import { api } from '../api'
 import { useI18n } from '../useI18n'
 import {
   CaretLeftIcon,
+  CloseXIcon,
   FolderOpenIcon,
   FullscreenIcon,
   LoopIcon,
@@ -472,6 +473,7 @@ export default function VideoPlayerPage() {
       : <VolumeHighIcon size={28} />
   const volumePercent = Math.round(volume * 100)
   const controlsTabIndex = videoUrl && !error && isControlsVisible ? 0 : -1
+  const handleExitViewer = () => navigate(returnTo)
   const contextMenuItems: ContextMenuEntry[] = [
     {
       key: 'play-toggle',
@@ -483,14 +485,6 @@ export default function VideoPlayerPage() {
       },
     },
     {
-      key: 'fullscreen',
-      label: tr('viewer.video.fullscreen'),
-      icon: <FullscreenIcon size={16} />,
-      shortcut: tr('viewer.video.shortcut.fullscreen'),
-      onSelect: toggleFullscreen,
-    },
-    { key: 'sep-1', type: 'separator' },
-    {
       key: 'loop',
       label: tr('viewer.video.loopPlay'),
       icon: isLooping ? <LoopIcon size={16} /> : <LoopOffIcon size={16} />,
@@ -498,6 +492,20 @@ export default function VideoPlayerPage() {
       tone: isLooping ? 'accent' : 'default',
       checked: isLooping,
       onSelect: handleToggleLoop,
+    },
+    { key: 'sep-playback', type: 'separator' },
+    {
+      key: 'thumbnail',
+      label: tr('viewer.setThumbnail'),
+      icon: <ThumbnailIcon size={16} />,
+      onSelect: handleSetThumbnail,
+    },
+    {
+      key: 'fullscreen',
+      label: tr('viewer.video.fullscreen'),
+      icon: <FullscreenIcon size={16} />,
+      shortcut: tr('viewer.video.shortcut.fullscreen'),
+      onSelect: toggleFullscreen,
     },
     { key: 'sep-2', type: 'separator' },
     {
@@ -530,6 +538,13 @@ export default function VideoPlayerPage() {
       label: tr('viewer.video.showInFolder'),
       icon: <FolderOpenIcon size={16} />,
       onSelect: handleShowInFolder,
+    },
+    {
+      key: 'exit-viewer',
+      label: tr('viewer.cbz.exitViewer'),
+      icon: <CloseXIcon size={16} />,
+      shortcut: 'Esc / Backspace',
+      onSelect: handleExitViewer,
     },
   ]
 
