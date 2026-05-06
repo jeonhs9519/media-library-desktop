@@ -1,6 +1,6 @@
 # Release And CI
 
-Last updated: 2026-05-06
+Last updated: 2026-05-07
 
 ## 릴리즈 경로 요약
 
@@ -46,7 +46,7 @@ npm run release:patch
 정확한 버전이나 minor/major 릴리즈가 필요하면 인자를 지정합니다.
 
 ```bash
-npm run release:patch -- 0.0.7
+npm run release:patch -- 0.1.1
 npm run release:patch -- minor
 npm run release:patch -- major
 ```
@@ -56,11 +56,11 @@ npm run release:patch -- major
 수동 대안:
 
 ```bash
-npm version 0.0.7 --no-git-tag-version
-npm run release:notes:docs -- --tag v0.0.7 --to HEAD --out docs/release-notes/v0.0.7.md
-git add package.json package-lock.json docs/release-notes/v0.0.7.md
-git commit -m "chore(release): 0.0.7"
-git tag v0.0.7
+npm version 0.1.1 --no-git-tag-version
+npm run release:notes:docs -- --tag v0.1.1 --to HEAD --out docs/release-notes/v0.1.1.md
+git add package.json package-lock.json docs/release-notes/v0.1.1.md
+git commit -m "chore(release): 0.1.1"
+git tag v0.1.1
 git push
 git push --tags
 ```
@@ -71,7 +71,7 @@ git push --tags
 - 수동 실행: Windows ZIP을 빌드하고, 선택 시 `dist-windows-latest` Actions artifact로 업로드합니다.
 - `main` 브랜치 푸시는 현재 릴리즈 빌드를 실행하지 않습니다.
 
-태그 릴리즈에서는 `package.json` 버전과 태그명이 일치해야 합니다. 예를 들어 `package.json` 버전이 `0.0.7`이면 태그는 `v0.0.7`이어야 합니다.
+태그 릴리즈에서는 `package.json` 버전과 태그명이 일치해야 합니다. 예를 들어 `package.json` 버전이 `0.1.1`이면 태그는 `v0.1.1`이어야 합니다.
 CI는 checkout 직후, 의존성 설치나 Windows ZIP 빌드 전에 `docs/release-notes/<tag>.md`가 존재하고 `## 릴리즈 개요`로 시작하는지 먼저 확인합니다. 이후 `dist` 안에 ZIP 파일이 정확히 1개 생성되었고 비어 있지 않은지 확인한 뒤, 해당 릴리즈 노트 파일을 GitHub Release 본문으로 사용해 Release 업로드를 진행합니다.
 
 ## GitHub Release 산출물
@@ -102,28 +102,28 @@ gh run download <run-id> --name dist-windows-latest
 
 ## 릴리즈 노트 재생성
 
-태그는 이미 있는데 Release 본문만 다시 반영하고 싶다면 `Create or Update Release Notes` 워크플로를 수동 실행하고 `tag` 입력에 `v0.0.7`처럼 기존 태그명을 넣습니다. 이 워크플로는 ZIP을 빌드하거나 첨부하지 않고, 태그에 포함된 `docs/release-notes/<tag>.md`를 GitHub Release 본문으로 그대로 사용합니다.
+태그는 이미 있는데 Release 본문만 다시 반영하고 싶다면 `Create or Update Release Notes` 워크플로를 수동 실행하고 `tag` 입력에 `v0.1.0`처럼 기존 태그명을 넣습니다. 이 워크플로는 ZIP을 빌드하거나 첨부하지 않고, 태그에 포함된 `docs/release-notes/<tag>.md`를 GitHub Release 본문으로 그대로 사용합니다.
 
 릴리즈 노트는 `scripts/build-release-notes.js`가 이전 semver 태그와 현재 태그 사이의 `git log`를 읽어 자동 생성합니다. 커밋 제목과 본문을 기준으로 주요 기능, UI/UX 개선, 구조 및 성능, 배포 및 CI, 문서 및 계획 항목으로 묶습니다.
-GitHub Release 화면이 이미 버전 제목을 표시하므로, 생성 본문은 `# v0.0.7` 같은 최상위 제목 없이 `## 릴리즈 개요`부터 시작합니다.
-저장소에 남기는 정리본은 `docs/release-notes/v0.0.7.md`처럼 버전별 파일로 관리합니다.
+GitHub Release 화면이 이미 버전 제목을 표시하므로, 생성 본문은 `# v0.1.0` 같은 최상위 제목 없이 `## 릴리즈 개요`부터 시작합니다.
+저장소에 남기는 정리본은 `docs/release-notes/v0.1.0.md`처럼 버전별 파일로 관리합니다.
 
 로컬 미리보기:
 
 ```bash
-npm run release:notes -- --tag v0.0.7 --out RELEASE_NOTES.md
+npm run release:notes -- --tag v0.1.0 --out RELEASE_NOTES.md
 ```
 
 릴리즈 commit에 들어갈 파일을 직접 생성하거나 덮어쓰려면 아래 명령을 사용합니다.
 
 ```bash
-npm run release:notes:docs -- --tag v0.0.7 --to HEAD --out docs/release-notes/v0.0.7.md
+npm run release:notes:docs -- --tag v0.1.0 --to HEAD --out docs/release-notes/v0.1.0.md
 ```
 
 GitHub Release 본문과 같은 내용을 임시 파일과 `docs/release-notes/`에 함께 저장하려면 `--save-docs`를 사용할 수도 있습니다.
 
 ```bash
-npm run release:notes -- --tag v0.0.7 --out RELEASE_NOTES.md --save-docs
+npm run release:notes -- --tag v0.1.0 --out RELEASE_NOTES.md --save-docs
 ```
 
 ## Windows 코드 서명

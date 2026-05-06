@@ -2,7 +2,7 @@
 
 로컬 PDF, CBZ, 비디오 파일을 SQLite 기반으로 관리하는 Electron 데스크톱 앱입니다. 태그, 리뷰, 썸네일, 진행률, 이어보기 흐름을 함께 다룹니다.
 
-이 저장소는 현재 공개 저장소로 운영됩니다. 로컬 DB, 로그, 테스트용 인증서, `.hdt` 샘플 같은 실행 중 생성 파일은 저장소에 포함하지 않습니다.
+`v0.1.0`은 첫 사용 가능 배포판입니다. 현재 저장소는 공개 저장소로 운영되며, 로컬 DB, 로그, 테스트용 인증서, `.hdt` 샘플 같은 실행 중 생성 파일은 저장소에 포함하지 않습니다.
 
 ## 주요 기능
 
@@ -14,23 +14,34 @@
 - `.hdt` 가져오기와 기존 `media-library.db` 수동 가져오기
 - Windows ZIP 패키징과 태그 기반 GitHub Release 워크플로
 
-## 빠른 시작
+## 배포판 사용
+
+1. [GitHub Releases 최신 릴리즈](https://github.com/jeonhs9519/media-library-desktop/releases/latest)에서 Windows ZIP 파일을 다운로드합니다.
+2. 원하는 폴더에 압축을 풉니다.
+3. `MediaLibrary.exe`를 실행합니다.
+
+앱은 실행 파일과 같은 폴더의 `media-library.db`를 기본 DB로 사용합니다. `userData`, session, logs, crash dumps는 같은 폴더의 `.data/` 아래에 저장합니다.
+기존 DB가 있다면 설정 팝업의 `과거 데이터 불러오기`에서 사용자가 직접 선택해 가져옵니다.
+
+## 개발 환경
+
+Node.js 18 이상이 필요합니다. CI와 릴리즈 빌드는 Node.js 22 기준으로 실행합니다.
 
 ```bash
 npm install
 npm run dev
 ```
 
-## 빌드와 테스트
+## 테스트와 빌드
 
 ```bash
 npm test
 npm run build
 ```
 
-## 배포 파일
+## 릴리즈
 
-최신 Windows ZIP 배포 파일은 [GitHub Releases 최신 릴리즈](https://github.com/jeonhs9519/media-library-desktop/releases/latest)에서 다운로드할 수 있습니다. 저장소에 정리한 버전별 변경 사항은 [`docs/release-notes/`](./docs/release-notes)에서 확인합니다.
+버전별 변경 사항은 [`docs/release-notes/`](./docs/release-notes)에서 확인합니다. 최신 첫 사용 가능 배포판은 [`v0.1.0`](./docs/release-notes/v0.1.0.md)입니다.
 
 ## 문서
 
@@ -58,6 +69,6 @@ npm run build
 
 ## 메모
 
-- DB 파일은 기본적으로 앱 실행 파일과 같은 폴더의 `media-library.db`를 사용합니다.
-- 과거 userData 위치의 `media-library.db`는 자동 복사하지 않습니다. 설정 팝업의 `과거 데이터 불러오기`에서 사용자가 직접 선택해 가져옵니다.
+- 과거 userData 위치의 `media-library.db`는 자동 복사하지 않습니다.
+- 배포판 폴더를 옮길 때는 같은 폴더의 `media-library.db`와 `.data/`도 함께 옮깁니다.
 - 코드 서명용 실제 인증서는 GitHub Actions secrets 또는 별도 보안 저장소에서 관리합니다.
