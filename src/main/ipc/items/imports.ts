@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import { items } from '../../db/schema'
+import { getActiveProfileId } from '../../services/profileState'
 import { normalizeTitle } from '../../utils/titleNormalizer'
 import { resizeToThumbnail } from '../../utils/thumbnail'
 import {
@@ -19,6 +20,7 @@ export function registerItemImportIPC(db: DB) {
 
   ipcMain.handle('items:importHdtPreview', async (_event, { filePaths }: { filePaths: string[] }) => {
     hdtPreviewCache.clear()
+    const activeProfileId = getActiveProfileId()
 
     const prepared: HdtPreparedItem[] = []
     let rawTotal = 0
@@ -95,7 +97,12 @@ export function registerItemImportIPC(db: DB) {
         const fileExtension = parsedPath.ext.replace(/^\./, '')
 
         const duplicate = !!db.select().from(items)
-          .where(and(eq(items.filePath, filePath), eq(items.fileName, fileName), eq(items.fileExtension, fileExtension)))
+          .where(and(
+            eq(items.profileId, activeProfileId),
+            eq(items.filePath, filePath),
+            eq(items.fileName, fileName),
+            eq(items.fileExtension, fileExtension),
+          ))
           .get()
 
         const sourceUrl = typeof entry.url === 'string' && entry.url.trim() ? entry.url.trim() : undefined
@@ -152,6 +159,7 @@ export function registerItemImportIPC(db: DB) {
   ipcMain.handle('items:importHdtApply', async (_event, { selectedIds }: { selectedIds: string[] }) => {
     let added = 0
     let skipped = 0
+    const activeProfileId = getActiveProfileId()
 
     for (const previewId of selectedIds || []) {
       const item = hdtPreviewCache.get(previewId)
@@ -161,7 +169,12 @@ export function registerItemImportIPC(db: DB) {
       }
 
       const duplicate = !!db.select().from(items)
-        .where(and(eq(items.filePath, item.filePath), eq(items.fileName, item.fileName), eq(items.fileExtension, item.fileExtension)))
+        .where(and(
+          eq(items.profileId, activeProfileId),
+          eq(items.filePath, item.filePath),
+          eq(items.fileName, item.fileName),
+          eq(items.fileExtension, item.fileExtension),
+        ))
         .get()
       if (duplicate) {
         skipped++
@@ -178,6 +191,7 @@ export function registerItemImportIPC(db: DB) {
 
       const now = Date.now()
       const inserted = db.insert(items).values({
+        profileId: activeProfileId,
         filePath: item.filePath,
         fileName: item.fileName,
         fileExtension: item.fileExtension,

@@ -3,6 +3,7 @@ import { asc, eq, sql } from 'drizzle-orm'
 import fs from 'fs'
 import path from 'path'
 import { items, playlistItems, playlists } from '../db/schema'
+import { getActiveProfileId } from '../services/profileState'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import * as schema from '../db/schema'
 
@@ -12,11 +13,15 @@ const DEFAULT_PLAYLIST_NAME = 'Default'
 const allowedContentTypes = new Set(['book', 'comic', 'video'])
 
 function getDefaultPlaylist(db: DB) {
-  const existing = db.select().from(playlists).where(eq(playlists.name, DEFAULT_PLAYLIST_NAME)).get()
+  const activeProfileId = getActiveProfileId()
+  const existing = db.select().from(playlists)
+    .where(sql`${playlists.profileId} = ${activeProfileId} AND ${playlists.name} = ${DEFAULT_PLAYLIST_NAME}`)
+    .get()
   if (existing) return existing
 
   const now = Date.now()
   return db.insert(playlists).values({
+    profileId: activeProfileId,
     name: DEFAULT_PLAYLIST_NAME,
     createdAt: now,
     updatedAt: now,
@@ -95,7 +100,9 @@ export function registerPlaylistsIPC(db: DB) {
 
   ipcMain.handle('playlists:addItem', async (_event, { itemId, position }: { itemId: number; position?: number }) => {
     const playlist = getDefaultPlaylist(db)
-    const item = db.select().from(items).where(eq(items.id, itemId)).get()
+    const item = db.select().from(items)
+      .where(sql`${items.id} = ${itemId} AND ${items.profileId} = ${getActiveProfileId()}`)
+      .get()
     if (!item) return { ok: false, reason: 'missing-item' }
     if (!allowedContentTypes.has(item.contentType)) return { ok: false, reason: 'unsupported-type' }
 

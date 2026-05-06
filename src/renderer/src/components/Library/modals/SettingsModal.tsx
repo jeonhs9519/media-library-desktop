@@ -22,7 +22,20 @@ interface Props {
   hdtFilePaths: string[]
   hdtNotice: string
   hdtPreviewing: boolean
+  profileStatus: {
+    currentProfileId: number | null
+    profiles: Array<{ id: number; name: string }>
+  } | null
+  profileNameDraft: string
+  profileNotice: { message: string; tone: 'success' | 'error' } | null
+  profileToastClosing: boolean
+  profileNameErrorActive: boolean
+  profileNameFocusSignal: number
+  profileBusy: boolean
   onClose: () => void
+  onChangeProfileNameDraft: (value: string) => void
+  onRenameProfile: () => void
+  onOpenProfileSelection: () => void
   onChangeLanguageSetting: (value: LanguageSetting) => void
   onChangeFileModifiedPolicy: (value: string) => void
   onChangePlaylistPosition: (value: 'left' | 'right') => void
@@ -53,7 +66,17 @@ export default function SettingsModal({
   hdtFilePaths,
   hdtNotice,
   hdtPreviewing,
+  profileStatus,
+  profileNameDraft,
+  profileNotice,
+  profileToastClosing,
+  profileNameErrorActive,
+  profileNameFocusSignal,
+  profileBusy,
   onClose,
+  onChangeProfileNameDraft,
+  onRenameProfile,
+  onOpenProfileSelection,
   onChangeLanguageSetting,
   onChangeFileModifiedPolicy,
   onChangePlaylistPosition,
@@ -69,11 +92,18 @@ export default function SettingsModal({
   const [zoomFactor, setZoomFactor] = useState(1)
   const legacyDbFileInputRef = useRef<HTMLInputElement>(null)
   const hdtFileInputRef = useRef<HTMLInputElement>(null)
+  const profileNameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
     void api.app.getZoomFactor().then((value: number) => setZoomFactor(value || 1))
   }, [open])
+
+  useEffect(() => {
+    if (!open || !profileNameFocusSignal) return
+    profileNameInputRef.current?.focus()
+    profileNameInputRef.current?.select()
+  }, [open, profileNameFocusSignal])
 
   const zoomPercent = `${Math.round(zoomFactor * 100)}%`
 
@@ -108,6 +138,7 @@ export default function SettingsModal({
     : hdtFilePaths.length === 1
       ? hdtFilePaths[0].split(/[\\/]/).filter(Boolean).pop() ?? hdtFilePaths[0]
       : tr('settings.hdtImport.selectedCount', { count: hdtFilePaths.length })
+  const canRenameProfile = Boolean(profileStatus?.currentProfileId && profileStatus.currentProfileId > 3)
 
   const handleOpenHdtFileDialog = () => {
     onSelectHdtFiles([])
@@ -140,6 +171,47 @@ export default function SettingsModal({
         </div>
 
         <div className="settings-body">
+          <section className="settings-section">
+            <h3>{tr('settings.profile.title')}</h3>
+            <p className="settings-section-help">{tr('settings.profile.help')}</p>
+            {!canRenameProfile ? (
+              <p className="settings-section-help settings-profile-guest-help">
+                ※ {tr('settings.profile.guestRenameUnavailable')}
+              </p>
+            ) : null}
+
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <h4>{tr('settings.profile.currentName')}</h4>
+              </div>
+              <div className="settings-row-control settings-inline-action settings-profile-field">
+                <input
+                  ref={profileNameInputRef}
+                  className={profileNameErrorActive ? 'is-error-highlight' : ''}
+                  value={profileNameDraft}
+                  maxLength={16}
+                  disabled={profileBusy || !canRenameProfile}
+                  onChange={(event) => onChangeProfileNameDraft(event.target.value)}
+                />
+                <button
+                  className="btn-secondary"
+                  disabled={profileBusy || !canRenameProfile || !profileNameDraft.trim()}
+                  onClick={onRenameProfile}
+                >
+                  {tr('settings.profile.rename')}
+                </button>
+                {profileNotice ? (
+                  <div
+                    className={`settings-profile-toast is-${profileNotice.tone}${profileToastClosing ? ' is-closing' : ''}`}
+                    aria-live="polite"
+                  >
+                    {profileNotice.message}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </section>
+
           <section className="settings-section">
             <h3>{tr('settings.display.title')}</h3>
 
@@ -344,6 +416,9 @@ export default function SettingsModal({
         </div>
 
         <div className="settings-footer">
+          <button className="btn-secondary" disabled={profileBusy} onClick={onOpenProfileSelection}>
+            {tr('settings.profile.openSelection')}
+          </button>
           <button className="btn-primary" onClick={onClose}>{tr('common.close')}</button>
         </div>
       </div>

@@ -4,12 +4,13 @@ import { tags, itemTags } from '../db/schema'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import * as schema from '../db/schema'
 import { cleanupUnusedTags, getTagUsageCounts } from '../services/tagMaintenance'
+import { getActiveProfileId } from '../services/profileState'
 
 type DB = BetterSQLite3Database<typeof schema>
 
 export function registerTagsIPC(db: DB) {
   ipcMain.handle('tags:getAll', async () => {
-    return db.select().from(tags).all()
+    return db.select().from(tags).where(eq(tags.profileId, getActiveProfileId())).all()
   })
 
   ipcMain.handle('tags:cleanupUnused', async () => {
@@ -22,11 +23,11 @@ export function registerTagsIPC(db: DB) {
   })
 
   ipcMain.handle('tags:create', async (_event, { name }: { name: string }) => {
-    return db.insert(tags).values({ name }).returning().get()
+    return db.insert(tags).values({ profileId: getActiveProfileId(), name }).returning().get()
   })
 
   ipcMain.handle('tags:delete', async (_event, { id }: { id: number }) => {
-    db.delete(tags).where(eq(tags.id, id)).run()
+    db.delete(tags).where(and(eq(tags.id, id), eq(tags.profileId, getActiveProfileId()))).run()
   })
 
   ipcMain.handle('tags:assignToItem', async (_event, { itemId, tagId }: { itemId: number; tagId: number }) => {

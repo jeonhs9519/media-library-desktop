@@ -46,6 +46,11 @@ npm test
 npm run test:e2e
 ```
 
+### 테스트 주의사항
+
+- 현재 E2E 테스트는 최소 smoke test 수준입니다.
+- 프로필 선택 화면 도입 이후 초기 진입 흐름을 반영해 E2E 시나리오 갱신이 필요합니다.
+
 ## Windows 초기 실행 트러블슈팅
 
 ### `No electron app entry file found`

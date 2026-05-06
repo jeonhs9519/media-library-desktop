@@ -4,6 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import { itemTags, items, reviews, tags } from '../../db/schema'
 import { cleanupUnusedTags } from '../../services/tagMaintenance'
+import { getActiveProfileId } from '../../services/profileState'
 import { normalizeTitle, detectContentType, detectContainerType } from '../../utils/titleNormalizer'
 import { generateThumbnailFromCbz } from '../../utils/thumbnail'
 import type { DB } from './utils'
@@ -24,7 +25,8 @@ export function registerItemCoreIPC(db: DB) {
   } = {}) => {
     const { search, contentType, language, watchedState, fileState, tagIds = [], untagged = false, sortBy = 'createdAt', sortDir = 'desc', page = 1, perPage = 50 } = params
 
-    const conditions: ReturnType<typeof eq>[] = []
+    const activeProfileId = getActiveProfileId()
+    const conditions: ReturnType<typeof eq>[] = [eq(items.profileId, activeProfileId)]
     const normalizedTagIds = Array.from(new Set(
       tagIds
         .map((id) => Number(id))
@@ -50,13 +52,17 @@ export function registerItemCoreIPC(db: DB) {
     if (untagged) {
       conditions.push(sql`NOT EXISTS (
         SELECT 1 FROM ${itemTags}
+        INNER JOIN ${tags} ON ${tags.id} = ${itemTags.tagId}
         WHERE ${itemTags.itemId} = ${items.id}
+          AND ${tags.profileId} = ${activeProfileId}
       )` as any)
     } else if (normalizedTagIds.length > 0) {
       conditions.push(sql`${items.id} IN (
         SELECT ${itemTags.itemId}
         FROM ${itemTags}
+        INNER JOIN ${tags} ON ${tags.id} = ${itemTags.tagId}
         WHERE ${itemTags.tagId} IN (${sql.join(normalizedTagIds.map((id) => sql`${id}`), sql`, `)})
+          AND ${tags.profileId} = ${activeProfileId}
         GROUP BY ${itemTags.itemId}
         HAVING count(DISTINCT ${itemTags.tagId}) = ${normalizedTagIds.length}
       )` as any)
@@ -136,7 +142,9 @@ export function registerItemCoreIPC(db: DB) {
   })
 
   ipcMain.handle('items:getById', async (_event, { id }: { id: number }) => {
-    const item = db.select().from(items).where(eq(items.id, id)).get()
+    const item = db.select().from(items)
+      .where(and(eq(items.id, id), eq(items.profileId, getActiveProfileId())))
+      .get()
     if (!item) return null
 
     const itemTagRows = db.select({ tag: tags })
@@ -169,6 +177,7 @@ export function registerItemCoreIPC(db: DB) {
     fileModifiedAt?: number
   }) => {
     const now = Date.now()
+    const activeProfileId = getActiveProfileId()
     const ext = data.fileExtension
     const title = data.title || normalizeTitle(data.fileName)
     const contentType = (data.contentType || detectContentType(ext)) as 'book' | 'comic' | 'video' | 'other'
@@ -176,6 +185,7 @@ export function registerItemCoreIPC(db: DB) {
 
     const result = db.insert(items).values({
       filePath: data.filePath,
+      profileId: activeProfileId,
       fileName: data.fileName,
       fileExtension: ext,
       title,
@@ -218,18 +228,26 @@ export function registerItemCoreIPC(db: DB) {
       fields.watched = 1
     }
 
-    db.update(items).set({ ...fields, updatedAt: now }).where(eq(items.id, id)).run()
+    db.update(items)
+      .set({ ...fields, updatedAt: now })
+      .where(and(eq(items.id, id), eq(items.profileId, getActiveProfileId())))
+      .run()
     return db.select().from(items).where(eq(items.id, id)).get()
   })
 
   ipcMain.handle('items:delete', async (_event, { id }: { id: number }) => {
-    db.delete(items).where(eq(items.id, id)).run()
+    db.delete(items).where(and(eq(items.id, id), eq(items.profileId, getActiveProfileId()))).run()
     return cleanupUnusedTags(db)
   })
 
   ipcMain.handle('items:checkExists', async (_event, { filePath, fileName, fileExtension }: { filePath: string; fileName: string; fileExtension: string }) => {
     const existing = db.select().from(items)
-      .where(and(eq(items.filePath, filePath), eq(items.fileName, fileName), eq(items.fileExtension, fileExtension)))
+      .where(and(
+        eq(items.profileId, getActiveProfileId()),
+        eq(items.filePath, filePath),
+        eq(items.fileName, fileName),
+        eq(items.fileExtension, fileExtension),
+      ))
       .get()
     return !!existing
   })

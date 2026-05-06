@@ -3,8 +3,9 @@ import Database from 'better-sqlite3'
 import fs from 'fs'
 import path from 'path'
 import { and, eq } from 'drizzle-orm'
-import { itemTags, items, playlistItems, playlists, reviews, settings, tags } from '../db/schema'
+import { SYSTEM_PROFILE_ID, itemTags, items, playlistItems, playlists, reviews, settings, tags } from '../db/schema'
 import { cleanupUnusedTags } from '../services/tagMaintenance'
+import { getActiveProfileId } from '../services/profileState'
 import type { DB } from './items/utils'
 
 type LegacyRow = Record<string, unknown>
@@ -59,6 +60,14 @@ type LegacyPreviewResult = {
 }
 
 const REQUIRED_ITEM_COLUMNS = ['id', 'filePath', 'fileName', 'fileExtension', 'title']
+const SYSTEM_SETTING_KEYS = new Set([
+  'ui.language',
+  'video.volume',
+  'fileModifiedAt.updatePolicy',
+  'profile.lastActiveId',
+  'profile.lastActiveIds',
+  'profile.useLastOnStartup',
+])
 
 function openLegacyDatabase(filePath: string) {
   return new Database(filePath, { readonly: true, fileMustExist: true })
@@ -129,6 +138,10 @@ function buildContainerType(contentType: string, fileExtension: string) {
   return 'zip'
 }
 
+function getSettingProfileId(key: string) {
+  return SYSTEM_SETTING_KEYS.has(key) ? SYSTEM_PROFILE_ID : getActiveProfileId()
+}
+
 function validateLegacyDatabase(sqlite: Database.Database) {
   const tables = getTables(sqlite)
   if (!tables.has('items')) {
@@ -159,10 +172,16 @@ function makePreviewItem(
   const review = reviewByItemId.get(legacyId)
 
   const invalid = !legacyId || !filePath || !fileName || !title
+  const activeProfileId = getActiveProfileId()
   const duplicate = invalid
     ? false
     : Boolean(db.select({ id: items.id }).from(items)
-      .where(and(eq(items.filePath, filePath), eq(items.fileName, fileName), eq(items.fileExtension, fileExtension)))
+      .where(and(
+        eq(items.profileId, activeProfileId),
+        eq(items.filePath, filePath),
+        eq(items.fileName, fileName),
+        eq(items.fileExtension, fileExtension),
+      ))
       .get())
 
   return {
@@ -185,13 +204,16 @@ function makePreviewItem(
 }
 
 function buildPreviewTags(db: DB, rows: LegacyRow[]): LegacyPreviewTag[] {
+  const activeProfileId = getActiveProfileId()
   return rows.map((row) => {
     const id = numberValue(row, 'id')
     const name = stringValue(row, 'name').trim()
     return {
       id,
       name,
-      exists: name ? Boolean(db.select({ id: tags.id }).from(tags).where(eq(tags.name, name)).get()) : false,
+      exists: name
+        ? Boolean(db.select({ id: tags.id }).from(tags).where(and(eq(tags.profileId, activeProfileId), eq(tags.name, name))).get())
+        : false,
     }
   }).filter(tag => tag.id && tag.name)
 }
@@ -199,10 +221,13 @@ function buildPreviewTags(db: DB, rows: LegacyRow[]): LegacyPreviewTag[] {
 function buildPreviewSettings(db: DB, rows: LegacyRow[]): LegacyPreviewSetting[] {
   return rows.map((row) => {
     const key = stringValue(row, 'key').trim()
+    const profileId = getSettingProfileId(key)
     return {
       key,
       value: stringValue(row, 'value'),
-      exists: key ? Boolean(db.select({ key: settings.key }).from(settings).where(eq(settings.key, key)).get()) : false,
+      exists: key
+        ? Boolean(db.select({ key: settings.key }).from(settings).where(and(eq(settings.profileId, profileId), eq(settings.key, key))).get())
+        : false,
     }
   }).filter(setting => setting.key)
 }
@@ -301,6 +326,7 @@ function importLegacyDatabase(db: DB, dbPath: string) {
   let importedReviews = 0
   let importedPlaylistItems = 0
   let importedSettings = 0
+  const activeProfileId = getActiveProfileId()
 
   const sqlite = openLegacyDatabase(dbPath)
   try {
@@ -318,6 +344,7 @@ function importLegacyDatabase(db: DB, dbPath: string) {
         const fileExtension = stringValue(row, 'fileExtension').trim()
         const contentType = stringValue(row, 'contentType', 'comic').trim() || 'comic'
         const inserted = tx.insert(items).values({
+          profileId: activeProfileId,
           filePath: stringValue(row, 'filePath').trim(),
           fileName: stringValue(row, 'fileName').trim(),
           fileExtension,
@@ -347,8 +374,8 @@ function importLegacyDatabase(db: DB, dbPath: string) {
         const name = stringValue(row, 'name').trim()
         if (!legacyTagId || !name) continue
 
-        const existing = tx.select({ id: tags.id }).from(tags).where(eq(tags.name, name)).get()
-        const currentTag = existing ?? tx.insert(tags).values({ name }).returning({ id: tags.id }).get()
+        const existing = tx.select({ id: tags.id }).from(tags).where(and(eq(tags.profileId, activeProfileId), eq(tags.name, name))).get()
+        const currentTag = existing ?? tx.insert(tags).values({ profileId: activeProfileId, name }).returning({ id: tags.id }).get()
         if (!existing) importedTags++
         legacyToCurrentTagId.set(legacyTagId, currentTag.id)
       }
@@ -378,9 +405,10 @@ function importLegacyDatabase(db: DB, dbPath: string) {
         const key = stringValue(row, 'key').trim()
         const value = stringValue(row, 'value')
         if (!key) continue
-        const existing = tx.select({ key: settings.key }).from(settings).where(eq(settings.key, key)).get()
+        const profileId = getSettingProfileId(key)
+        const existing = tx.select({ key: settings.key }).from(settings).where(and(eq(settings.profileId, profileId), eq(settings.key, key))).get()
         if (existing) continue
-        tx.insert(settings).values({ key, value }).run()
+        tx.insert(settings).values({ profileId, key, value }).run()
         importedSettings++
       }
 
@@ -390,8 +418,9 @@ function importLegacyDatabase(db: DB, dbPath: string) {
         const name = stringValue(row, 'name').trim()
         if (!legacyPlaylistId || !name) continue
         const now = Date.now()
-        const existing = tx.select({ id: playlists.id }).from(playlists).where(eq(playlists.name, name)).get()
+        const existing = tx.select({ id: playlists.id }).from(playlists).where(and(eq(playlists.profileId, activeProfileId), eq(playlists.name, name))).get()
         const currentPlaylist = existing ?? tx.insert(playlists).values({
+          profileId: activeProfileId,
           name,
           createdAt: numberValue(row, 'createdAt', now),
           updatedAt: numberValue(row, 'updatedAt', now),

@@ -130,6 +130,18 @@ export function CloseXIcon({ size = 16 }: IconProps) {
   )
 }
 
+export function TrashIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>
+      <path d="M5.5 7.5h13" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M9.2 7.5V5.7c0-.8.6-1.4 1.4-1.4h2.8c.8 0 1.4.6 1.4 1.4v1.8" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7.2 7.5l.8 11.1c.1.9.8 1.6 1.7 1.6h4.6c.9 0 1.6-.7 1.7-1.6l.8-11.1" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10.4 11v5.2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M13.6 11v5.2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function ShareIcon({ size = 16 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>

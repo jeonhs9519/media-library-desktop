@@ -38,6 +38,7 @@ Last updated: 2026-05-06
 - 편집과 삭제는 상세보기 팝업에서만 수행합니다.
 - 삭제 확인은 `confirm()` 대신 복구 불가 안내가 포함된 공용 Modal로 구현했습니다.
 - PDF, CBZ, 비디오 뷰어의 썸네일 업데이트 완료 알림은 `alert()` 대신 상단 툴바 아래 우측 toast로 표시합니다.
+- toast는 표시 애니메이션과 반대 방향의 종료 애니메이션으로 사라지게 합니다.
 - 플레이리스트는 기본 목록을 SQLite `playlists`, `playlistItems` 테이블에 저장합니다.
 - 플레이리스트 패널은 라이브러리 목록 좌/우에 표시할 수 있으며, 기본값은 우측입니다.
 - 플레이리스트 위치는 설정 팝업의 `표시 설정`에서 선택할 수 있습니다.
@@ -68,15 +69,32 @@ Last updated: 2026-05-06
 - 모든 뷰어 컨텍스트 메뉴에는 `파일 위치 열기` 위에 플레이리스트 표시 토글과 이전/다음 항목 실행 메뉴가 표시됩니다.
 - 플레이리스트에서 열린 `book`/`comic`은 마지막 페이지에서 다음 페이지 이동을 시도하면 다음 플레이리스트 항목을 실행합니다.
 - 플레이리스트에서 열린 `video`는 반복 재생이 꺼진 상태에서 재생 완료되면 다음 플레이리스트 항목을 실행합니다.
-- 프로필 기능을 도입할 예정이며, 리뷰, 진행률, 플레이리스트, 설정을 포함한 모든 내용을 프로필별로 분리해 관리합니다.
-- 최초 실행 시 프로필이 없으면 `GUEST` 시작 또는 신규 프로필 생성을 선택하고, 기존 데이터가 있으면 선택된 프로필로 이관합니다.
-- 설정 팝업 최상단에는 프로필 관리 항목을 추가하고, 프로필 전환/삭제/이름 변경을 지원할 예정입니다.
-- 파일 정보는 목록 컨텍스트 메뉴와 상세보기 팝업에서 다른 프로필로 이관할 수 있게 할 예정입니다.
+- 프로필 데이터 구조 기반이 도입되었으며, `profiles` 테이블과 `UNASSIGNED`/`SYSTEM`/`GUEST` 시스템 프로필 id 정책을 사용합니다.
+- `items`, `tags`, `playlists`, `settings`는 `profileId`를 가지며, 전역 unique/primary key는 프로필 범위 제약으로 재구성됩니다.
+- 기존 `settings`는 `ui.language`, `video.volume`, `fileModifiedAt.updatePolicy`를 `SYSTEM`으로, 나머지 사용자 흐름 설정을 `UNASSIGNED`로 분리한 뒤 프로필 선택 시 선택된 프로필로 이관합니다.
+- 앱 본문 진입 전 프로필 선택/생성 화면을 표시하며, `GUEST` 또는 신규 프로필을 선택하면 `UNASSIGNED` 데이터를 선택된 프로필로 이관합니다.
+- `UNASSIGNED`에 남아 있는 설정은 프로필 선택 시 `SYSTEM` 설정 키와 사용자 설정 키로 나눠 정리합니다.
+- 프로필 선택 화면에는 `다음 실행 시 이 프로필 사용` 체크박스를 제공하며, 체크 시 다음 앱 실행에서 마지막 선택 프로필로 바로 진입합니다.
+- 마지막으로 사용한 프로필명 오른쪽에는 `마지막으로 사용` 표시를 추가합니다.
+- 프로필명은 최대 16자로 제한합니다.
+- `items`, `tags`, `playlists`, 사용자 범위 `settings`는 active profile 기준으로 읽고 씁니다.
+- 설정 팝업 최상단에는 프로필 관리 항목을 추가하고, 현재 프로필 확인 및 사용자 프로필 이름 변경을 지원합니다.
+- 프로필 전환 버튼은 설정 팝업 footer 좌측에 배치하며, 클릭 시 현재 프로필 선택을 해제하고 프로필 선택 화면으로 돌아갑니다.
+- 신규 프로필 생성과 프로필 삭제는 프로필 선택 화면에서만 다룹니다.
+- 사용자 프로필 삭제는 프로필 선택 화면의 삭제 버튼에서 시작하며, 삭제 Modal에서 데이터 이관 또는 데이터 함께 삭제를 선택합니다.
+- 프로필 삭제 시 해당 프로필의 플레이리스트는 삭제하고, `reviews`, `itemTags`, `playlistItems`는 명시적으로 정리합니다.
+- 프로필 삭제 중 데이터 이관을 선택하면 중복 항목은 대상 프로필 데이터 사용 또는 본 프로필 데이터로 덮어쓰기 중 선택합니다. 덮어쓰기 시 대상 프로필의 기존 중복 항목과 부속 데이터는 삭제하고, 대상 플레이리스트에 있던 중복 항목 참조는 이관 항목 id로 대체합니다.
+- 마지막 사용 프로필은 `profile.lastActiveIds`에 최대 2개 저장하며, 삭제된 프로필이 마지막 사용 프로필이면 직전 프로필 또는 `GUEST`로 fallback합니다.
+- 파일 정보는 라이브러리 목록 컨텍스트 메뉴의 `다음으로 이동` submenu에서 다른 프로필로 이관할 수 있습니다.
+- 같은 위치의 `다음으로 복사` submenu에서 다른 프로필로 항목을 복사할 수 있습니다.
+- 상세 정보 모달의 리뷰 항목과 파일 항목 사이에는 프로필 이동 항목이 있으며, 동일한 대상 프로필 기준으로 항목 이동과 복사를 실행할 수 있습니다.
+- 항목 이관 시 대상 프로필에 같은 파일 경로/파일명/확장자가 이미 있으면 이동 대상을 비활성화합니다.
+- 프로필 관리 기능은 현재 요구 범위 기준으로 구현 완료 상태로 봅니다.
 - 사용 건수가 0인 태그를 정리하는 `cleanupUnusedTags` 기능이 있으며, 앱 시작, 라이브러리 목록 로드, 태그 연결/해제, 아이템 삭제 후 호출됩니다.
 - 상세 정보 모달을 닫으면 포커스가 다시 라이브러리 썸네일 목록으로 돌아갑니다.
 - 썸네일 생성/저장 기능이 있으며, CBZ 자동 썸네일과 사용자 지정 썸네일 일부가 구현되어 있습니다.
 - `.hdt` 가져오기 미리보기/선택 적용 기능이 있으며, 설정 팝업의 `HDT 가져오기` 항목에서 진입합니다.
-- 기존 `media-library.db` 가져오기는 중복 항목을 제외하고 `items`, `tags`, `itemTags`, `reviews`, `settings`, `playlists`, `playlistItems`를 가능한 범위에서 이관합니다.
+- 기존 `media-library.db` 가져오기는 중복 항목을 제외하고 `items`, `tags`, `itemTags`, `reviews`, `settings`, `playlists`, `playlistItems`를 가능한 범위에서 현재 프로필로 이관합니다. 단, `SYSTEM` 설정 키는 `SYSTEM` 프로필에 저장합니다.
 - 파일 경로 변경을 위한 개별 relink와 폴더 단위 bulk relink가 있습니다.
 - 다국어 리소스는 `en`, `ko`, `ja`, `zh`를 사용합니다.
 - 앱 시작 시 창을 먼저 표시하고, DB/IPC 준비 상태를 renderer의 startup 화면에 단계별로 표시합니다.
@@ -103,7 +121,9 @@ Last updated: 2026-05-06
 - 공용 아이콘: `src/renderer/src/components/icons/`
 - DB 스키마: `src/main/db/schema.ts`
 - 아이템 IPC 진입점: `src/main/ipc/items/index.ts`
-- 아이템 IPC 세부 모듈: `src/main/ipc/items/core.ts`, `src/main/ipc/items/relink.ts`, `src/main/ipc/items/imports.ts`, `src/main/ipc/items/metadata.ts`
+- 아이템 IPC 세부 모듈: `src/main/ipc/items/core.ts`, `src/main/ipc/items/relink.ts`, `src/main/ipc/items/imports.ts`, `src/main/ipc/items/metadata.ts`, `src/main/ipc/items/profileMove.ts`
+- 프로필 IPC: `src/main/ipc/profiles.ts`
+- active profile 상태: `src/main/services/profileState.ts`
 - 플레이리스트 IPC: `src/main/ipc/playlists.ts`
 - 플레이리스트 패널: `src/renderer/src/components/Library/PlaylistPanel.tsx`
 - 뷰어 플레이리스트 공통 hook: `src/renderer/src/useViewerPlaylist.ts`
@@ -131,6 +151,7 @@ Last updated: 2026-05-06
 - 뷰어 화면의 `ESC`, `Backspace`, 라이브러리/상세 팝업 포커스 이동, 검색 툴바/페이지네이션/설정 팝업 `title` 동작은 확인 완료했습니다.
 - renderer 코드의 `alert()`, `confirm()`, `prompt()` 호출은 제거했습니다.
 - 테스트는 현재 얇은 편이며, 핵심 사용자 흐름을 충분히 보호하지 못합니다.
+- 프로필 선택 화면 도입 이후 E2E 테스트는 실제 초기 진입 흐름에 맞춰 갱신이 필요합니다.
 - 미사용 태그 정리 기능은 단위 테스트가 추가되었지만, 현재 로컬 `better-sqlite3` 네이티브 모듈 잠금 이슈 때문에 실제 SQLite 통합 테스트 대신 호출 계약 중심으로 검증합니다.
 - 개선 전 병목 후보는 DB 초기화보다 창 생성과 renderer 로드 구간이었습니다.
 - 뷰어 route lazy loading 적용 후 production renderer 초기 JS는 약 `1,705.13 kB`에서 약 `847.29 kB`로 줄었습니다.
@@ -139,7 +160,7 @@ Last updated: 2026-05-06
 ## 작업 트리 메모
 
 - 현재 브랜치는 `main`입니다.
-- 작업 시작 시점의 작업 트리는 clean 상태였습니다.
+- 현재 작업 트리에는 프로필 관련 구현과 문서 갱신 변경이 남아 있습니다.
 - 공개 저장소 기준으로 루트 `README.md`와 릴리즈 관련 문서를 점검했습니다.
 
 이 문서는 기능 상태 중심으로 유지하고, 세부 구현 계획은 `next-task.md`와 `backlog.md`에서 관리합니다.

@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { and, eq, ne } from 'drizzle-orm'
 import path from 'path'
 import { items } from '../../db/schema'
+import { getActiveProfileId } from '../../services/profileState'
 import {
   buildItemFullPath,
   buildItemIdentityKey,
@@ -13,6 +14,7 @@ import {
 export function registerItemRelinkIPC(db: DB) {
   ipcMain.handle('items:relink', async (_event, { id, newFilePath }: { id: number; newFilePath: string }) => {
     const now = Date.now()
+    const activeProfileId = getActiveProfileId()
     const parsed = path.parse(newFilePath)
     const ext = parsed.ext.replace('.', '')
 
@@ -26,6 +28,7 @@ export function registerItemRelinkIPC(db: DB) {
       .from(items)
       .where(and(
         ne(items.id, id),
+        eq(items.profileId, activeProfileId),
         eq(items.filePath, parsed.dir),
         eq(items.fileName, parsed.name),
         eq(items.fileExtension, ext),
@@ -47,7 +50,7 @@ export function registerItemRelinkIPC(db: DB) {
         fileName: parsed.name,
         fileExtension: ext,
         updatedAt: now,
-      }).where(eq(items.id, id)).run()
+      }).where(and(eq(items.id, id), eq(items.profileId, activeProfileId))).run()
     } catch (error: any) {
       const message = String(error?.message || '')
       if (message.toLowerCase().includes('unique')) {
@@ -61,6 +64,7 @@ export function registerItemRelinkIPC(db: DB) {
           .from(items)
           .where(and(
             ne(items.id, id),
+            eq(items.profileId, activeProfileId),
             eq(items.filePath, parsed.dir),
             eq(items.fileName, parsed.name),
             eq(items.fileExtension, ext),
@@ -83,14 +87,17 @@ export function registerItemRelinkIPC(db: DB) {
 
     return {
       ok: true,
-      item: db.select().from(items).where(eq(items.id, id)).get(),
+      item: db.select().from(items).where(and(eq(items.id, id), eq(items.profileId, activeProfileId))).get(),
     }
   })
 
   ipcMain.handle('items:countByFolderPrefix', async (_event, { folderPath }: { folderPath: string }) => {
     if (!folderPath?.trim()) return 0
 
-    const rows = db.select({ filePath: items.filePath }).from(items).all()
+    const rows = db.select({ filePath: items.filePath })
+      .from(items)
+      .where(eq(items.profileId, getActiveProfileId()))
+      .all()
     return rows.filter((row) => isPathInsideFolder(row.filePath, folderPath)).length
   })
 
@@ -102,6 +109,7 @@ export function registerItemRelinkIPC(db: DB) {
     const fromNormalized = path.normalize(path.resolve(fromFolder))
     const toNormalized = path.normalize(path.resolve(toFolder))
     const now = Date.now()
+    const activeProfileId = getActiveProfileId()
 
     const rows = db.select({
       id: items.id,
@@ -109,7 +117,7 @@ export function registerItemRelinkIPC(db: DB) {
       filePath: items.filePath,
       fileName: items.fileName,
       fileExtension: items.fileExtension,
-    }).from(items).all()
+    }).from(items).where(eq(items.profileId, activeProfileId)).all()
     const targets = rows.filter((row) => isPathInsideFolder(row.filePath, fromFolder))
 
     if (!targets.length) {
@@ -177,7 +185,7 @@ export function registerItemRelinkIPC(db: DB) {
       try {
         db.update(items)
           .set({ filePath: nextFilePath, updatedAt: now })
-          .where(eq(items.id, row.id))
+          .where(and(eq(items.id, row.id), eq(items.profileId, activeProfileId)))
           .run()
         updated++
       } catch (error: any) {

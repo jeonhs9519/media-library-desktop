@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { CaretRightIcon } from '../icons'
 
 export type ContextMenuItemBase = {
   key: string
@@ -77,14 +78,6 @@ function CheckIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M5.5 12.5l4.2 4.2L18.5 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function SubmenuChevronIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M9 6.5L14.5 12 9 17.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -466,7 +459,7 @@ export default function ContextMenu({
               </span>
               {isSubmenuItem && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
-                  <SubmenuChevronIcon />
+                  <CaretRightIcon size={14} />
                 </span>
               )}
             </button>

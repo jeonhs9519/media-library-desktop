@@ -9,6 +9,7 @@ import { registerTagsIPC } from './ipc/tags'
 import { registerReviewsIPC } from './ipc/reviews'
 import { registerSettingsIPC } from './ipc/settings'
 import { registerPlaylistsIPC } from './ipc/playlists'
+import { registerProfilesIPC } from './ipc/profiles'
 import { registerFilesIPC } from './ipc/files'
 import { registerPdfIPC } from './ipc/pdf'
 import { registerCbzIPC } from './ipc/cbz'
@@ -486,6 +487,7 @@ app.whenReady().then(async () => {
     registerReviewsIPC(db)
     registerSettingsIPC(db)
     registerPlaylistsIPC(db)
+    registerProfilesIPC(db)
     registerFilesIPC()
     registerPdfIPC()
     registerCbzIPC()

@@ -25,6 +25,11 @@ const api = {
     countByFolderPrefix: (folderPath: string) => ipcRenderer.invoke('items:countByFolderPrefix', { folderPath }),
     bulkRelinkFolder: (fromFolder: string, toFolder: string) =>
       ipcRenderer.invoke('items:bulkRelinkFolder', { fromFolder, toFolder }),
+    getMoveTargets: (itemId: number) => ipcRenderer.invoke('items:getMoveTargets', { itemId }),
+    moveToProfile: (itemId: number, targetProfileId: number) =>
+      ipcRenderer.invoke('items:moveToProfile', { itemId, targetProfileId }),
+    copyToProfile: (itemId: number, targetProfileId: number) =>
+      ipcRenderer.invoke('items:copyToProfile', { itemId, targetProfileId }),
     checkExists: (filePath: string, fileName: string, fileExtension: string) =>
       ipcRenderer.invoke('items:checkExists', { filePath, fileName, fileExtension }),
     importHdtPreview: (filePaths: string[]) => ipcRenderer.invoke('items:importHdtPreview', { filePaths }),
@@ -54,6 +59,18 @@ const api = {
   settings: {
     get: (key: string) => ipcRenderer.invoke('settings:get', { key }),
     set: (key: string, value: string) => ipcRenderer.invoke('settings:set', { key, value }),
+  },
+  profiles: {
+    getStatus: () => ipcRenderer.invoke('profiles:getStatus'),
+    clearSelection: () => ipcRenderer.invoke('profiles:clearSelection'),
+    select: (profileId: number, useOnNextStartup?: boolean) =>
+      ipcRenderer.invoke('profiles:select', { profileId, useOnNextStartup }),
+    createAndSelect: (name: string, useOnNextStartup?: boolean) =>
+      ipcRenderer.invoke('profiles:createAndSelect', { name, useOnNextStartup }),
+    rename: (profileId: number, name: string) => ipcRenderer.invoke('profiles:rename', { profileId, name }),
+    getDeleteSummary: (profileId: number) => ipcRenderer.invoke('profiles:getDeleteSummary', { profileId }),
+    delete: (profileId: number, mode: 'transfer' | 'delete', targetProfileId?: number, duplicateStrategy?: 'target' | 'source') =>
+      ipcRenderer.invoke('profiles:delete', { profileId, mode, targetProfileId, duplicateStrategy }),
   },
   legacyDatabase: {
     preview: (filePath: string) => ipcRenderer.invoke('legacyDatabase:preview', { filePath }),

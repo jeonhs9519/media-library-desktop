@@ -70,9 +70,18 @@ interface ItemDetailPageProps {
   itemId: number
   onClose: () => void
   onAddToPlaylist?: (item: Item) => void
+  onMoveToProfile?: (item: Item, targetProfileId: number, targetProfileName: string) => Promise<boolean>
+  onCopyToProfile?: (item: Item, targetProfileId: number, targetProfileName: string) => Promise<boolean>
 }
 
-export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist }: ItemDetailPageProps) {
+type ProfileMoveTarget = {
+  id: number
+  name: string
+  disabled: boolean
+  reason?: string | null
+}
+
+export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMoveToProfile, onCopyToProfile }: ItemDetailPageProps) {
   const navigate = useNavigate()
   const [item, setItem] = useState<any>(null)
   const [allTags, setAllTags] = useState<Tag[]>([])
@@ -94,6 +103,10 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist }: Ite
   const [relinkErrorMessage, setRelinkErrorMessage] = useState('')
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
+  const [profileMoveTargets, setProfileMoveTargets] = useState<ProfileMoveTarget[]>([])
+  const [profileMoveTargetsLoading, setProfileMoveTargetsLoading] = useState(false)
+  const [profileTransferTargetId, setProfileTransferTargetId] = useState<number | null>(null)
+  const [profileTransferBusy, setProfileTransferBusy] = useState(false)
   const { tr } = useI18n()
 
   useEffect(() => {
@@ -117,6 +130,27 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist }: Ite
     }
     load()
     api.tags.getAll().then(setAllTags)
+  }, [itemId])
+
+  const loadProfileMoveTargets = async () => {
+    setProfileMoveTargetsLoading(true)
+    try {
+      const result = await api.items.getMoveTargets(itemId)
+      const targets = result?.ok ? result.targets || [] : []
+      setProfileMoveTargets(targets)
+      setProfileTransferTargetId((current) => {
+        if (current && targets.some((target: ProfileMoveTarget) => target.id === current && !target.disabled)) {
+          return current
+        }
+        return targets.find((target: ProfileMoveTarget) => !target.disabled)?.id ?? null
+      })
+    } finally {
+      setProfileMoveTargetsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadProfileMoveTargets()
   }, [itemId])
 
   if (!item) {
@@ -240,6 +274,40 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist }: Ite
     const data = await api.items.getById(itemId)
     setItem(data)
   }
+
+  const selectedProfileTransferTarget = profileMoveTargets.find((target) => target.id === profileTransferTargetId)
+
+  const getProfileTransferOptionLabel = (target: ProfileMoveTarget) => {
+    if (target.reason === 'duplicate-file') return `${target.name} - ${tr('library.context.moveDuplicate')}`
+    if (target.reason === 'current-profile') return `${target.name} - ${tr('library.context.moveCurrent')}`
+    return target.name
+  }
+
+  const handleProfileMove = async () => {
+    if (!item || !selectedProfileTransferTarget || selectedProfileTransferTarget.disabled || !onMoveToProfile) return
+
+    setProfileTransferBusy(true)
+    try {
+      const ok = await onMoveToProfile(item, selectedProfileTransferTarget.id, selectedProfileTransferTarget.name)
+      if (ok) onClose()
+    } finally {
+      setProfileTransferBusy(false)
+    }
+  }
+
+  const handleProfileCopy = async () => {
+    if (!item || !selectedProfileTransferTarget || selectedProfileTransferTarget.disabled || !onCopyToProfile) return
+
+    setProfileTransferBusy(true)
+    try {
+      const ok = await onCopyToProfile(item, selectedProfileTransferTarget.id, selectedProfileTransferTarget.name)
+      if (ok) await loadProfileMoveTargets()
+    } finally {
+      setProfileTransferBusy(false)
+    }
+  }
+
+  const canUseProfileTransfer = Boolean(selectedProfileTransferTarget && !selectedProfileTransferTarget.disabled)
 
   return (
     <div style={{ width: '100%', height: '100%', background: 'var(--bg-primary)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -433,6 +501,41 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist }: Ite
           ) : (
             <p style={{ color: '#a0a0b0' }}>{tr('detail.noReview')}</p>
           )}
+        </div>
+
+        <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+          <h2 style={{ marginBottom: 12, fontSize: 16 }}>{tr('detail.profileTransfer')}</h2>
+          <div className="detail-profile-transfer">
+            <select
+              value={profileTransferTargetId ?? ''}
+              onChange={(event) => setProfileTransferTargetId(Number(event.target.value))}
+              disabled={profileMoveTargetsLoading || profileTransferBusy || profileMoveTargets.length === 0}
+            >
+              {profileMoveTargets.length === 0 ? (
+                <option value="">{profileMoveTargetsLoading ? tr('common.loading') : tr('detail.profileTransferNoTargets')}</option>
+              ) : profileMoveTargets.map((target) => (
+                <option key={target.id} value={target.id} disabled={target.disabled}>
+                  {getProfileTransferOptionLabel(target)}
+                </option>
+              ))}
+            </select>
+            <div className="detail-profile-transfer-actions">
+              <button
+                className="btn-secondary"
+                onClick={handleProfileMove}
+                disabled={!canUseProfileTransfer || profileTransferBusy || !onMoveToProfile}
+              >
+                {tr('detail.profileMove')}
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={handleProfileCopy}
+                disabled={!canUseProfileTransfer || profileTransferBusy || !onCopyToProfile}
+              >
+                {tr('detail.profileCopy')}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: 16, marginBottom: 16 }}>

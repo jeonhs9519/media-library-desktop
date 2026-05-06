@@ -4,6 +4,7 @@ import { execFile } from 'child_process'
 import fs from 'fs'
 import ffprobeStatic from 'ffprobe-static'
 import { items } from '../../db/schema'
+import { getActiveProfileId } from '../../services/profileState'
 import { buildItemFullPath, type DB } from './utils'
 
 type MetadataCandidate = {
@@ -157,6 +158,7 @@ export function registerItemMetadataIPC(db: DB) {
       .where(
         and(
           sql`${items.totalContent} IS NULL`,
+          eq(items.profileId, getActiveProfileId()),
           sql`${items.containerType} IN ('zip', 'pdf', 'video')`
         )
       )

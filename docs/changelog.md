@@ -2,6 +2,19 @@
 
 ## 2026-05-06
 
+- 프로필 관리 완료 상태를 기준으로 `README.md`, 상태/다음 작업/로드맵/아키텍처/백로그/결정/설정 문서를 일괄 최신화
+- 시스템 프로필 id 정책을 `SYSTEM = 1`, `UNASSIGNED = 2`, `GUEST = 3` 순서로 조정하고 기존 개발 DB의 old seed 재배치 보정을 추가
+- 과거 DB 가져오기 시 항목, 태그, 플레이리스트, 사용자 설정을 `UNASSIGNED`가 아니라 현재 프로필에 귀속하도록 조정
+- 상세 정보 모달의 리뷰 항목과 파일 항목 사이에 프로필 이동 항목을 추가하고, select 기반 대상 선택 후 항목 이동/복사를 실행하도록 연결
+- 프로필 선택 화면에서 사용자 프로필 삭제 Modal을 추가하고, 데이터 이관/데이터 함께 삭제 분기를 지원
+- 프로필 삭제 시 `reviews`, `itemTags`, `playlistItems`, `playlists`를 명시적으로 정리하고, 데이터 이관 중 중복 항목은 대상 유지 또는 본 프로필 데이터로 덮어쓰기 중 선택하도록 구현
+- `profile.lastActiveIds` SYSTEM 설정을 추가해 최근 사용 프로필을 최대 2개 저장하고, 삭제된 프로필 대신 직전 프로필 또는 `GUEST`로 fallback하도록 조정
+- 프로필 데이터 구조 기반을 추가하고 `profiles` 테이블, `UNASSIGNED`/`SYSTEM`/`GUEST` 시스템 프로필 seed 기준을 반영
+- `items`, `tags`, `playlists`, `settings`에 `profileId`를 추가하고 전역 unique/primary key를 프로필 범위 제약으로 재구성하는 런타임 rebuild 보강을 추가
+- 기존 `settings`는 `ui.language`, `video.volume`, `fileModifiedAt.updatePolicy`를 `SYSTEM`으로, 나머지 사용자 흐름 설정을 `UNASSIGNED`로 분리하도록 조정
+- 프로필 결정 문서와 다음 작업 문서에 `SYSTEM` 프로필, 설정 분류, 여러 플레이리스트 장기 확장 후보를 반영
+- 앱 본문 진입 전에 프로필 선택/생성 화면을 표시하고, 선택 또는 생성한 프로필로 `UNASSIGNED` 데이터가 이관되도록 연결
+- active profile 기준으로 `items`, `tags`, `playlists`, 사용자 범위 `settings`를 읽고 쓰도록 IPC 범위를 조정
 - 공개 저장소 전환에 맞춰 루트 `README.md`의 기능 요약, 빌드/테스트, 로컬 실행 파일 주의사항을 갱신
 - 과거 DB 자동 복사 설명을 현재 구현인 설정 팝업의 `과거 데이터 불러오기` 흐름으로 수정
 - `docs/README.md`와 `release-ci.md`에 `docs/release-notes/` 기준을 추가
@@ -94,7 +107,7 @@
 
 ## 2026-05-01
 
-- 프로필 최초 실행, 프로필 관리, 프로필 삭제, 프로필 이관 UX와 데이터 분리 범위를 문서화
+- 프로필 최초 실행, 프로필 관리, 프로필 선택 화면 삭제 보류, 프로필 이관 UX와 데이터 분리 범위를 문서화
 - 프로필 기능 도입을 결정하고 데이터 이관, 프로필별 데이터 범위, 프로필 관리 UX 기준을 문서화
 - 핵심 사용자 흐름 테스트 보강을 중기 로드맵으로 이동
 - 플레이리스트 자동 다음 항목 실행 조건을 `book`/`comic`과 `video` 타입별로 확정하고 `roadmap.md`의 중기 확정 항목에서 제거

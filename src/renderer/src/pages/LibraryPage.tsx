@@ -46,6 +46,8 @@ export default function LibraryPage() {
   const [playlistItems, setPlaylistItems] = useState<PlaylistItem[]>([])
   const [playlistCollapsed, setPlaylistCollapsed] = useState(true)
   const [libraryFocusRequest, setLibraryFocusRequest] = useState(0)
+  const [libraryToast, setLibraryToast] = useState<{ id: number; message: string; tone: 'success' | 'error' } | null>(null)
+  const [libraryToastClosing, setLibraryToastClosing] = useState(false)
   const searchRef = useRef<HTMLButtonElement>(null)
   const initialListReadyReportedRef = useRef(false)
   const [initialListReady, setInitialListReady] = useState(false)
@@ -125,6 +127,18 @@ export default function LibraryPage() {
   }, [loadPlaylistItems])
 
   useEffect(() => {
+    if (!libraryToast) return
+    const timeoutId = window.setTimeout(() => setLibraryToastClosing(true), 2400)
+    return () => window.clearTimeout(timeoutId)
+  }, [libraryToast])
+
+  useEffect(() => {
+    if (!libraryToast || !libraryToastClosing) return
+    const timeoutId = window.setTimeout(() => setLibraryToast(null), 160)
+    return () => window.clearTimeout(timeoutId)
+  }, [libraryToast, libraryToastClosing])
+
+  useEffect(() => {
     api.settings.get('library.playlist.collapsed').then((value: string | undefined) => {
       if (value === '0' || value === '1') setPlaylistCollapsed(value === '1')
     })
@@ -184,6 +198,51 @@ export default function LibraryPage() {
     await loadPlaylistItems()
     updatePlaylistCollapsed(false)
   }
+
+  const showLibraryToast = useCallback((message: string, tone: 'success' | 'error') => {
+    setLibraryToastClosing(false)
+    setLibraryToast((current) => ({ id: (current?.id ?? 0) + 1, message, tone }))
+  }, [])
+
+  const getMoveErrorMessage = useCallback((reason?: string) => {
+    if (reason === 'duplicate-file') return tr('library.context.moveDuplicate')
+    if (reason === 'current-profile') return tr('library.context.moveCurrent')
+    if (reason === 'missing-profile') return tr('library.context.moveMissingProfile')
+    return tr('library.context.moveFailed')
+  }, [tr])
+
+  const handleMoveToProfile = useCallback(async (item: Item, targetProfileId: number, targetProfileName: string) => {
+    try {
+      const result = await api.items.moveToProfile(item.id, targetProfileId)
+      if (!result?.ok) {
+        showLibraryToast(result?.message || getMoveErrorMessage(result?.reason), 'error')
+        return false
+      }
+
+      await Promise.all([loadItems(), loadPlaylistItems()])
+      showLibraryToast(tr('library.context.moveDone', { profile: targetProfileName }), 'success')
+      return true
+    } catch (error: any) {
+      showLibraryToast(String(error?.message || error), 'error')
+      return false
+    }
+  }, [getMoveErrorMessage, loadItems, loadPlaylistItems, showLibraryToast, tr])
+
+  const handleCopyToProfile = useCallback(async (item: Item, targetProfileId: number, targetProfileName: string) => {
+    try {
+      const result = await api.items.copyToProfile(item.id, targetProfileId)
+      if (!result?.ok) {
+        showLibraryToast(result?.message || getMoveErrorMessage(result?.reason), 'error')
+        return false
+      }
+
+      showLibraryToast(tr('library.context.copyDone', { profile: targetProfileName }), 'success')
+      return true
+    } catch (error: any) {
+      showLibraryToast(String(error?.message || error), 'error')
+      return false
+    }
+  }, [getMoveErrorMessage, showLibraryToast, tr])
 
   const handleDropToPlaylist = async (itemId: number, position?: number) => {
     const item = items.find((candidate) => candidate.id === itemId)
@@ -295,6 +354,8 @@ export default function LibraryPage() {
           setPage={searchFilters.setPage}
           onOpenDetail={handleOpenDetail}
           onAddToPlaylist={handleAddToPlaylist}
+          onMoveToProfile={handleMoveToProfile}
+          onCopyToProfile={handleCopyToProfile}
           playlistPanel={playlistPanel}
           playlistPosition={librarySettings.playlistPosition}
           focusRequest={libraryFocusRequest}
@@ -359,7 +420,19 @@ export default function LibraryPage() {
         tr={tr}
       />
 
-      <ItemDetailModal itemId={detailItemId} onClose={handleCloseDetail} onAddToPlaylist={handleAddToPlaylist} />
+      {libraryToast ? (
+        <div className={`library-center-toast is-${libraryToast.tone}${libraryToastClosing ? ' is-closing' : ''}`} role="status" aria-live="polite">
+          {libraryToast.message}
+        </div>
+      ) : null}
+
+      <ItemDetailModal
+        itemId={detailItemId}
+        onClose={handleCloseDetail}
+        onAddToPlaylist={handleAddToPlaylist}
+        onMoveToProfile={handleMoveToProfile}
+        onCopyToProfile={handleCopyToProfile}
+      />
 
       <SearchFiltersModal
         open={searchFiltersOpen}
@@ -405,7 +478,17 @@ export default function LibraryPage() {
         hdtFilePaths={hdtImport.hdtSelectedFilePaths}
         hdtNotice={hdtImport.hdtUploadNotice}
         hdtPreviewing={hdtImport.hdtPreviewing}
+        profileStatus={librarySettings.profileStatus}
+        profileNameDraft={librarySettings.profileNameDraft}
+        profileNotice={librarySettings.profileNotice}
+        profileToastClosing={librarySettings.profileToastClosing}
+        profileNameErrorActive={librarySettings.profileNameErrorActive}
+        profileNameFocusSignal={librarySettings.profileNameFocusSignal}
+        profileBusy={librarySettings.profileBusy}
         onClose={librarySettings.closeSettingsModal}
+        onChangeProfileNameDraft={librarySettings.setProfileNameDraft}
+        onRenameProfile={librarySettings.handleRenameProfile}
+        onOpenProfileSelection={librarySettings.handleOpenProfileSelection}
         onChangeLanguageSetting={librarySettings.handleChangeLanguageSetting}
         onChangeFileModifiedPolicy={librarySettings.handleChangeFileModifiedPolicy}
         onChangePlaylistPosition={librarySettings.handleChangePlaylistPosition}

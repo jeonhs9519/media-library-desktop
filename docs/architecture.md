@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-05-05
+Last updated: 2026-05-06
 
 ## 개요
 
@@ -45,9 +45,10 @@ Last updated: 2026-05-05
 5. SQLite DB 열기 및 마이그레이션 실행
 6. IPC 핸들러 등록
 7. startup ready 이벤트 전송
-8. 렌더러에서 라이브러리 화면 mount 후 `window.api`를 통해 최초 목록 조회
-9. 최초 라이브러리 목록 표시 시점에 `library:list-ready` 로그 기록
-10. 썸네일 로드와 뷰어 route preload는 목록 표시 이후 비동기로 진행
+8. 렌더러의 `ProfileGate`가 active profile 상태를 확인하고, 필요하면 프로필 선택/생성 화면을 표시
+9. 프로필 선택 완료 후 라이브러리 화면 mount 및 `window.api`를 통한 최초 목록 조회
+10. 최초 라이브러리 목록 표시 시점에 `library:list-ready` 로그 기록
+11. 썸네일 로드와 뷰어 route preload는 목록 표시 이후 비동기로 진행
 
 ## Startup 흐름
 
@@ -68,7 +69,8 @@ Last updated: 2026-05-05
 - `src/main/ipc/legacyDatabase.ts`는 선택한 DB를 읽기 전용으로 열어 `items` 테이블과 주요 컬럼을 확인하고, 중복/제외 항목 통계를 미리보기로 반환합니다.
 - 미리보기 Modal은 720px 폭의 `설정`, `태그`, `파일 정보` 아코디언으로 구성하며, 가져오지 않는 항목은 낮은 opacity로 표시합니다.
 - 가져오기 적용 시 중복되지 않은 `items`를 먼저 추가하고, 연결 가능한 `tags`, `itemTags`, `reviews`, `settings`, `playlists`, `playlistItems`를 현재 DB id 기준으로 매핑합니다.
-- 기존 설정값은 현재 DB에 같은 key가 없을 때만 가져옵니다.
+- 과거 DB 가져오기는 이미 active profile이 선택된 상태에서 실행하므로, 가져온 항목/태그/플레이리스트는 현재 프로필에 귀속합니다.
+- 기존 설정값은 같은 프로필 범위에 같은 key가 없을 때만 가져옵니다. 단, `SYSTEM` 설정 키는 `SYSTEM` 프로필 기준으로 처리합니다.
 - 가져오기 후 실제로 사용되지 않는 태그는 `cleanupUnusedTags`로 삭제합니다.
 
 ## Renderer Route Loading
@@ -79,6 +81,7 @@ Last updated: 2026-05-05
 
 ## 핵심 도메인
 
+- `profiles`: 시스템/사용자 프로필
 - `items`: 라이브러리의 기본 엔터티
 - `tags`: 태그 마스터
 - `itemTags`: 아이템-태그 매핑
@@ -86,6 +89,20 @@ Last updated: 2026-05-05
 - `settings`: 간단한 키-값 설정
 - `playlists`: 기본 플레이리스트
 - `playlistItems`: 플레이리스트 항목과 표시 순서
+
+## 프로필 구조
+
+- `profiles.id`는 `SYSTEM = 1`, `UNASSIGNED = 2`, `GUEST = 3`, 사용자 생성 프로필은 `4`부터 사용합니다.
+- `items`, `tags`, `playlists`, `settings`는 `profileId`를 직접 가집니다.
+- `itemTags`, `playlistItems`, `reviews`는 각각 상위 테이블 관계에 귀속되며 별도 `profileId`를 두지 않습니다.
+- `src/main/services/profileState.ts`는 현재 실행 중인 active profile id를 메모리에서 관리합니다.
+- `src/main/ipc/profiles.ts`는 프로필 선택, 생성, 이름 변경, 선택 해제, 삭제, 삭제 전 summary 조회를 담당합니다.
+- `src/main/ipc/items/profileMove.ts`는 항목 단위 프로필 이동/복사와 대상 프로필 목록 조회를 담당합니다.
+- `profile.lastActiveIds`는 `SYSTEM` 설정으로 저장하며, 최근 사용 프로필을 최대 2개 보존합니다. 삭제된 프로필은 직전 프로필 또는 `GUEST`로 fallback합니다.
+- `profile.useLastOnStartup`이 `true`이면 앱 실행 시 마지막 유효 프로필로 자동 진입합니다.
+- 프로필 삭제 시 해당 프로필의 플레이리스트는 삭제하고, `reviews`, `itemTags`, `playlistItems`는 명시적으로 정리합니다.
+- 항목 이동/복사와 프로필 삭제 이관은 태그명을 기준으로 대상 프로필의 태그를 재사용하거나 새로 생성합니다.
+- 과거 DB 가져오기는 가져온 항목/태그/플레이리스트를 현재 active profile에 귀속합니다.
 
 ## 태그 유지보수
 
@@ -107,6 +124,7 @@ Last updated: 2026-05-05
 - `relink.ts`: 개별 relink, 폴더 prefix count, bulk relink
 - `imports.ts`: `.hdt` preview/apply
 - `metadata.ts`: 누락 메타데이터 보강과 상태 조회
+- `profileMove.ts`: 항목 프로필 이동/복사, 대상 프로필 조회
 - `utils.ts`: 경로 비교, full path 구성, HDT 보조 타입과 이미지 디코딩
 - 목록 조회 응답은 라이브러리 카드와 컨텍스트 메뉴에서 필요한 `sourceUrl` 같은 표시/액션 필드를 포함합니다.
 - 목록 검색어는 제목, 파일명, 작가, 메모, 원본 URL을 대상으로 합니다.
@@ -164,6 +182,7 @@ Last updated: 2026-05-05
 - 상세 정보 본문을 렌더링하고 태그, 리뷰, 진행률, 파일 정보, relink 흐름을 담당합니다.
 - 파일 경로 표시는 OS별 구분자로 정규화합니다. Windows는 `\`, 그 외 OS는 `/`를 사용합니다.
 - 파일 섹션 제목 오른쪽에는 `파일 위치 열기` 버튼을 표시하고 `api.file.showInFolder`로 연결합니다.
+- 리뷰와 파일 사이에는 프로필 이동 항목이 있으며, 컨텍스트 메뉴와 같은 기준의 대상 프로필 select로 항목 이동/복사를 실행합니다.
 
 ### `src/renderer/src/components/Library/modals/SettingsModal.tsx`
 
@@ -173,6 +192,7 @@ Last updated: 2026-05-05
 - 폴더 경로 일괄 변경의 대상 항목 수와 실행 버튼은 같은 행에 표시합니다.
 - 배율 컨트롤은 `app:getZoomFactor`, `app:zoomIn`, `app:zoomOut`, `app:zoomReset`을 사용해 현재 배율 표시를 즉시 갱신합니다.
 - 개발자 도구는 `CodeIcon` 아이콘 버튼으로 제공합니다.
+- 프로필 관리 섹션은 현재 프로필 확인, 사용자 프로필 이름 변경, 프로필 선택 화면으로 돌아가는 전환 버튼을 제공합니다.
 
 ### `src/renderer/src/components/Modal/index.tsx`
 
@@ -183,6 +203,7 @@ Last updated: 2026-05-05
 ## 테스트 현황
 
 - 단위 테스트: `titleNormalizer`
+- 단위 테스트: `tagMaintenance`
 - E2E: 초기 화면 진입과 버튼 노출 정도
 
-현재 테스트는 최소 수준이므로, 핵심 흐름 보호 장치로는 아직 부족합니다.
+현재 테스트는 최소 수준이며, 프로필 선택 화면 도입 이후 E2E 시나리오 갱신과 프로필 이관/삭제 흐름 자동 검증이 필요합니다.

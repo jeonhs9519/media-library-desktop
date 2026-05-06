@@ -19,6 +19,8 @@ interface Props {
   setPage: React.Dispatch<React.SetStateAction<number>>
   onOpenDetail: (itemId: number) => void
   onAddToPlaylist: (item: Item) => void
+  onMoveToProfile: (item: Item, targetProfileId: number, targetProfileName: string) => Promise<boolean>
+  onCopyToProfile: (item: Item, targetProfileId: number, targetProfileName: string) => Promise<boolean>
   playlistPanel?: React.ReactNode
   playlistPosition?: 'left' | 'right'
   focusRequest?: number
@@ -76,6 +78,8 @@ export default function LibraryGrid({
   setPage,
   onOpenDetail,
   onAddToPlaylist,
+  onMoveToProfile,
+  onCopyToProfile,
   playlistPanel,
   playlistPosition = 'right',
   focusRequest = 0,
@@ -85,6 +89,11 @@ export default function LibraryGrid({
   const gridRef = useRef<HTMLDivElement>(null)
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: Item } | null>(null)
+  const [moveTargets, setMoveTargets] = useState<{
+    itemId: number
+    loading: boolean
+    targets: Array<{ id: number; name: string; disabled: boolean; reason?: string | null }>
+  } | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const totalPages = Math.max(1, Math.ceil(total / perPage))
   const paginationItems = useMemo(() => getPaginationItems(page, totalPages), [page, totalPages])
@@ -119,11 +128,76 @@ export default function LibraryGrid({
     }
   }, [contextMenu])
 
+  useEffect(() => {
+    if (!contextMenu) {
+      setMoveTargets(null)
+      return
+    }
+
+    let canceled = false
+    const itemId = contextMenu.item.id
+    setMoveTargets({ itemId, loading: true, targets: [] })
+
+    api.items.getMoveTargets(itemId)
+      .then((result: any) => {
+        if (canceled) return
+        setMoveTargets({
+          itemId,
+          loading: false,
+          targets: result?.ok ? result.targets || [] : [],
+        })
+      })
+      .catch(() => {
+        if (!canceled) setMoveTargets({ itemId, loading: false, targets: [] })
+      })
+
+    return () => {
+      canceled = true
+    }
+  }, [contextMenu?.item.id])
+
   const contextMenuItems = useMemo<ContextMenuEntry[]>(() => {
     if (!contextMenu) return []
     const item = contextMenu.item
     const fullPath = getFullPath(item)
     const viewerPath = getViewerPath(item)
+    const currentMoveTargets = moveTargets?.itemId === item.id ? moveTargets : null
+    const moveTargetItems: ContextMenuEntry[] = currentMoveTargets?.loading
+      ? [{
+          key: 'move-loading',
+          label: tr('common.loading'),
+          disabled: true,
+          onSelect: () => undefined,
+        }]
+      : (currentMoveTargets?.targets || []).map((profile) => ({
+          key: `move-profile-${profile.id}`,
+          label: profile.name,
+          description: profile.reason === 'duplicate-file'
+            ? tr('library.context.moveDuplicate')
+            : profile.reason === 'current-profile'
+              ? tr('library.context.moveCurrent')
+              : undefined,
+          disabled: profile.disabled,
+          onSelect: () => onMoveToProfile(item, profile.id, profile.name),
+        }))
+    const copyTargetItems: ContextMenuEntry[] = currentMoveTargets?.loading
+      ? [{
+          key: 'copy-loading',
+          label: tr('common.loading'),
+          disabled: true,
+          onSelect: () => undefined,
+        }]
+      : (currentMoveTargets?.targets || []).map((profile) => ({
+          key: `copy-profile-${profile.id}`,
+          label: profile.name,
+          description: profile.reason === 'duplicate-file'
+            ? tr('library.context.moveDuplicate')
+            : profile.reason === 'current-profile'
+              ? tr('library.context.moveCurrent')
+              : undefined,
+          disabled: profile.disabled,
+          onSelect: () => onCopyToProfile(item, profile.id, profile.name),
+        }))
 
     return [
       {
@@ -167,8 +241,21 @@ export default function LibraryGrid({
         disabled: item.fileExists === false,
         onSelect: () => api.file.showInFolder(fullPath),
       },
+      { key: 'separator-move', type: 'separator' },
+      {
+        key: 'move-profile',
+        label: tr('library.context.moveTo'),
+        disabled: moveTargetItems.length === 0,
+        children: moveTargetItems,
+      },
+      {
+        key: 'copy-profile',
+        label: tr('library.context.copyTo'),
+        disabled: copyTargetItems.length === 0,
+        children: copyTargetItems,
+      },
     ]
-  }, [contextMenu, navigate, onAddToPlaylist, onOpenDetail, tr])
+  }, [contextMenu, moveTargets, navigate, onAddToPlaylist, onCopyToProfile, onMoveToProfile, onOpenDetail, tr])
 
   const getColumnCount = () => {
     const grid = gridRef.current

@@ -9,6 +9,39 @@ type UseLibrarySettingsOptions = {
   loadItems: () => Promise<void>
 }
 
+type ProfileSummary = {
+  id: number
+  name: string
+  createdAt: number
+  updatedAt: number
+}
+
+type ProfileStatus = {
+  currentProfileId: number | null
+  profiles: ProfileSummary[]
+  unassignedCounts: {
+    items: number
+    tags: number
+    playlists: number
+    settings: number
+  }
+}
+
+type ProfileToast = {
+  id: number
+  message: string
+  tone: 'success' | 'error'
+}
+
+function getProfileErrorMessage(tr: Translate, reason?: string) {
+  if (reason === 'empty-name') return tr('settings.profile.errorEmpty')
+  if (reason === 'name-too-long') return tr('settings.profile.errorTooLong')
+  if (reason === 'reserved-name') return tr('settings.profile.errorReserved')
+  if (reason === 'duplicate-name') return tr('settings.profile.errorDuplicate')
+  if (reason === 'transfer-failed') return tr('settings.profile.errorTransfer')
+  return tr('settings.profile.errorDefault')
+}
+
 export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: UseLibrarySettingsOptions) {
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [fileModifiedPolicy, setFileModifiedPolicy] = useState('once')
@@ -30,6 +63,13 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: Use
   const [legacyDbPreview, setLegacyDbPreview] = useState<LegacyDatabasePreview | null>(null)
   const [legacyDbPreviewing, setLegacyDbPreviewing] = useState(false)
   const [legacyDbImporting, setLegacyDbImporting] = useState(false)
+  const [profileStatus, setProfileStatus] = useState<ProfileStatus | null>(null)
+  const [profileNameDraft, setProfileNameDraft] = useState('')
+  const [profileNotice, setProfileNotice] = useState<ProfileToast | null>(null)
+  const [profileToastClosing, setProfileToastClosing] = useState(false)
+  const [profileNameErrorActive, setProfileNameErrorActive] = useState(false)
+  const [profileNameFocusSignal, setProfileNameFocusSignal] = useState(0)
+  const [profileBusy, setProfileBusy] = useState(false)
 
   useEffect(() => {
     api.settings.get('fileModifiedAt.updatePolicy').then((value: string | undefined) => {
@@ -39,6 +79,18 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: Use
       if (value === 'left' || value === 'right') setPlaylistPosition(value)
     })
   }, [])
+
+  const syncProfileStatus = useCallback(async () => {
+    const status = await api.profiles.getStatus() as ProfileStatus
+    setProfileStatus(status)
+    const current = status.profiles.find((profile) => profile.id === status.currentProfileId)
+    setProfileNameDraft(current?.name || '')
+    return status
+  }, [])
+
+  useEffect(() => {
+    syncProfileStatus().catch(console.error)
+  }, [syncProfileStatus])
 
   useEffect(() => {
     let canceled = false
@@ -71,6 +123,70 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: Use
 
   const openSettingsModal = useCallback(() => setSettingsModalOpen(true), [])
   const closeSettingsModal = useCallback(() => setSettingsModalOpen(false), [])
+
+  const showProfileToast = useCallback((message: string, tone: 'success' | 'error') => {
+    setProfileToastClosing(false)
+    setProfileNotice((current) => ({ id: (current?.id ?? 0) + 1, message, tone }))
+
+    if (tone === 'error') {
+      setProfileNameErrorActive(true)
+      setProfileNameFocusSignal((current) => current + 1)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!profileNotice) return
+    const timeoutId = window.setTimeout(() => setProfileToastClosing(true), 2400)
+    return () => window.clearTimeout(timeoutId)
+  }, [profileNotice])
+
+  useEffect(() => {
+    if (!profileNotice || !profileToastClosing) return
+    const timeoutId = window.setTimeout(() => setProfileNotice(null), 160)
+    return () => window.clearTimeout(timeoutId)
+  }, [profileNotice, profileToastClosing])
+
+  useEffect(() => {
+    if (!profileNameErrorActive) return
+    const timeoutId = window.setTimeout(() => setProfileNameErrorActive(false), 2400)
+    return () => window.clearTimeout(timeoutId)
+  }, [profileNameErrorActive])
+
+  const handleRenameProfile = useCallback(async () => {
+    if (!profileStatus?.currentProfileId || profileBusy) return
+    setProfileBusy(true)
+    setProfileNotice(null)
+    setProfileToastClosing(false)
+    try {
+      const result = await api.profiles.rename(profileStatus.currentProfileId, profileNameDraft)
+      setProfileStatus(result?.status || profileStatus)
+      if (!result?.ok) {
+        showProfileToast(result?.message || getProfileErrorMessage(tr, result?.reason), 'error')
+        return
+      }
+      await syncProfileStatus()
+      showProfileToast(tr('settings.profile.renameDone'), 'success')
+    } catch (error: any) {
+      showProfileToast(String(error?.message || ''), 'error')
+    } finally {
+      setProfileBusy(false)
+    }
+  }, [profileBusy, profileNameDraft, profileStatus, showProfileToast, syncProfileStatus, tr])
+
+  const handleOpenProfileSelection = useCallback(async () => {
+    if (profileBusy) return
+    setProfileBusy(true)
+    setProfileNotice(null)
+    setProfileToastClosing(false)
+    try {
+      await api.profiles.clearSelection()
+      await api.app.reload()
+    } catch (error: any) {
+      showProfileToast(String(error?.message || ''), 'error')
+    } finally {
+      setProfileBusy(false)
+    }
+  }, [profileBusy, showProfileToast])
 
   const handleChangeFileModifiedPolicy = useCallback(async (value: string) => {
     setFileModifiedPolicy(value)
@@ -234,8 +350,18 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: Use
     legacyDbPreview,
     legacyDbPreviewing,
     legacyDbImporting,
+    profileStatus,
+    profileNameDraft,
+    profileNotice,
+    profileToastClosing,
+    profileNameErrorActive,
+    profileNameFocusSignal,
+    profileBusy,
     openSettingsModal,
     closeSettingsModal,
+    setProfileNameDraft,
+    handleRenameProfile,
+    handleOpenProfileSelection,
     handleChangeLanguageSetting,
     handleChangeFileModifiedPolicy,
     handleChangePlaylistPosition,
