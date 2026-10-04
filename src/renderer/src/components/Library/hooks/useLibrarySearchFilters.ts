@@ -104,11 +104,12 @@ export function useLibrarySearchFilters(tr: Translate) {
     setPage(1)
   }, [])
 
-  const reconcileTagUsageCounts = useCallback((nextTagUsageCounts: TagUsageCount[]) => {
+  const reconcileTagUsageCounts = useCallback((nextTagUsageCounts: TagUsageCount[], removedId: number | null = null, survivorId?: number) => {
     setTagUsageCounts(nextTagUsageCounts)
     const availableTagIds = new Set(nextTagUsageCounts.map((tag) => tag.id))
-    const activeTagIds = selectedTagIds.filter((tagId) => availableTagIds.has(tagId))
-    if (activeTagIds.length !== selectedTagIds.length) {
+    const activeTagIds = [...new Set(selectedTagIds.map((tagId) => tagId === removedId && survivorId ? survivorId : tagId))]
+      .filter((tagId) => availableTagIds.has(tagId))
+    if (activeTagIds.length !== selectedTagIds.length || activeTagIds.some((id, index) => id !== selectedTagIds[index])) {
       setSelectedTagIds(activeTagIds)
     }
     return activeTagIds

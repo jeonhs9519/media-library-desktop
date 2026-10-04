@@ -124,6 +124,9 @@ Last updated: 2026-10-04
 
 ## 태그 유지보수
 
+- `src/main/services/tagRename.ts`는 프로필 범위의 이름 변경·병합을 하나의 transaction으로 수행합니다. `tags:rename` IPC는 현재 프로필을 검증하고 유지할 id와 삭제한 id를 반환합니다.
+- `TagRenameSection.tsx`는 설정 팝업에서 현재 프로필의 태그를 선택해 변경·병합합니다. `LibraryPage`는 반환된 id로 선택 태그 조건을 치환한 뒤 목록과 태그 건수를 다시 조회합니다.
+
 - `src/main/services/tagMaintenance.ts`의 `cleanupUnusedTags`는 `itemTags`에 연결되지 않은 태그를 삭제합니다.
 - 사용 건수는 해당 태그가 몇 개의 아이템에 연결되어 있는지로 판단하며, 0건이면 미사용 태그입니다.
 - 앱 시작, 라이브러리 목록 로드, 태그 연결/해제, 아이템 삭제 후 호출합니다.
@@ -215,6 +218,10 @@ Last updated: 2026-10-04
 
 - 상세 정보 태그 추가와 검색 조건 태그 선택에 사용하는 검색형 입력 컴포넌트입니다.
 - 현재 프로필에서 실제 사용 중인 태그 후보만 받아 필터링하고, 입력란에서 위/아래 방향키로 active option을 이동한 뒤 Enter로 등록합니다.
+- `showTagId` 옵션은 기본값 `false`이며, 활성화하면 후보에 `#id`를 표시하고 id 검색도 허용합니다. `disabled` 옵션으로 처리 중 입력과 후보 선택을 막습니다. 태그명 변경·병합은 변경 전·후 입력 모두 같은 컴포넌트를 사용합니다.
+- `closeOnCommit` 기본값은 `false`이며 태그명 변경·병합에서 활성화해 선택 직후 목록을 닫습니다. `clearLabel`을 전달하면 입력 내부에 원형 X 버튼을 표시합니다. 비우기는 `onChange('')`로 호출부의 선택 상태도 정리하고, 입력 포커스를 유지한 채 목록을 닫습니다. blur는 입력 그룹 밖으로 포커스가 이동할 때 목록을 닫습니다.
+- `maxOptions` 기본값은 20이며, `countSort`는 `asc`/`desc`로 데이터 수를 정렬합니다. 정렬 생략 시 전달된 순서를 유지합니다. 검색 후 정렬하고 최대 건수를 적용하며, 데이터 수가 없는 후보는 0건으로 취급합니다. 동률은 이름·id 순서입니다.
+- 태그명 변경·병합의 두 입력은 최대 50건을 표시하고, 변경 전은 오름차순·변경 후는 내림차순으로 정렬합니다. 변경 후를 먼저 입력할 수 있습니다.
 - 옵션 목록은 포커스 가능한 버튼이 아니라 `aria-activedescendant` 기반 listbox로 렌더링해, Tab/Shift+Tab이 입력란 주변 컨트롤로 이동하도록 유지합니다.
 
 ### `src/renderer/src/components/Library/LibraryToolbar.tsx`
@@ -244,12 +251,13 @@ Last updated: 2026-10-04
 ### `src/renderer/src/components/Library/modals/SettingsModal.tsx`
 
 - 검색 조건 모달과 같은 고정 header/body/footer 구조를 사용합니다.
-- 표시 설정, 파일 수정일 변경 규칙, `HDT 가져오기`, 폴더 경로 일괄 변경, 과거 데이터 불러오기 섹션으로 구분합니다.
+- 프로필 관리, 표시 설정, 파일 수정일 변경 규칙, `HDT 가져오기`, 폴더 경로 일괄 변경, 태그명 변경·병합, 과거 데이터 불러오기 섹션으로 구분합니다.
 - `HDT 가져오기`와 과거 데이터 불러오기는 숨김 파일 입력, readonly text input, `불러오기` 버튼 패턴을 사용합니다.
 - 폴더 경로 일괄 변경의 대상 항목 수와 실행 버튼은 같은 행에 표시합니다.
 - 배율 컨트롤은 `app:getZoomFactor`, `app:zoomIn`, `app:zoomOut`, `app:zoomReset`을 사용해 현재 배율 표시를 즉시 갱신합니다.
 - 개발자 도구는 `CodeIcon` 아이콘 버튼으로 제공합니다.
 - 프로필 관리 섹션은 현재 프로필 확인, 사용자 프로필 이름 변경, 프로필 선택 화면으로 돌아가는 전환 버튼을 제공합니다.
+- 팝업 폭은 720px, 최대 높이는 860px이며, 모든 화면 폭에서 상단 탭으로 카테고리를 전환합니다. 탭 순서는 기본 설정(표시·파일 수정일 정책), 데이터 관리(태그명 변경·병합·bulk relink·HDT), 프로필 관리(프로필명 변경·과거 DB)입니다. 팝업을 닫으면 선택 탭을 `기본 설정`으로 초기화합니다. body의 `scrollbar-gutter: stable both-edges`로 좌우에 같은 공간을 확보해 설정 그룹을 가운데에 배치합니다.
 
 ### `src/renderer/src/components/Modal/index.tsx`
 

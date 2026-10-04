@@ -59,11 +59,11 @@ export default function LibraryPage() {
 
   const playlistThumbnails = useLibraryThumbnails(playlistItems.map((entry) => entry.item))
 
-  const loadItems = useCallback(async () => {
+  const loadItems = useCallback(async (tagChange?: { removedId: number | null; id: number }) => {
     setLoading(true)
     try {
       const nextTagUsageCounts = await api.tags.getUsageCounts()
-      const activeTagIds = searchFilters.reconcileTagUsageCounts(nextTagUsageCounts)
+      const activeTagIds = searchFilters.reconcileTagUsageCounts(nextTagUsageCounts, tagChange?.removedId, tagChange?.id)
       const result = await api.items.getAll({
         search: searchFilters.search || undefined,
         contentType: searchFilters.contentType || undefined,
@@ -491,6 +491,8 @@ export default function LibraryPage() {
       />
 
       <SettingsModal
+        tagUsageCounts={searchFilters.tagUsageCounts}
+        onTagRenamed={(removedId, id) => loadItems({ removedId, id })}
         open={librarySettings.settingsModalOpen}
         languageSetting={languageSetting}
         fileModifiedPolicy={librarySettings.fileModifiedPolicy}

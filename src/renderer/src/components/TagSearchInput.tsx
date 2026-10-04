@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
 
 export type TagSearchOption = {
   id: number
@@ -11,6 +11,12 @@ type TagSearchInputProps = {
   options: TagSearchOption[]
   placeholder?: string
   ariaLabel?: string
+  showTagId?: boolean
+  maxOptions?: number
+  countSort?: 'asc' | 'desc'
+  disabled?: boolean
+  closeOnCommit?: boolean
+  clearLabel?: string
   onChange: (value: string) => void
   onCommit: (value: string) => void
   onClearError?: () => void
@@ -25,6 +31,12 @@ export default function TagSearchInput({
   options,
   placeholder,
   ariaLabel,
+  showTagId = false,
+  maxOptions = 20,
+  countSort,
+  disabled = false,
+  closeOnCommit = false,
+  clearLabel,
   onChange,
   onCommit,
   onClearError,
@@ -39,17 +51,25 @@ export default function TagSearchInput({
 
   const filteredOptions = useMemo(() => {
     const normalizedQuery = query
-    return options
+    const matches = options
       .filter((option) => {
         if (!normalizedQuery) return true
         return option.name.toLocaleLowerCase().includes(normalizedQuery)
+          || (showTagId && `#${option.id}`.includes(normalizedQuery))
       })
-      .slice(0, 12)
-  }, [options, query])
+    if (countSort) {
+      matches.sort((a, b) => {
+        const difference = (a.count ?? 0) - (b.count ?? 0)
+        return (countSort === 'asc' ? difference : -difference)
+          || a.name.localeCompare(b.name) || a.id - b.id
+      })
+    }
+    return matches.slice(0, maxOptions)
+  }, [options, query, showTagId, maxOptions, countSort])
 
   const listboxId = `${id}-listbox`
   const activeOptionId = activeIndex >= 0 ? `${id}-option-${activeIndex}` : undefined
-  const canShowList = open && filteredOptions.length > 0
+  const canShowList = !disabled && open && filteredOptions.length > 0
 
   useEffect(() => {
     if (!open) return
@@ -83,9 +103,10 @@ export default function TagSearchInput({
     if (!trimmed) return
 
     onCommit(trimmed)
-    setOpen(keepOpen)
+    if (closeOnCommit) inputRef.current?.focus()
+    setOpen(closeOnCommit ? false : keepOpen)
     setActiveIndex(-1)
-    window.setTimeout(() => inputRef.current?.focus(), 0)
+    if (!closeOnCommit) window.setTimeout(() => inputRef.current?.focus(), 0)
   }
 
   const moveActive = (direction: 1 | -1) => {
@@ -98,10 +119,17 @@ export default function TagSearchInput({
   }
 
   return (
-    <div ref={rootRef} className="tag-search-input">
+    <div ref={rootRef} className="tag-search-input" onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+        setOpen(false)
+        setActiveIndex(-1)
+      }
+    }}>
+      <div className={`tag-search-input-control${clearLabel ? ' has-clear-button' : ''}`}>
       <input
         ref={inputRef}
         value={value}
+        disabled={disabled}
         placeholder={placeholder}
         autoComplete="off"
         role="combobox"
@@ -147,6 +175,29 @@ export default function TagSearchInput({
           }
         }}
       />
+      {clearLabel && value ? (
+        <button
+          type="button"
+          className="tag-search-clear-button"
+          aria-label={ariaLabel ? `${ariaLabel}: ${clearLabel}` : clearLabel}
+          title={clearLabel}
+          disabled={disabled}
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={() => {
+            onChange('')
+            onClearError?.()
+            inputRef.current?.focus()
+            setOpen(false)
+            setActiveIndex(-1)
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.75" />
+            <path d="m8.5 8.5 7 7m0-7-7 7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+          </svg>
+        </button>
+      ) : null}
+      </div>
 
       {canShowList ? (
         <div id={listboxId} className="tag-search-listbox" role="listbox" aria-label={ariaLabel}>
@@ -154,7 +205,7 @@ export default function TagSearchInput({
             <div
               key={option.id}
               id={`${id}-option-${index}`}
-              className={`tag-search-option${index === activeIndex ? ' is-active' : ''}`}
+              className={`tag-search-option${showTagId ? ' has-tag-id' : ''}${index === activeIndex ? ' is-active' : ''}`}
               role="option"
               aria-selected={index === activeIndex}
               onMouseEnter={() => setActiveIndex(index)}
@@ -162,6 +213,7 @@ export default function TagSearchInput({
               onClick={() => commitValue(option.name, true)}
             >
               <span className="tag-search-option-name">{option.name}</span>
+              {showTagId ? <span className="tag-search-option-id">#{option.id}</span> : null}
               {typeof option.count === 'number' ? (
                 <span className="tag-search-option-count">{option.count}</span>
               ) : null}

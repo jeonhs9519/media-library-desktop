@@ -6,9 +6,12 @@ import ChoiceInput from '../../ChoiceInput'
 import Dropdown from '../../Dropdown'
 import PathPickerInput from '../../PathPickerInput'
 import { CodeIcon, MinusSquareIcon, PlusSquareIcon } from '../../icons'
-import type { Translate } from '../types'
+import type { TagUsageCount, Translate } from '../types'
+import TagRenameSection from './TagRenameSection'
 
 interface Props {
+  tagUsageCounts: TagUsageCount[]
+  onTagRenamed: (removedId: number | null, id: number) => Promise<void>
   open: boolean
   languageSetting: LanguageSetting
   fileModifiedPolicy: string
@@ -53,6 +56,8 @@ interface Props {
 }
 
 export default function SettingsModal({
+  tagUsageCounts,
+  onTagRenamed,
   open,
   languageSetting,
   fileModifiedPolicy,
@@ -93,6 +98,7 @@ export default function SettingsModal({
   tr,
 }: Props) {
   const [zoomFactor, setZoomFactor] = useState(1)
+  const [activeCategory, setActiveCategory] = useState<'profile' | 'basic' | 'data'>('basic')
   const legacyDbFileInputRef = useRef<HTMLInputElement>(null)
   const hdtFileInputRef = useRef<HTMLInputElement>(null)
   const profileNameInputRef = useRef<HTMLInputElement>(null)
@@ -100,6 +106,10 @@ export default function SettingsModal({
   useEffect(() => {
     if (!open) return
     void api.app.getZoomFactor().then((value: number) => setZoomFactor(value || 1))
+  }, [open])
+
+  useEffect(() => {
+    if (!open) setActiveCategory('basic')
   }, [open])
 
   useEffect(() => {
@@ -155,9 +165,10 @@ export default function SettingsModal({
     <Modal
       open={open}
       onClose={onClose}
-      contentWidth={600}
-      contentHeight="calc(100vh - 100px)"
-      contentMaxWidth="calc(100vw - 80px)"
+      contentWidth={720}
+      contentHeight="min(860px, calc(100vh - 32px))"
+      contentMaxWidth="calc(100vw - 32px)"
+      contentMaxHeight="calc(100vh - 32px)"
       contentPadding={0}
     >
       <div className="settings-dialog">
@@ -173,8 +184,23 @@ export default function SettingsModal({
           </button>
         </div>
 
-        <div className="settings-body">
-          <section className="settings-section">
+        <div className="settings-layout">
+          <nav className="settings-tabs" aria-label={tr('settings.navigation')}>
+            {(['basic', 'data', 'profile'] as const).map((category) => (
+              <button
+                key={category}
+                type="button"
+                className={`settings-tab-button${activeCategory === category ? ' is-active' : ''}`}
+                aria-current={activeCategory === category ? 'page' : undefined}
+                onClick={() => setActiveCategory(category)}
+              >
+                {tr(`settings.category.${category}`)}
+              </button>
+            ))}
+          </nav>
+
+          <div className="settings-body">
+          <section className="settings-section" hidden={activeCategory !== 'profile'}>
             <h3>{tr('settings.profile.title')}</h3>
             <p className="settings-section-help">{tr('settings.profile.help')}</p>
             {!canRenameProfile ? (
@@ -215,7 +241,7 @@ export default function SettingsModal({
             </div>
           </section>
 
-          <section className="settings-section">
+          <section className="settings-section" hidden={activeCategory !== 'basic'}>
             <h3>{tr('settings.display.title')}</h3>
 
             <div className="settings-row">
@@ -273,7 +299,7 @@ export default function SettingsModal({
             </div>
           </section>
 
-          <section className="settings-section">
+          <section className="settings-section" hidden={activeCategory !== 'basic'}>
             <h3>{tr('settings.filePolicy.title')}</h3>
             <p className="settings-section-help">{tr('settings.filePolicy.help')}</p>
 
@@ -304,47 +330,8 @@ export default function SettingsModal({
             </ChoiceInput>
           </section>
 
-          <section className="settings-section">
-            <h3>{tr('settings.hdtImport.title')}</h3>
-            <p className="settings-section-help">{tr('settings.hdtImport.help')}</p>
-
-            <div className="settings-folder-grid">
-              <PathPickerInput
-                value={hdtFileLabel}
-                placeholder={tr('settings.hdtImport.placeholder')}
-                browseLabel={tr('modal.hdtUpload.browse')}
-                onBrowse={handleOpenHdtFileDialog}
-              />
-              <input
-                ref={hdtFileInputRef}
-                className="settings-hidden-file-input"
-                type="file"
-                accept=".hdt"
-                multiple
-                onChange={(event) => onSelectHdtFiles(Array.from(event.target.files ?? []))}
-              />
-            </div>
-
-            {hdtFilePaths.length > 0 && (
-              <div className="settings-meta" title={hdtFilePaths.join('\n')}>{hdtFilePaths.join(', ')}</div>
-            )}
-
-            {hdtNotice && (
-              <div className="settings-notice">{hdtNotice}</div>
-            )}
-            <div className="settings-section-actions settings-import-actions">
-              <div className="settings-section-action-spacer" aria-hidden="true" />
-              <button
-                className="btn-primary"
-                disabled={!hdtFilePaths.length || hdtPreviewing}
-                onClick={onPreviewHdtImport}
-              >
-                {hdtPreviewing ? tr('common.loading') : tr('settings.hdtImport.load')}
-              </button>
-            </div>
-          </section>
-
-          <section className="settings-section">
+          {open ? <TagRenameSection tags={tagUsageCounts} profileId={profileStatus?.currentProfileId ?? null} onRenamed={onTagRenamed} tr={tr} hidden={activeCategory !== 'data'} /> : null}
+          <section className="settings-section" hidden={activeCategory !== 'data'}>
             <h3>{tr('settings.bulkRelink.title')}</h3>
             <p className="settings-section-help">{tr('settings.bulkRelink.help')}</p>
 
@@ -384,7 +371,47 @@ export default function SettingsModal({
             </div>
           </section>
 
-          <section className="settings-section">
+          <section className="settings-section" hidden={activeCategory !== 'data'}>
+            <h3>{tr('settings.hdtImport.title')}</h3>
+            <p className="settings-section-help">{tr('settings.hdtImport.help')}</p>
+
+            <div className="settings-folder-grid">
+              <PathPickerInput
+                value={hdtFileLabel}
+                placeholder={tr('settings.hdtImport.placeholder')}
+                browseLabel={tr('modal.hdtUpload.browse')}
+                onBrowse={handleOpenHdtFileDialog}
+              />
+              <input
+                ref={hdtFileInputRef}
+                className="settings-hidden-file-input"
+                type="file"
+                accept=".hdt"
+                multiple
+                onChange={(event) => onSelectHdtFiles(Array.from(event.target.files ?? []))}
+              />
+            </div>
+
+            {hdtFilePaths.length > 0 && (
+              <div className="settings-meta" title={hdtFilePaths.join('\n')}>{hdtFilePaths.join(', ')}</div>
+            )}
+
+            {hdtNotice && (
+              <div className="settings-notice">{hdtNotice}</div>
+            )}
+            <div className="settings-section-actions settings-import-actions">
+              <div className="settings-section-action-spacer" aria-hidden="true" />
+              <button
+                className="btn-primary"
+                disabled={!hdtFilePaths.length || hdtPreviewing}
+                onClick={onPreviewHdtImport}
+              >
+                {hdtPreviewing ? tr('common.loading') : tr('settings.hdtImport.load')}
+              </button>
+            </div>
+          </section>
+
+          <section className="settings-section" hidden={activeCategory !== 'profile'}>
             <h3>{tr('settings.legacyDb.title')}</h3>
             <p className="settings-section-help">{tr('settings.legacyDb.help')}</p>
 
@@ -422,6 +449,7 @@ export default function SettingsModal({
               </button>
             </div>
           </section>
+          </div>
         </div>
 
         <div className="settings-footer">

@@ -731,16 +731,19 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--accent);
 }
 
-.paste-input-control {
+.paste-input-control,
+.tag-search-input-control {
   position: relative;
   min-width: 0;
 }
 
-.paste-input-control input {
+.paste-input-control input,
+.tag-search-input-control input {
   display: block;
 }
 
-.paste-input-button {
+.paste-input-button,
+.tag-search-clear-button {
   position: absolute;
   top: 50%;
   right: 4px;
@@ -766,9 +769,24 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-primary);
 }
 
-.paste-input-button:focus-visible {
+.paste-input-button:focus-visible,
+.tag-search-clear-button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 0;
+}
+
+.tag-search-input-control.has-clear-button input {
+  padding-right: 34px;
+}
+
+.tag-search-clear-button {
+  color: #d96b79;
+}
+
+.tag-search-clear-button:hover,
+.tag-search-clear-button:focus {
+  color: #c65362;
+  opacity: 1;
 }
 
 .dropdown {
@@ -931,6 +949,10 @@ input:focus, select:focus, textarea:focus {
   opacity: 1;
 }
 
+.tag-search-option.has-tag-id {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
 .tag-search-option.is-active {
   background: rgba(138, 164, 255, 0.14);
 }
@@ -942,6 +964,7 @@ input:focus, select:focus, textarea:focus {
   white-space: nowrap;
 }
 
+.tag-search-option-id,
 .tag-search-option-count {
   min-width: 22px;
   padding: 1px 6px;
@@ -1388,6 +1411,48 @@ input:focus, select:focus, textarea:focus {
   background: var(--bg-primary);
 }
 
+.settings-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0;
+  padding: 0 16px 16px;
+}
+
+.settings-tabs {
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-tab-button {
+  position: relative;
+  flex: 1 0 max-content;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px 18px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.settings-tab-button:hover {
+  color: var(--text-primary);
+}
+
+.settings-tab-button.is-active {
+  border-bottom-color: var(--accent);
+  color: var(--text-primary);
+}
+
 .settings-header {
   flex: 0 0 auto;
   display: flex;
@@ -1410,7 +1475,8 @@ input:focus, select:focus, textarea:focus {
   display: grid;
   align-content: start;
   gap: 16px;
-  padding: 16px;
+  padding: 16px 0 0;
+  scrollbar-gutter: stable both-edges;
 }
 
 .settings-section {
@@ -1705,8 +1771,45 @@ input:focus, select:focus, textarea:focus {
   background: var(--bg-primary);
 }
 
+@media (max-width: 1023px) {
+  .settings-tab-button {
+    min-height: 42px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .settings-section {
+    padding: 14px;
+  }
+
+  .settings-header {
+    padding: 14px 16px 10px;
+  }
+
+  .settings-footer {
+    padding: 10px 12px;
+  }
+}
+
 .settings-footer button {
   width: 157px;
+}
+
+@media (max-width: 600px) {
+  .settings-footer > button {
+    width: auto;
+    flex: 1 1 0;
+  }
+
+  .settings-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .settings-row + .settings-row {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
 }
 
 .legacy-db-preview-summary {

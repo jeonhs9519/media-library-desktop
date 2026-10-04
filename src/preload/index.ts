@@ -47,6 +47,7 @@ const api = {
     setFromImageData: (id: number, base64: string) => ipcRenderer.invoke('thumbnail:setFromImageData', { id, base64 }),
   },
   tags: {
+    rename: (id: number, name: string, profileId: number) => ipcRenderer.invoke('tags:rename', { id, name, profileId }),
     getAll: () => ipcRenderer.invoke('tags:getAll'),
     cleanupUnused: () => ipcRenderer.invoke('tags:cleanupUnused'),
     getUsageCounts: () => ipcRenderer.invoke('tags:getUsageCounts'),

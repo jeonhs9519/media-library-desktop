@@ -5,10 +5,17 @@ import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import * as schema from '../db/schema'
 import { cleanupUnusedTags, getTagUsageCounts } from '../services/tagMaintenance'
 import { getActiveProfileId } from '../services/profileState'
+import { renameProfileTag } from '../services/tagRename'
 
 type DB = BetterSQLite3Database<typeof schema>
 
 export function registerTagsIPC(db: DB) {
+  ipcMain.handle('tags:rename', async (_event, { id, name, profileId }: { id: number; name: string; profileId: number }) => {
+    const activeProfileId = getActiveProfileId()
+    if (profileId !== activeProfileId) return { ok: false, reason: 'not-found' }
+    return renameProfileTag(db, activeProfileId, id, name)
+  })
+
   ipcMain.handle('tags:getAll', async () => {
     return db.select().from(tags).where(eq(tags.profileId, getActiveProfileId())).all()
   })
