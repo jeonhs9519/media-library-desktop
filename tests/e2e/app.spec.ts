@@ -46,6 +46,256 @@ test.describe('profile and data flows', () => {
     await rm(directory, { recursive: true, force: true })
   })
 
+  test('scrolls PDF and ZIP with per-item modes, restores progress, and keeps page resources bounded', async () => {
+    test.setTimeout(60_000)
+    await page.getByRole('button', { name: '선택한 프로필로 시작' }).click()
+    const zip = new JSZip()
+    for (let index = 1; index <= 18; index++) {
+      const image = await sharp({ create: { width: 300, height: index % 2 ? 500 : 200, channels: 3, background: '#3366cc' } }).png().toBuffer()
+      zip.file(`${String(index).padStart(2, '0')}.png`, image)
+    }
+    await writeFile(path.join(directory, 'scroll.zip'), await zip.generateAsync({ type: 'nodebuffer' }))
+    const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>',
+      ...Array.from({ length: 4 }, (_, index) => `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 ${index % 2 ? 200 : 500}] /Resources << >> >>`)]
+    let pdf = '%PDF-1.4\n'
+    const offsets = [0]
+    objects.forEach((object, index) => { offsets.push(Buffer.byteLength(pdf)); pdf += `${index + 1} 0 obj\n${object}\nendobj\n` })
+    const xref = Buffer.byteLength(pdf)
+    pdf += `xref\n0 7\n0000000000 65535 f \n${offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`
+    await writeFile(path.join(directory, 'scroll.pdf'), pdf)
+    const zipItem = await call<any>(page, 'items', 'add', { filePath: directory, fileName: 'scroll', fileExtension: 'zip' })
+    const pdfItem = await call<any>(page, 'items', 'add', { filePath: directory, fileName: 'scroll', fileExtension: 'pdf' })
+    await call(page, 'settings', 'set', 'cbz.viewMode', 'double-rtl')
+    await call(page, 'settings', 'set', 'pdf.viewMode', 'double-rtl')
+    await page.evaluate(() => {
+      const active = new Set<string>()
+      ;(window as any).scrollUrls = active
+      const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL)
+      URL.createObjectURL = blob => { const url = create(blob); active.add(url); return url }
+      URL.revokeObjectURL = url => { active.delete(url); revoke(url) }
+    })
+    for (const [item, route] of [[zipItem, 'cbz'], [pdfItem, 'pdf']] as const) {
+      await page.evaluate(({ id, route }) => { location.hash = `/view/${route}/${id}` }, { id: item.id, route })
+      await expect(page.locator('[data-book-scroller]')).toHaveCount(0)
+      await expect(page.locator(route === 'cbz' ? '.viewer-root img' : '.viewer-root canvas').first()).toBeVisible()
+      await page.keyboard.press('1')
+      const scroller = page.locator('[data-book-scroller]')
+      await expect(scroller).toBeVisible()
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookViewMode).toBe('scroll')
+      await page.keyboard.press('ArrowRight')
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).lastPageIndex).toBe(1)
+      await scroller.evaluate(element => { element.scrollTop = element.scrollHeight })
+      const last = route === 'cbz' ? 17 : 3
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).lastPageIndex).toBeGreaterThanOrEqual(last - 1)
+      expect(await page.locator('[data-book-page]').count()).toBeLessThanOrEqual(8)
+      if (route === 'cbz') expect(await page.evaluate(() => (window as any).scrollUrls.size)).toBeLessThanOrEqual(9)
+      await page.keyboard.press('Home')
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).lastPageIndex).toBe(0)
+      await page.keyboard.press('ArrowRight')
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).lastPageIndex).toBe(1)
+      const offsetBefore = await scroller.evaluate(element => { element.scrollTop += 80; return element.scrollTop })
+      await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBe(offsetBefore)
+      await page.mouse.move(200, 100)
+      await page.getByRole('button', { name: '썸네일 설정', exact: true }).click()
+      await expect(page.getByText('썸네일이 업데이트되었습니다.', { exact: true })).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(scroller).toHaveCount(0)
+      if (route === 'cbz') await expect.poll(() => page.evaluate(() => (window as any).scrollUrls.size)).toBe(0)
+      await page.evaluate(({ id, route }) => { location.hash = `/view/${route}/${id}` }, { id: item.id, route })
+      await expect(scroller).toBeVisible()
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).lastPageIndex).toBe(1)
+      await page.keyboard.press('1')
+      await expect(scroller).toHaveCount(0)
+      await page.keyboard.press('2')
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookViewMode).toBe('double-ltr')
+      await page.keyboard.press('2')
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookViewMode).toBe('double-rtl')
+      await page.keyboard.press('Escape')
+    }
+  })
+
+  test('keeps long-page scrolling continuous, joins pages, and restores zoom and fractional position in PDF and ZIP', async () => {
+    test.setTimeout(90_000)
+    await page.getByRole('button', { name: '선택한 프로필로 시작' }).click()
+    const zip = new JSZip()
+    const image = await sharp({ create: { width: 300, height: 1500, channels: 3, background: '#335599' } }).png().toBuffer()
+    for (let index = 1; index <= 6; index++) zip.file(`${index}.png`, image)
+    await writeFile(path.join(directory, 'webtoon.zip'), await zip.generateAsync({ type: 'nodebuffer' }))
+    const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R 6 0 R 7 0 R 8 0 R] /Count 6 >>',
+      ...Array.from({ length: 6 }, () => '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 1500] /Resources << >> >>')]
+    let pdf = '%PDF-1.4\n'
+    const offsets = [0]
+    objects.forEach((object, index) => { offsets.push(Buffer.byteLength(pdf)); pdf += `${index + 1} 0 obj\n${object}\nendobj\n` })
+    const xref = Buffer.byteLength(pdf)
+    pdf += `xref\n0 9\n0000000000 65535 f \n${offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 9 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`
+    await writeFile(path.join(directory, 'webtoon.pdf'), pdf)
+    for (const [extension, route] of [['zip', 'cbz'], ['pdf', 'pdf']] as const) {
+      await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].setSize(1280, 800) })
+      const item = await call<any>(page, 'items', 'add', { filePath: directory, fileName: 'webtoon', fileExtension: extension })
+      await call(page, 'items', 'update', item.id, { bookViewMode: 'scroll', bookScrollZoom: 1, lastPageIndex: 0, bookScrollOffset: 0 })
+      await page.evaluate(({ id, route }) => { location.hash = `/view/${route}/${id}` }, { id: item.id, route })
+      const scroller = page.locator('[data-book-scroller]')
+      await expect(scroller).toBeVisible()
+      const row = (index: number) => page.locator(`[data-book-page="${index}"]`)
+      await expect.poll(() => row(0).evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThan(4000)
+      await expect(row(1)).toBeAttached()
+      await expect.poll(() => row(1).evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThan(4000)
+      const gap = await page.evaluate(() => {
+        const a = document.querySelector('[data-book-page="0"]')!.getBoundingClientRect()
+        const b = document.querySelector('[data-book-page="1"]')!.getBoundingClientRect()
+        return b.top - a.bottom
+      })
+      expect(Math.abs(gap)).toBeLessThan(0.1)
+      const start = await scroller.evaluate(element => {
+        const row = element.querySelector('[data-book-page="0"]') as HTMLElement
+        element.scrollTop = row.offsetHeight - element.clientHeight / 4
+        return element.scrollTop
+      })
+      await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBe(start)
+      await page.evaluate(() => {
+        ;(window as any).scrollSamples = []
+        const started = performance.now()
+        const sample = () => {
+          ;(window as any).scrollSamples.push(document.querySelector('[data-book-scroller]')!.scrollTop)
+          if (performance.now() - started < 600) requestAnimationFrame(sample)
+        }
+        requestAnimationFrame(sample)
+      })
+      await page.keyboard.press('ArrowDown')
+      const viewport = await scroller.evaluate(element => element.clientHeight)
+      await expect.poll(async () => Math.abs((await scroller.evaluate(element => element.scrollTop)) - start - viewport / 2)).toBeLessThan(15)
+      const end = await scroller.evaluate(element => element.scrollTop)
+      expect(Math.abs(end - start - viewport / 2)).toBeLessThan(15)
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).lastPageIndex).toBe(1)
+      const samples = await page.evaluate(() => (window as any).scrollSamples as number[])
+      const moving = samples.filter(value => value > start + viewport * 0.05 && value < start + viewport * 0.4)
+      expect(moving.length).toBeGreaterThan(3)
+      expect(moving.every((value, index) => index === 0 || value >= moving[index - 1] - 1)).toBe(true)
+      expect(moving.filter((value, index) => index > 0 && Math.abs(value - moving[index - 1]) < 0.1).length).toBeLessThanOrEqual(1)
+      await page.keyboard.press('ArrowUp')
+      await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBeLessThan(start + 15)
+      for (const key of ['KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyB', 'KeyN', 'KeyM', 'Comma', 'Period', 'Slash']) {
+        const before = await scroller.evaluate(element => element.scrollTop)
+        await page.keyboard.press('Space')
+        await expect.poll(async () => Math.abs((await scroller.evaluate(element => element.scrollTop)) - before - viewport / 2)).toBeLessThan(15)
+        await page.keyboard.press(key)
+        await expect.poll(async () => Math.abs((await scroller.evaluate(element => element.scrollTop)) - before)).toBeLessThan(15)
+      }
+      const beforeMenuScroll = await scroller.evaluate(element => element.scrollTop)
+      await scroller.click({ button: 'right', position: { x: 200, y: 200 } })
+      await page.getByRole('menuitem', { name: /^아래로 스크롤/ }).click()
+      await expect.poll(async () => Math.abs((await scroller.evaluate(element => element.scrollTop)) - beforeMenuScroll - viewport / 2)).toBeLessThan(15)
+      await scroller.click({ button: 'right', position: { x: 200, y: 200 } })
+      await page.getByRole('menuitem', { name: /^위로 스크롤/ }).click()
+      await expect.poll(async () => Math.abs((await scroller.evaluate(element => element.scrollTop)) - beforeMenuScroll)).toBeLessThan(15)
+      await page.keyboard.press('ArrowRight')
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).lastPageIndex).toBe(1)
+      await page.keyboard.press('ArrowLeft')
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).lastPageIndex).toBe(0)
+      await scroller.click({ button: 'right', position: { x: 200, y: 200 } })
+      await page.getByRole('menuitem', { name: /^다음 페이지/ }).click()
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).lastPageIndex).toBe(1)
+      await scroller.click({ button: 'right', position: { x: 200, y: 200 } })
+      await page.getByRole('menuitem', { name: /^이전 페이지/ }).click()
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).lastPageIndex).toBe(0)
+      await scroller.evaluate(element => {
+        const row = element.querySelector('[data-book-page="1"]') as HTMLElement
+        element.scrollTop = row.offsetTop + row.offsetHeight * 0.4
+      })
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookScrollOffset).toBeCloseTo(0.4, 2)
+      await page.mouse.move(200, 100)
+      await expect(page.getByRole('button', { name: '확대', exact: true })).toHaveCSS('color', 'rgb(255, 255, 255)')
+      await expect(page.getByRole('button', { name: '축소', exact: true })).toHaveCSS('color', 'rgb(255, 255, 255)')
+      await expect(page.getByRole('button', { name: '배율 초기화', exact: true })).toHaveCSS('color', 'rgb(255, 255, 255)')
+      await scroller.click({ button: 'right', position: { x: 200, y: 200 } })
+      const zoomMenu = page.getByRole('menuitem', { name: /^확대\/축소/ })
+      const menuOrder = await page.locator('[role="menu"]').first().locator(':scope > button').allTextContents()
+      expect(menuOrder.findIndex(text => text.startsWith('확대/축소'))).toBe(menuOrder.findIndex(text => text.startsWith('페이지 모드')) + 1)
+      await zoomMenu.hover()
+      const zoomOrder = await page.locator('[role="menu"]').last().locator(':scope > button').allTextContents()
+      expect(zoomOrder.map(text => text.replace(/\s/g, ''))).toEqual(['확대+', '배율초기화(100%)0', '축소-'])
+      await page.getByRole('menuitem', { name: /^확대\s*\+$/ }).click()
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookScrollZoom).toBe(1.25)
+      await scroller.click({ button: 'right', position: { x: 200, y: 200 } })
+      await zoomMenu.hover()
+      await page.getByRole('menuitem', { name: /^축소\s*-$/ }).click()
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookScrollZoom).toBe(1)
+      await page.getByRole('button', { name: '확대', exact: true }).click()
+      await scroller.click({ button: 'right', position: { x: 200, y: 200 } })
+      await zoomMenu.hover()
+      await page.getByRole('menuitem', { name: /배율 초기화/ }).click()
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookScrollZoom).toBe(1)
+      await page.keyboard.press('Shift+Equal')
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookScrollZoom).toBe(1.25)
+      await page.keyboard.press('-')
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookScrollZoom).toBe(1)
+      await page.keyboard.press('NumpadAdd')
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookScrollZoom).toBe(1.25)
+      await page.keyboard.press('NumpadSubtract')
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookScrollZoom).toBe(1)
+      await page.keyboard.press('Shift+Equal')
+      await page.keyboard.press('0')
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookScrollZoom).toBe(1)
+      await page.keyboard.press('NumpadSubtract')
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookScrollZoom).toBe(0.75)
+      await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: '0', code: 'Numpad0', location: 3, bubbles: true })))
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookScrollZoom).toBe(1)
+      await page.getByRole('button', { name: '확대', exact: true }).click()
+      await page.getByRole('button', { name: '확대', exact: true }).click()
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookScrollZoom).toBe(1.5)
+      await expect.poll(async () => (await call<any>(page, 'items', 'getById', item.id)).bookScrollOffset).toBeCloseTo(0.4, 2)
+      await expect.poll(() => row(1).evaluate(element => element.getBoundingClientRect().width)).toBeGreaterThan(1400)
+      await scroller.evaluate(element => {
+        const row = element.querySelector('[data-book-page="1"]') as HTMLElement
+        element.scrollTop = row.offsetTop + row.offsetHeight * 0.65
+      })
+      await page.keyboard.press('Escape')
+      await expect(scroller).toHaveCount(0)
+      await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].setSize(900, 720) })
+      await page.evaluate(({ id, route }) => { location.hash = `/view/${route}/${id}` }, { id: item.id, route })
+      await expect(scroller).toBeVisible()
+      await expect.poll(() => scroller.evaluate(element => {
+        const row = element.querySelector('[data-book-page="1"]') as HTMLElement
+        return row ? (element.scrollTop - row.offsetTop) / row.offsetHeight : 0
+      })).toBeCloseTo(0.65, 2)
+      if (route === 'pdf') {
+        await scroller.evaluate(element => {
+          const row = element.querySelector('[data-book-page="1"]') as HTMLElement
+          element.scrollTop = row.offsetTop + row.offsetHeight * 0.7
+          element.dispatchEvent(new Event('scroll'))
+        })
+        await app.close()
+        ;({ app, page } = await launch(directory))
+        await page.getByRole('button', { name: '선택한 프로필로 시작' }).click()
+        await page.evaluate(id => { location.hash = `/view/pdf/${id}` }, item.id)
+        await expect.poll(() => page.locator('[data-book-scroller]').evaluate(element => {
+          const row = element.querySelector('[data-book-page="1"]') as HTMLElement
+          return row ? (element.scrollTop - row.offsetTop) / row.offsetHeight : 0
+        })).toBeCloseTo(0.7, 2)
+      }
+      await page.keyboard.press('1')
+      await expect(page.getByRole('button', { name: '확대', exact: true })).toHaveCount(0)
+      await page.keyboard.press('Shift+Equal')
+      await page.keyboard.press('-')
+      await page.keyboard.press('0')
+      expect((await call<any>(page, 'items', 'getById', item.id)).bookScrollZoom).toBe(1.5)
+      for (const mode of ['single', 'double-ltr', 'double-rtl']) {
+        if (mode !== 'single') await page.keyboard.press('2')
+        await page.locator('.viewer-root').click({ button: 'right', position: { x: 200, y: 200 } })
+        await expect(page.getByRole('menuitem', { name: /^확대\/축소/ })).toHaveCount(0)
+        await expect(page.getByRole('menuitem', { name: /^(위로|아래로) 스크롤/ })).toHaveCount(0)
+        await expect(page.locator('[role="menu"]')).toHaveCount(1)
+        for (const name of [/^확대\s*\+$/, /배율 초기화/, /^축소\s*-$/]) {
+          await expect(page.getByRole('menuitem', { name })).toHaveCount(0)
+        }
+        expect((await call<any>(page, 'items', 'getById', item.id)).bookScrollZoom).toBe(1.5)
+        await page.mouse.click(20, 300)
+        await expect(page.locator('[role="menu"]')).toHaveCount(0)
+      }
+      await page.keyboard.press('Escape')
+    }
+  })
+
   test('bounds ZIP images, preloads complete spreads and releases resources across playlist transitions and exit', async () => {
     await page.getByRole('button', { name: '선택한 프로필로 시작' }).click()
     for (const [name, count, color] of [['first', 12, '#3366cc'], ['second', 3, '#cc6633']] as const) {
@@ -90,7 +340,7 @@ test.describe('profile and data flows', () => {
     await page.keyboard.press('PageDown')
     await expect(page).toHaveURL(new RegExp(`#/view/cbz/${second.id}$`))
     await expect(page.getByRole('img', { name: 'Page 3', exact: true })).toBeVisible()
-    await expect.poll(async () => (await urls()).length).toBe(3)
+    await expect.poll(async () => (await urls()).length).toBe(2)
     expect((await urls()).some(url => firstUrls.includes(url))).toBe(false)
     await expect.poll(async () => (await call<any>(page, 'items', 'getById', second.id)).lastPageIndex).toBe(2)
     await page.keyboard.press('Escape')

@@ -82,12 +82,14 @@ describe('item profile move and copy', () => {
   it('copies item metadata, tags, and review while retaining the source', async () => {
     await invoke('profiles:select', { profileId: 4 })
     const sourceId = addItem(4, 'shared')
+    sqlite.prepare("UPDATE items SET bookViewMode = 'scroll', bookScrollZoom = 2, bookScrollOffset = 0.6 WHERE id = ?").run(sourceId)
     addTag(4, sourceId, 'favorite')
     addReview(sourceId, 'source review')
     const targets = await invoke('items:getMoveTargets', { itemId: sourceId })
     expect(targets.targets.find((target: any) => target.id === 5).disabled).toBe(false)
 
     const copied = await invoke('items:copyToProfile', { itemId: sourceId, targetProfileId: 5 })
+    expect(item(copied.itemId)).toMatchObject({ bookViewMode: 'scroll', bookScrollZoom: 2, bookScrollOffset: 0.6 })
     expect(copied.ok).toBe(true)
     expect(item(sourceId).profileId).toBe(4)
     expect(item(copied.itemId).profileId).toBe(5)

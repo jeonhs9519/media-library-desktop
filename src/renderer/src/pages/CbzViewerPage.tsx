@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useI18n } from '../useI18n'
 import { api } from '../api'
@@ -7,16 +7,17 @@ import { useBookViewerOverlayUx } from '../components/BookViewerOverlay/useBookV
 import { useBookViewerKeyboard } from '../components/BookViewerOverlay/useBookViewerKeyboard.ts'
 import Toast, { useToast } from '../components/Toast'
 import { getNextPlaylistViewerPath } from '../playlistAutoAdvance'
+import BookScrollView, { type BookScrollHandle } from '../components/BookScrollView'
+import { useBookScrollPosition } from '../useBookScrollPosition'
 import { useViewerPlaylist } from '../useViewerPlaylist'
 import { useCbzPages } from '../useCbzPages'
-
-const CBZ_VIEW_MODE_SETTING_KEY = 'cbz.viewMode'
 
 export default function CbzViewerPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
   const itemId = parseInt(id!)
+  const scrollViewRef = useRef<BookScrollHandle>(null)
   const returnTo = (location.state as { returnTo?: string } | null)?.returnTo || `/items/${itemId}`
 
   const [item, setItem] = useState<any>(null)
@@ -32,9 +33,14 @@ export default function CbzViewerPage() {
     viewMode,
     setViewMode,
     hydrateViewMode,
-  } = useBookViewerViewMode(CBZ_VIEW_MODE_SETTING_KEY)
+    scrollZoom,
+    setScrollZoom,
+  } = useBookViewerViewMode(itemId)
   const pageStep = viewMode.startsWith('double') ? 2 : 1
-  const { images, errors } = useCbzPages(sessionId, currentPage, pages.length, pageStep)
+  const [scrollVisibleCount, setScrollVisibleCount] = useState(2)
+  const { images, errors, pageSizes } = useCbzPages(sessionId, currentPage, pages.length, viewMode === 'scroll' ? Math.max(2, scrollVisibleCount) : pageStep)
+  const { hydrateScrollPosition, saveScrollPosition, getScrollOffset, flushScrollPosition } = useBookScrollPosition(itemId, pages.length)
+
   const {
     containerRef,
     isTopOverlayVisible,
@@ -65,7 +71,7 @@ export default function CbzViewerPage() {
       const itemData = await api.items.getById(itemId)
       if (cancelled) return
       if (!itemData) throw new Error('Item not found')
-      await hydrateViewMode()
+      hydrateViewMode(itemData.bookViewMode, itemData.bookScrollZoom)
       if (cancelled) return
       const fullPath = getFullPath(itemData)
       const opened = await api.cbz.open(fullPath)
@@ -83,6 +89,7 @@ export default function CbzViewerPage() {
       }
       const savedPage = Number.isInteger(itemData.lastPageIndex) ? itemData.lastPageIndex : 0
       const startPage = Math.max(0, Math.min(opened.pages.length - 1, savedPage))
+      hydrateScrollPosition(startPage, itemData.bookScrollOffset)
       setCurrentPage(startPage)
       setLoading(false)
     }
@@ -95,13 +102,13 @@ export default function CbzViewerPage() {
       cancelled = true
       if (openedSession) void api.cbz.close(openedSession).catch(console.error)
     }
-  }, [itemId, getFullPath, hydrateViewMode])
+  }, [itemId, getFullPath, hydrateViewMode, hydrateScrollPosition])
 
   useEffect(() => {
-    if (pages.length === 0 || item?.id !== itemId || loading) return
+    if (pages.length === 0 || item?.id !== itemId || loading || viewMode === 'scroll') return
     const progress = (currentPage + 1) / pages.length
-    api.items.update(itemId, { lastPageIndex: currentPage, progress }).catch(console.error)
-  }, [currentPage, pages.length, itemId, item, loading])
+    api.items.update(itemId, { lastPageIndex: currentPage, bookScrollOffset: getScrollOffset(currentPage), progress }).catch(console.error)
+  }, [currentPage, pages.length, itemId, item, loading, viewMode])
 
   const goToNextPageByStep = useCallback((step: number) => {
     if (pages.length > 0 && currentPage + step >= pages.length) {
@@ -116,18 +123,25 @@ export default function CbzViewerPage() {
     setCurrentPage((p) => Math.min(pages.length - 1, p + step))
   }, [currentPage, itemId, navigate, pages.length, returnTo])
 
+  useEffect(() => { if (viewMode !== 'scroll') flushScrollPosition() }, [viewMode, flushScrollPosition])
+
   useBookViewerKeyboard({
     viewMode,
     isContextMenuOpen,
     onViewModeChange: setViewMode,
     onPrevPage: (step) => setCurrentPage((p) => Math.max(0, p - step)),
     onNextPage: goToNextPageByStep,
-    onGoHome: () => setCurrentPage(0),
+    onGoHome: () => { scrollViewRef.current?.goToPage(0); setCurrentPage(0) },
     onToggleFullscreen: toggleFullscreen,
     onExitViewer: () => navigate(returnTo),
     onPlaylistPrevious: viewerPlaylist.goPrevious,
     onPlaylistNext: viewerPlaylist.goNext,
     onTogglePlaylist: viewerPlaylist.toggleVisible,
+    onScrollUp: () => scrollViewRef.current?.scrollByHalfPage('up'),
+    onScrollDown: () => scrollViewRef.current?.scrollByHalfPage('down'),
+    onZoomIn: () => setScrollZoom(scrollZoom + 0.25),
+    onZoomOut: () => setScrollZoom(scrollZoom - 0.25),
+    onZoomReset: () => setScrollZoom(1),
   })
 
   const handleSetThumbnail = async () => {
@@ -160,6 +174,13 @@ export default function CbzViewerPage() {
   }
 
   const renderContent = () => {
+    if (viewMode === 'scroll') return <BookScrollView ref={scrollViewRef} key={itemId} count={pages.length} page={currentPage}
+      zoom={scrollZoom} initialOffset={getScrollOffset(currentPage)} pageSizes={pageSizes}
+      onPageChange={setCurrentPage} onPositionChange={saveScrollPosition}
+      onVisibleRangeChange={(_, count) => setScrollVisibleCount(count)} renderPage={(index, width) =>
+      images[index] ? <img src={images[index]} alt={`Page ${index + 1}`} style={{ width, height: 'auto', display: 'block', margin: 0 }} />
+        : <div role={errors[index] ? 'alert' : undefined}>{tr(errors[index] ? 'viewer.cbz.pageError' : 'common.loading')}</div>
+    } />
     if (viewMode === 'single') {
       return (
         <div style={{ display: 'flex', justifyContent: 'center', height: '100%' }}>
@@ -204,9 +225,13 @@ export default function CbzViewerPage() {
       itemTitle={item?.title}
       viewMode={viewMode}
       onViewModeChange={setViewMode}
+      scrollZoom={scrollZoom}
+      onScrollZoomChange={setScrollZoom}
       pageLabel={pageLabel}
       onPrevPage={goToPrevPage}
       onNextPage={goToNextPage}
+      onScrollUp={() => scrollViewRef.current?.scrollByHalfPage('up')}
+      onScrollDown={() => scrollViewRef.current?.scrollByHalfPage('down')}
       onSetThumbnail={handleSetThumbnail}
       isFullscreen={isFullscreen}
       onToggleFullscreen={toggleFullscreen}

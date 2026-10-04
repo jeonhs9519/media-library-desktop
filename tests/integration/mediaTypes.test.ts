@@ -57,6 +57,27 @@ afterEach(() => {
 })
 
 describe('independent content and file types', () => {
+  it('stores book modes per item, rejects invalid modes and preserves them across runtime checks', async () => {
+    const first = await add('first-mode', 'pdf')
+    const second = await add('second-mode', 'zip')
+    expect(first.bookViewMode).toBeNull()
+    for (const bookViewMode of ['single', 'scroll', 'double-ltr', 'double-rtl']) {
+      await invoke('items:update', { id: first.id, bookViewMode })
+      expect((await invoke('items:getById', { id: first.id })).bookViewMode).toBe(bookViewMode)
+    }
+    expect((await invoke('items:getById', { id: second.id })).bookViewMode).toBeNull()
+    await expect(invoke('items:update', { id: first.id, bookViewMode: 'invalid' })).rejects.toThrow('Invalid book view mode')
+    await invoke('items:update', { id: first.id, bookScrollZoom: 1.5, bookScrollOffset: 0.42 })
+    for (const fields of [{ bookScrollZoom: 0.2 }, { bookScrollZoom: 4 }, { bookScrollZoom: NaN }, { bookScrollOffset: -0.1 }, { bookScrollOffset: 1.1 }, { bookScrollOffset: Infinity }]) {
+      await expect(invoke('items:update', { id: first.id, ...fields })).rejects.toThrow('Invalid book scroll')
+    }
+    ensureRuntimeSchema(sqlite)
+    expect(await invoke('items:getById', { id: first.id })).toMatchObject({ bookViewMode: 'double-rtl', bookScrollZoom: 1.5, bookScrollOffset: 0.42 })
+    setActiveProfileId(2)
+    await invoke('items:update', { id: first.id, bookViewMode: 'single' })
+    setActiveProfileId(3)
+    expect((await invoke('items:getById', { id: first.id })).bookViewMode).toBe('double-rtl')
+  })
   it('distinguishes unspecified and no-dialogue language, prevents clearing a set language, and scopes filters', async () => {
     const unspecified = await add('unspecified-language', 'pdf')
     const noDialogue = await add('no-dialogue', 'pdf', { language: 'none' })

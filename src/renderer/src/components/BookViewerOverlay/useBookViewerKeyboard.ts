@@ -13,6 +13,11 @@ type UseBookViewerKeyboardParams = {
   onPlaylistPrevious?: () => void
   onPlaylistNext?: () => void
   onTogglePlaylist?: () => void
+  onScrollUp?: () => void
+  onScrollDown?: () => void
+  onZoomIn?: () => void
+  onZoomOut?: () => void
+  onZoomReset?: () => void
 }
 
 export function useBookViewerKeyboard({
@@ -27,6 +32,11 @@ export function useBookViewerKeyboard({
   onPlaylistPrevious,
   onPlaylistNext,
   onTogglePlaylist,
+  onScrollUp,
+  onScrollDown,
+  onZoomIn,
+  onZoomOut,
+  onZoomReset,
 }: UseBookViewerKeyboardParams) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -37,6 +47,15 @@ export function useBookViewerKeyboard({
         return
       }
 
+      if (viewMode === 'scroll' && !e.ctrlKey && !e.metaKey && !e.altKey && ['+', '-', '0'].includes(e.key)) {
+        e.preventDefault()
+        if (e.key === '+') onZoomIn?.()
+        else if (e.key === '-') onZoomOut?.()
+        else onZoomReset?.()
+        return
+      }
+
+      if (viewMode === 'scroll' && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home'].includes(e.key)) e.preventDefault()
       const step = viewMode.startsWith('double') ? 2 : 1
       const goPrev = () => onPrevPage(step)
       const goNext = () => onNextPage(step)
@@ -61,7 +80,8 @@ export function useBookViewerKeyboard({
       }
 
       if (e.key === '1') {
-        onViewModeChange('single')
+        e.preventDefault()
+        onViewModeChange(previous => previous === 'single' ? 'scroll' : 'single')
         return
       }
 
@@ -74,7 +94,22 @@ export function useBookViewerKeyboard({
       }
 
       if (isPrevPageKey) {
-        goPrev()
+        if (viewMode === 'scroll') {
+          e.preventDefault()
+          onScrollUp?.()
+        } else goPrev()
+        return
+      }
+
+      if (viewMode === 'scroll' && e.key === 'ArrowUp') {
+        e.preventDefault()
+        onScrollUp?.()
+        return
+      }
+
+      if (viewMode === 'scroll' && (e.key === 'ArrowDown' || e.key === ' ')) {
+        e.preventDefault()
+        onScrollDown?.()
         return
       }
 
@@ -120,5 +155,10 @@ export function useBookViewerKeyboard({
     onPlaylistPrevious,
     onPlaylistNext,
     onTogglePlaylist,
+    onScrollUp,
+    onScrollDown,
+    onZoomIn,
+    onZoomOut,
+    onZoomReset,
   ])
 }

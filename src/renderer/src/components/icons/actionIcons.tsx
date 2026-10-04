@@ -230,6 +230,12 @@ export function SinglePageModeIcon({ size = 16 }: IconProps) {
   )
 }
 
+export function ScrollPageModeIcon({ size = 16 }: IconProps) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M5 3h10v18H5zM19 3v18m-2-16 2-2 2 2m-4 14 2 2 2-2M8 8h4M8 12h4M8 16h4" />
+  </svg>
+}
+
 export function DoublePageLtrModeIcon({ size = 16 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={iconBaseStyle} aria-hidden>

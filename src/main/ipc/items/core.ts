@@ -230,6 +230,16 @@ export function registerItemCoreIPC(db: DB) {
       .where(and(eq(items.id, id), eq(items.profileId, getActiveProfileId())))
       .get()
 
+    if (fields.bookViewMode !== undefined && !['single', 'scroll', 'double-ltr', 'double-rtl'].includes(fields.bookViewMode)) {
+      throw new Error('Invalid book view mode')
+    }
+    if (fields.bookScrollZoom !== undefined && (!Number.isFinite(fields.bookScrollZoom) || fields.bookScrollZoom < 0.5 || fields.bookScrollZoom > 3)) {
+      throw new Error('Invalid book scroll zoom')
+    }
+    if (fields.bookScrollOffset !== undefined && (!Number.isFinite(fields.bookScrollOffset) || fields.bookScrollOffset < 0 || fields.bookScrollOffset > 1)) {
+      throw new Error('Invalid book scroll offset')
+    }
+
     if (fields.language === '') fields.language = 'unspecified'
     if (existingItem && existingItem.language !== 'unspecified' && fields.language === 'unspecified') {
       delete fields.language

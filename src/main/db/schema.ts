@@ -27,6 +27,9 @@ export const items = sqliteTable('items', {
   watched: integer('watched').notNull().default(0),
   progress: real('progress').notNull().default(0),
   lastPageIndex: integer('lastPageIndex'),
+  bookViewMode: text('bookViewMode'),
+  bookScrollZoom: real('bookScrollZoom'),
+  bookScrollOffset: real('bookScrollOffset'),
   lastPositionSeconds: real('lastPositionSeconds'),
   totalContent: real('totalContent'), // 파일 타입 기준 PDF/ZIP 페이지 수 또는 동영상 재생 시간
   thumbnail: blob('thumbnail', { mode: 'buffer' }),

@@ -171,6 +171,9 @@ function rebuildProfileScopedTables(sqlite: Database.Database) {
       watched integer DEFAULT 0 NOT NULL,
       progress real DEFAULT 0 NOT NULL,
       lastPageIndex integer,
+      bookViewMode text,
+      bookScrollZoom real,
+      bookScrollOffset real,
       lastPositionSeconds real,
       totalContent real,
       thumbnail blob,
@@ -225,12 +228,12 @@ function rebuildProfileScopedTables(sqlite: Database.Database) {
 
     INSERT INTO items_new (
       id, profileId, filePath, fileName, fileExtension, title, sourceUrl, author, memo,
-      contentType, containerType, language, watched, progress, lastPageIndex,
+      contentType, containerType, language, watched, progress, lastPageIndex, bookViewMode, bookScrollZoom, bookScrollOffset,
       lastPositionSeconds, totalContent, thumbnail, createdAt, updatedAt, fileModifiedAt
     )
     SELECT
       id, profileId, filePath, fileName, fileExtension, title, sourceUrl, author, memo,
-      contentType, containerType, language, watched, progress, lastPageIndex,
+      contentType, containerType, language, watched, progress, lastPageIndex, bookViewMode, bookScrollZoom, bookScrollOffset,
       lastPositionSeconds, totalContent, thumbnail, createdAt, updatedAt, fileModifiedAt
     FROM items;
 
@@ -297,6 +300,14 @@ export function runMigrations(db: ReturnType<typeof drizzle>, migrationsFolder: 
 }
 
 export function ensureRuntimeSchema(sqlite: Database.Database) {
+  if (!hasColumn(sqlite, 'items', 'bookViewMode')) {
+    sqlite.exec('ALTER TABLE items ADD COLUMN bookViewMode text;')
+  }
+
+  for (const column of ['bookScrollZoom', 'bookScrollOffset']) {
+    if (!hasColumn(sqlite, 'items', column)) sqlite.exec(`ALTER TABLE items ADD COLUMN ${column} real;`)
+  }
+
   if (!hasColumn(sqlite, 'items', 'totalContent')) {
     sqlite.exec('ALTER TABLE `items` ADD COLUMN `totalContent` real;')
     console.log('[main] Added missing items.totalContent column')

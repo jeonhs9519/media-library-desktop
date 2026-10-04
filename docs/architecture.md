@@ -66,6 +66,16 @@ Last updated: 2026-10-05
 10. 최초 라이브러리 목록 표시 시점에 `library:list-ready` 로그 기록
 11. 썸네일 로드와 뷰어 route preload는 목록 표시 이후 비동기로 진행
 
+## PDF·ZIP 표시 방식과 스크롤
+
+- `items.bookViewMode`, `bookScrollZoom`, `bookScrollOffset`는 항목별 표시 방식·스크롤 배율·페이지 내 위치 비율을 저장합니다. `ensureRuntimeSchema`가 기존 DB에 nullable 컬럼을 추가하고 프로필 재구축·항목 이동/복사·과거 DB 가져오기도 보존합니다.
+- `useBookViewerViewMode`는 저장값을 적용하며 스크롤 전용 배율 버튼으로 50~300%를 지정합니다. 배율을 변경할 때 표시 방식과 같은 항목에 저장합니다.
+- `bookScrollModel`은 이미지 크기와 표시 폭에서 페이지 높이·누적 시작 위치를 계산하고 스크롤 좌표를 페이지 번호·페이지 내 비율로 변환합니다.
+- `BookScrollView`는 읽기 화면과 주변 화면의 요소만 실제 위치에 배치합니다. 페이지 간 여백과 최소 화면 높이를 두지 않습니다. 페이지 이동은 명시적인 요청에만 위치를 대입하고, 스크롤로 현재 페이지가 바뀔 때는 애니메이션을 유지합니다. 크기·배율 변경 시 저장한 페이지 내 비율로 위치를 보정합니다.
+- `useBookScrollPosition`은 180ms debounce 저장과 종료·전환 시 flush를 관리합니다. 복원이 끝나고 페이지 크기가 확인된 위치만 저장합니다.
+- `PdfScrollPage`는 요청한 폭으로 canvas를 표시하며 큰 페이지는 16M pixel/한 변 32767px 안에서 렌더 배율을 줄입니다. 해제 시 작업을 취소하고 PDF 문서는 뷰어 종료 시 파기합니다.
+- `useCbzPages`는 이미지 decode 시 자연 크기를 기록하며 화면에 걸치는 페이지 수를 기준으로 캐시를 요청합니다. 기존 세션·Blob URL·128MiB 추정 예산을 재사용합니다.
+
 ## 공용 툴팁
 
 - `src/renderer/src/components/Tooltip`은 호버·포커스 표시, Escape 닫기, 가장 가까운 컨테이너의 경계와 오른쪽 넘침 보정을 관리합니다.

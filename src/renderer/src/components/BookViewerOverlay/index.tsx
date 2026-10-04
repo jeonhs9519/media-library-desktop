@@ -2,6 +2,8 @@ import React from 'react'
 import { useI18n } from '../../useI18n'
 import {
   CaretLeftIcon,
+  CaretUpIcon,
+  CaretBottomIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CloseXIcon,
@@ -11,13 +13,14 @@ import {
   FolderOpenIcon,
   MenuIcon,
   SinglePageModeIcon,
+  ScrollPageModeIcon,
   ThumbnailIcon,
 } from '../icons'
 import ContextMenu, { ContextMenuEntry } from '../ContextMenu/index'
 import PlaylistPanel from '../Library/PlaylistPanel'
 import type { PlaylistItem } from '../../types'
 
-export type BookViewerViewMode = 'single' | 'double-ltr' | 'double-rtl'
+export type BookViewerViewMode = 'single' | 'scroll' | 'double-ltr' | 'double-rtl'
 
 export { useBookViewerViewMode } from './useBookViewerViewMode'
 
@@ -32,9 +35,13 @@ type BookViewerOverlayProps = {
   itemTitle?: string
   viewMode: BookViewerViewMode
   onViewModeChange: (mode: BookViewerViewMode) => void
+  scrollZoom: number
+  onScrollZoomChange: (zoom: number) => void
   pageLabel: string
   onPrevPage: () => void
   onNextPage: () => void
+  onScrollUp: () => void
+  onScrollDown: () => void
   onSetThumbnail: () => void
   isFullscreen: boolean
   onToggleFullscreen: () => void
@@ -156,6 +163,13 @@ const BUTTON_GROUP_STYLE: React.CSSProperties = {
   gap: 4,
 }
 
+const ZOOM_BUTTON_STYLE: React.CSSProperties = {
+  ...BUTTON_BASE_STYLE,
+  color: '#fff',
+  minWidth: 28,
+  minHeight: 28,
+}
+
 const TITLE_SPAN_STYLE: React.CSSProperties = {
   fontWeight: 'bold',
   flex: 1,
@@ -193,9 +207,13 @@ export default function BookViewerOverlay({
   itemTitle,
   viewMode,
   onViewModeChange,
+  scrollZoom,
+  onScrollZoomChange,
   pageLabel,
   onPrevPage,
   onNextPage,
+  onScrollUp,
+  onScrollDown,
   onSetThumbnail,
   isFullscreen,
   onToggleFullscreen,
@@ -225,6 +243,7 @@ export default function BookViewerOverlay({
     appTitle: tr('app.title'),
     back: tr('common.back'),
     modeSection: tr('viewer.cbz.mode.section'),
+    modeScroll: tr('viewer.cbz.mode.scroll'),
     modeSingle: tr('viewer.cbz.mode.single'),
     modeDoubleLtr: tr('viewer.cbz.mode.doubleLtr'),
     modeDoubleRtl: tr('viewer.cbz.mode.doubleRtl'),
@@ -242,8 +261,8 @@ export default function BookViewerOverlay({
   const rightDirectionLabel = viewMode === 'double-rtl' ? tr('viewer.cbz.prevPage') : tr('viewer.cbz.nextPage')
   const prevPageShortcutLabel = 'zxcvbnm,./'
   const nextPageShortcutLabel = tr('viewer.video.shortcut.space')
-  const leftDirectionShortcut = viewMode === 'double-rtl' ? nextPageShortcutLabel : prevPageShortcutLabel
-  const rightDirectionShortcut = viewMode === 'double-rtl' ? prevPageShortcutLabel : nextPageShortcutLabel
+  const leftDirectionShortcut = viewMode === 'scroll' ? '←' : viewMode === 'double-rtl' ? nextPageShortcutLabel : prevPageShortcutLabel
+  const rightDirectionShortcut = viewMode === 'scroll' ? '→' : viewMode === 'double-rtl' ? prevPageShortcutLabel : nextPageShortcutLabel
   const overlayTabIndex = isTopOverlayVisible ? 0 : -1
 
   const handleLeftDirectionNavigation = () => {
@@ -263,6 +282,22 @@ export default function BookViewerOverlay({
   }
 
   const contextMenuItems: ContextMenuEntry[] = [
+    ...(viewMode === 'scroll' ? [
+      {
+        key: 'scroll-up',
+        label: tr('viewer.book.scrollUp'),
+        icon: <CaretUpIcon size={16} />,
+        shortcut: `${prevPageShortcutLabel} ↑`,
+        onSelect: onScrollUp,
+      },
+      {
+        key: 'scroll-down',
+        label: tr('viewer.book.scrollDown'),
+        icon: <CaretBottomIcon size={16} />,
+        shortcut: `${nextPageShortcutLabel} ↓`,
+        onSelect: onScrollDown,
+      },
+    ] : []),
     {
       key: 'prev-page',
       label: leftDirectionLabel,
@@ -284,11 +319,21 @@ export default function BookViewerOverlay({
       description: labels.currentPrefix + (
         viewMode === 'single'
           ? labels.modeSingle
+          : viewMode === 'scroll' ? labels.modeScroll
           : viewMode === 'double-ltr'
             ? labels.modeDoubleLtr
             : labels.modeDoubleRtl
       ),
       children: [
+        {
+          key: 'scroll-mode',
+          label: labels.modeScroll,
+          icon: <ScrollPageModeIcon size={16} />,
+          shortcut: '1',
+          checked: viewMode === 'scroll',
+          tone: viewMode === 'scroll' ? 'accent' : 'default',
+          onSelect: () => onViewModeChange('scroll'),
+        },
         {
           key: 'single-mode',
           label: labels.modeSingle,
@@ -318,6 +363,33 @@ export default function BookViewerOverlay({
         },
       ],
     },
+    ...(viewMode === 'scroll' ? [{
+      key: 'zoom',
+      label: tr('viewer.book.zoomSection'),
+      description: `${labels.currentPrefix}${Math.round(scrollZoom * 100)}%`,
+      children: [
+        {
+          key: 'zoom-in',
+          label: tr('app.zoomIn'),
+          shortcut: '+',
+          disabled: scrollZoom >= 3,
+          onSelect: () => onScrollZoomChange(scrollZoom + 0.25),
+        },
+        {
+          key: 'zoom-reset',
+          label: `${tr('app.zoomReset')} (100%)`,
+          shortcut: '0',
+          onSelect: () => onScrollZoomChange(1),
+        },
+        {
+          key: 'zoom-out',
+          label: tr('app.zoomOut'),
+          shortcut: '-',
+          disabled: scrollZoom <= 0.5,
+          onSelect: () => onScrollZoomChange(scrollZoom - 0.25),
+        },
+      ],
+    }] : []),
     {
       key: 'set-thumbnail',
       label: labels.setThumbnail,
@@ -416,8 +488,22 @@ export default function BookViewerOverlay({
             <span style={TITLE_SPAN_STYLE}>{itemTitle}</span>
 
             <div style={CONTROLS_RIGHT_STYLE}>
+              {viewMode === 'scroll' && <div style={BUTTON_GROUP_STYLE}>
+                <button className="video-control-button" tabIndex={overlayTabIndex} style={ZOOM_BUTTON_STYLE}
+                  title={`${tr('app.zoomOut')} (-)`} aria-label={tr('app.zoomOut')} disabled={scrollZoom <= 0.5}
+                  onClick={() => onScrollZoomChange(scrollZoom - 0.25)}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M5 12h14" /></svg>
+                </button>
+                <button className="video-control-button" tabIndex={overlayTabIndex} style={{ ...ZOOM_BUTTON_STYLE, minWidth: 54 }}
+                  title={`${tr('app.zoomReset')} (0)`} aria-label={tr('app.zoomReset')} onClick={() => onScrollZoomChange(1)}>{Math.round(scrollZoom * 100)}%</button>
+                <button className="video-control-button" tabIndex={overlayTabIndex} style={ZOOM_BUTTON_STYLE}
+                  title={`${tr('app.zoomIn')} (+)`} aria-label={tr('app.zoomIn')} disabled={scrollZoom >= 3}
+                  onClick={() => onScrollZoomChange(scrollZoom + 0.25)}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M5 12h14M12 5v14" /></svg>
+                </button>
+              </div>}
               <div style={BUTTON_GROUP_STYLE}>
-                {(['single', 'double-ltr', 'double-rtl'] as BookViewerViewMode[]).map((mode, index, arr) => (
+                {(['single', 'scroll', 'double-ltr', 'double-rtl'] as BookViewerViewMode[]).map((mode, index, arr) => (
                   <button
                     key={mode}
                     className="video-control-button"
@@ -426,6 +512,7 @@ export default function BookViewerOverlay({
                     title={
                       mode === 'single'
                         ? labels.modeSingle
+                        : mode === 'scroll' ? labels.modeScroll
                         : mode === 'double-ltr'
                           ? labels.modeDoubleLtr
                           : labels.modeDoubleRtl
@@ -433,6 +520,7 @@ export default function BookViewerOverlay({
                     aria-label={
                       mode === 'single'
                         ? labels.modeSingle
+                        : mode === 'scroll' ? labels.modeScroll
                         : mode === 'double-ltr'
                           ? labels.modeDoubleLtr
                           : labels.modeDoubleRtl
@@ -444,6 +532,7 @@ export default function BookViewerOverlay({
                   >
                     {mode === 'single'
                       ? <SinglePageModeIcon size={24} />
+                      : mode === 'scroll' ? <ScrollPageModeIcon size={24} />
                       : mode === 'double-ltr'
                         ? <DoublePageLtrModeIcon size={24} />
                         : <DoublePageRtlModeIcon size={24} />}

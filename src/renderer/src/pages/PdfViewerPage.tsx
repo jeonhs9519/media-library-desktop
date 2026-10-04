@@ -8,14 +8,15 @@ import { useBookViewerOverlayUx } from '../components/BookViewerOverlay/useBookV
 import { useBookViewerKeyboard } from '../components/BookViewerOverlay/useBookViewerKeyboard.ts'
 import Toast, { useToast } from '../components/Toast'
 import { getNextPlaylistViewerPath } from '../playlistAutoAdvance'
+import BookScrollView, { type BookScrollHandle } from '../components/BookScrollView'
+import PdfScrollPage from '../components/PdfScrollPage'
+import { useBookScrollPosition } from '../useBookScrollPosition'
 import { useViewerPlaylist } from '../useViewerPlaylist'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
   import.meta.url
 ).toString()
-
-const PDF_VIEW_MODE_SETTING_KEY = 'pdf.viewMode'
 
 function clampPage(page: number, max: number): number {
   if (max <= 0) return 1
@@ -33,9 +34,12 @@ export default function PdfViewerPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageCount, setPageCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const renderVersions = useRef(new WeakMap<HTMLCanvasElement, number>())
   const [item, setItem] = useState<any>(null)
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 })
   const viewportRef = useRef<HTMLDivElement>(null)
+  const scrollViewRef = useRef<BookScrollHandle>(null)
   const leftCanvasRef = useRef<HTMLCanvasElement>(null)
   const rightCanvasRef = useRef<HTMLCanvasElement>(null)
   const leftRenderTaskRef = useRef<pdfjsLib.RenderTask | null>(null)
@@ -59,7 +63,11 @@ export default function PdfViewerPage() {
     viewMode,
     setViewMode,
     hydrateViewMode,
-  } = useBookViewerViewMode(PDF_VIEW_MODE_SETTING_KEY)
+    scrollZoom,
+    setScrollZoom,
+  } = useBookViewerViewMode(itemId)
+
+  const { hydrateScrollPosition, saveScrollPosition, getScrollOffset, flushScrollPosition } = useBookScrollPosition(itemId, pageCount)
 
   const getFullPath = useCallback((itemData: any) => {
     return itemData.filePath + '/' + itemData.fileName +
@@ -67,34 +75,48 @@ export default function PdfViewerPage() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+    let task: pdfjsLib.PDFDocumentLoadingTask | undefined
+    let opened: pdfjsLib.PDFDocumentProxy | undefined
+    setLoading(true)
+    setLoadError(false)
+    setPdfDoc(null)
+    setPageCount(0)
+    setItem(null)
     const load = async () => {
       const itemData = await api.items.getById(itemId)
-      setItem(itemData)
-
-      await hydrateViewMode()
-
-      const fullPath = getFullPath(itemData)
-
-      const base64 = await api.pdf.readFile(fullPath)
+      if (cancelled) return
+      if (!itemData) throw new Error('Item not found')
+      hydrateViewMode(itemData.bookViewMode, itemData.bookScrollZoom)
+      const base64 = await api.pdf.readFile(getFullPath(itemData))
+      if (cancelled) return
       const data = atob(base64)
-      const bytes = new Uint8Array(data.length)
-      for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i)
-
-      const doc = await pdfjsLib.getDocument({ data: bytes }).promise
-      setPdfDoc(doc)
-      setPageCount(doc.numPages)
-
-      // Save totalContent if not already saved
-      if (!itemData.totalContent) {
-        await api.items.update(itemId, { totalContent: doc.numPages })
+      const bytes = Uint8Array.from(data, character => character.charCodeAt(0))
+      task = pdfjsLib.getDocument({ data: bytes })
+      opened = await task.promise
+      if (cancelled) { await opened.destroy(); return }
+      setItem(itemData)
+      setPdfDoc(opened)
+      setPageCount(opened.numPages)
+      if (itemData.totalContent !== opened.numPages) {
+        void api.items.update(itemId, { totalContent: opened.numPages }).catch(console.error)
       }
-
-      const startPage = itemData.lastPageIndex ? itemData.lastPageIndex + 1 : 1
-      setCurrentPage(Math.min(startPage, doc.numPages))
+      const saved = Number.isInteger(itemData.lastPageIndex) ? itemData.lastPageIndex + 1 : 1
+      const startPage = clampPage(saved, opened.numPages)
+      hydrateScrollPosition(startPage - 1, itemData.bookScrollOffset)
+      setCurrentPage(startPage)
       setLoading(false)
     }
-    load().catch(console.error)
-  }, [itemId, getFullPath, hydrateViewMode])
+    void load().catch(error => {
+      if (!cancelled) { console.error(error); setLoadError(true); setLoading(false) }
+    })
+    return () => {
+      cancelled = true
+      leftRenderTaskRef.current?.cancel()
+      rightRenderTaskRef.current?.cancel()
+      void (opened ? opened.destroy() : task?.destroy())?.catch(console.error)
+    }
+  }, [itemId, getFullPath, hydrateViewMode, hydrateScrollPosition])
 
   const renderPageToCanvas = useCallback(async (
     pageNum: number,
@@ -105,6 +127,8 @@ export default function PdfViewerPage() {
   ) => {
     if (!pdfDoc || !canvas) return
 
+    const version = (renderVersions.current.get(canvas) || 0) + 1
+    renderVersions.current.set(canvas, version)
     if (taskRef.current) {
       taskRef.current.cancel()
       taskRef.current = null
@@ -119,6 +143,7 @@ export default function PdfViewerPage() {
     }
 
     const page = await pdfDoc.getPage(pageNum)
+    if (!canvas.isConnected || renderVersions.current.get(canvas) !== version) return
     const baseViewport = page.getViewport({ scale: 1 })
     const fitScale = Math.max(0.1, Math.min(maxWidth / baseViewport.width, maxHeight / baseViewport.height))
     const viewport = page.getViewport({ scale: fitScale })
@@ -149,6 +174,11 @@ export default function PdfViewerPage() {
   }, [pdfDoc, pageCount])
 
   const renderCurrentPages = useCallback(async () => {
+    if (viewMode === 'scroll') {
+      leftRenderTaskRef.current?.cancel()
+      rightRenderTaskRef.current?.cancel()
+      return
+    }
     if (!pdfDoc || viewportSize.width <= 0 || viewportSize.height <= 0) return
 
     if (viewMode === 'single') {
@@ -205,13 +235,14 @@ export default function PdfViewerPage() {
   }, [renderCurrentPages])
 
   useEffect(() => {
-    if (pageCount <= 0) return
+    if (pageCount <= 0 || loading || item?.id !== itemId || viewMode === 'scroll') return
     const progress = currentPage / pageCount
     api.items.update(itemId, {
       lastPageIndex: currentPage - 1,
+      bookScrollOffset: getScrollOffset(currentPage - 1),
       progress,
     }).catch(console.error)
-  }, [currentPage, pageCount, itemId])
+  }, [currentPage, pageCount, itemId, item, loading, viewMode])
 
   const goToNextPageByStep = useCallback((step: number) => {
     if (pageCount > 0 && currentPage + step > pageCount) {
@@ -226,22 +257,29 @@ export default function PdfViewerPage() {
     setCurrentPage((p) => clampPage(p + step, pageCount))
   }, [currentPage, itemId, navigate, pageCount, returnTo])
 
+  useEffect(() => { if (viewMode !== 'scroll') flushScrollPosition() }, [viewMode, flushScrollPosition])
+
   useBookViewerKeyboard({
     viewMode,
     isContextMenuOpen,
     onViewModeChange: setViewMode,
     onPrevPage: (step) => setCurrentPage((p) => clampPage(p - step, pageCount)),
     onNextPage: goToNextPageByStep,
-    onGoHome: () => setCurrentPage(1),
+    onGoHome: () => { scrollViewRef.current?.goToPage(0); setCurrentPage(1) },
     onToggleFullscreen: toggleFullscreen,
     onExitViewer: () => navigate(returnTo),
     onPlaylistPrevious: viewerPlaylist.goPrevious,
     onPlaylistNext: viewerPlaylist.goNext,
     onTogglePlaylist: viewerPlaylist.toggleVisible,
+    onScrollUp: () => scrollViewRef.current?.scrollByHalfPage('up'),
+    onScrollDown: () => scrollViewRef.current?.scrollByHalfPage('down'),
+    onZoomIn: () => setScrollZoom(scrollZoom + 0.25),
+    onZoomOut: () => setScrollZoom(scrollZoom - 0.25),
+    onZoomReset: () => setScrollZoom(1),
   })
 
   const handleSetThumbnail = async () => {
-    const activeCanvas = viewMode === 'double-rtl' ? rightCanvasRef.current : leftCanvasRef.current
+    const activeCanvas = viewMode === 'scroll' ? viewportRef.current?.querySelector<HTMLCanvasElement>(`[data-book-page="${currentPage - 1}"] canvas`) : viewMode === 'double-rtl' ? rightCanvasRef.current : leftCanvasRef.current
     if (!activeCanvas || activeCanvas.width === 0 || activeCanvas.height === 0) return
     const base64 = activeCanvas.toDataURL('image/jpeg', 0.8).split(',')[1]
     await api.thumbnail.setFromImageData(itemId, base64)
@@ -253,9 +291,9 @@ export default function PdfViewerPage() {
     await api.file.showInFolder(getFullPath(item))
   }
 
-  const pageStep = viewMode === 'single' ? 1 : 2
+  const pageStep = viewMode.startsWith('double') ? 2 : 1
   const rightPageDisplay = Math.min(pageCount, currentPage + 1)
-  const pageLabel = viewMode === 'single' || currentPage === rightPageDisplay
+  const pageLabel = !viewMode.startsWith('double') || currentPage === rightPageDisplay
     ? `${currentPage} / ${pageCount}`
     : `${currentPage}-${rightPageDisplay} / ${pageCount}`
 
@@ -268,6 +306,9 @@ export default function PdfViewerPage() {
   }
 
   const renderContent = () => {
+    if (viewMode === 'scroll' && pdfDoc) return <BookScrollView ref={scrollViewRef} key={itemId} count={pageCount} page={currentPage - 1}
+      zoom={scrollZoom} initialOffset={getScrollOffset(currentPage - 1)} onPositionChange={saveScrollPosition}
+      onPageChange={index => setCurrentPage(index + 1)} renderPage={(index, width, reportSize) => <PdfScrollPage document={pdfDoc} page={index} width={width} reportSize={reportSize} />} />
     if (viewMode === 'single') {
       return (
         <canvas
@@ -316,6 +357,7 @@ export default function PdfViewerPage() {
     )
   }
 
+  if (loadError) return <div style={{ padding: 24 }}><p role="alert">{tr('viewer.pdf.pageError')}</p><button onClick={() => navigate(returnTo)}>{tr('common.back')}</button></div>
   if (loading) return <div style={{ padding: 24, color: 'var(--text-primary)' }}>{tr('viewer.pdf.loading')}</div>
 
   return (
@@ -330,9 +372,13 @@ export default function PdfViewerPage() {
       itemTitle={item?.title}
       viewMode={viewMode}
       onViewModeChange={setViewMode}
+      scrollZoom={scrollZoom}
+      onScrollZoomChange={setScrollZoom}
       pageLabel={pageLabel}
       onPrevPage={goToPrevPage}
       onNextPage={goToNextPage}
+      onScrollUp={() => scrollViewRef.current?.scrollByHalfPage('up')}
+      onScrollDown={() => scrollViewRef.current?.scrollByHalfPage('down')}
       onSetThumbnail={handleSetThumbnail}
       isFullscreen={isFullscreen}
       onToggleFullscreen={toggleFullscreen}
