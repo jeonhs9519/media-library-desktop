@@ -8,6 +8,7 @@ import { useBookViewerKeyboard } from '../components/BookViewerOverlay/useBookVi
 import Toast, { useToast } from '../components/Toast'
 import { getNextPlaylistViewerPath } from '../playlistAutoAdvance'
 import { useViewerPlaylist } from '../useViewerPlaylist'
+import { useCbzPages } from '../useCbzPages'
 
 const CBZ_VIEW_MODE_SETTING_KEY = 'cbz.viewMode'
 
@@ -21,7 +22,8 @@ export default function CbzViewerPage() {
   const [item, setItem] = useState<any>(null)
   const [pages, setPages] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(0)
-  const [images, setImages] = useState<Record<number, string>>({})
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState(false)
   const [loading, setLoading] = useState(true)
   const { tr } = useI18n()
   const thumbnailToast = useToast()
@@ -31,6 +33,8 @@ export default function CbzViewerPage() {
     setViewMode,
     hydrateViewMode,
   } = useBookViewerViewMode(CBZ_VIEW_MODE_SETTING_KEY)
+  const pageStep = viewMode.startsWith('double') ? 2 : 1
+  const { images, errors } = useCbzPages(sessionId, currentPage, pages.length, pageStep)
   const {
     containerRef,
     isTopOverlayVisible,
@@ -50,53 +54,54 @@ export default function CbzViewerPage() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+    let openedSession: string | null = null
+    setLoading(true)
+    setLoadError(false)
+    setItem(null)
+    setPages([])
+    setSessionId(null)
     const load = async () => {
       const itemData = await api.items.getById(itemId)
-      setItem(itemData)
-
+      if (cancelled) return
+      if (!itemData) throw new Error('Item not found')
       await hydrateViewMode()
-
+      if (cancelled) return
       const fullPath = getFullPath(itemData)
-      const pageList = await api.cbz.getPages(fullPath)
-      setPages(pageList)
-
-      // Save totalContent if not already saved
-      if (!itemData.totalContent) {
-        await api.items.update(itemId, { totalContent: pageList.length })
+      const opened = await api.cbz.open(fullPath)
+      openedSession = opened.sessionId
+      if (cancelled) {
+        await api.cbz.close(openedSession)
+        return
       }
-
-      const startPage = itemData.lastPageIndex || 0
+      if (opened.pages.length === 0) throw new Error('No image pages in ZIP')
+      setItem(itemData)
+      setPages(opened.pages)
+      setSessionId(openedSession)
+      if (itemData.totalContent !== opened.pages.length) {
+        void api.items.update(itemId, { totalContent: opened.pages.length }).catch(console.error)
+      }
+      const savedPage = Number.isInteger(itemData.lastPageIndex) ? itemData.lastPageIndex : 0
+      const startPage = Math.max(0, Math.min(opened.pages.length - 1, savedPage))
       setCurrentPage(startPage)
       setLoading(false)
     }
-    load().catch(console.error)
+    load().catch(error => {
+      console.error('Failed to open ZIP', error)
+      if (openedSession) void api.cbz.close(openedSession).catch(console.error)
+      if (!cancelled) { setLoadError(true); setLoading(false) }
+    })
+    return () => {
+      cancelled = true
+      if (openedSession) void api.cbz.close(openedSession).catch(console.error)
+    }
   }, [itemId, getFullPath, hydrateViewMode])
 
   useEffect(() => {
-    if (!item || pages.length === 0) return
-
-    const fullPath = getFullPath(item)
-
-    const loadPage = async (idx: number) => {
-      if (idx < 0 || idx >= pages.length || images[idx]) return
-      try {
-        const base64 = await api.cbz.getPage(fullPath, idx)
-        setImages(prev => ({ ...prev, [idx]: `data:image/jpeg;base64,${base64}` }))
-      } catch (e) {
-        console.error('Failed to load page', idx, e)
-      }
-    }
-
-    loadPage(currentPage)
-    loadPage(currentPage + 1)
-    loadPage(currentPage - 1)
-  }, [currentPage, pages, item, getFullPath])
-
-  useEffect(() => {
-    if (pages.length === 0) return
+    if (pages.length === 0 || item?.id !== itemId || loading) return
     const progress = (currentPage + 1) / pages.length
     api.items.update(itemId, { lastPageIndex: currentPage, progress }).catch(console.error)
-  }, [currentPage, pages.length, itemId])
+  }, [currentPage, pages.length, itemId, item, loading])
 
   const goToNextPageByStep = useCallback((step: number) => {
     if (pages.length > 0 && currentPage + step >= pages.length) {
@@ -136,8 +141,11 @@ export default function CbzViewerPage() {
   }
 
   if (loading) return <div style={{ padding: 24, color: 'var(--text-primary)' }}>{tr('viewer.cbz.loading')}</div>
+  if (loadError) return <div style={{ padding: 24, color: 'var(--text-primary)' }}>
+    <p role="alert">{tr('viewer.cbz.loadError')}</p>
+    <button onClick={() => navigate(returnTo)}>{tr('common.back')}</button>
+  </div>
 
-  const pageStep = viewMode.startsWith('double') ? 2 : 1
   const rightPageDisplay = Math.min(pages.length, currentPage + 2)
   const pageLabel = !viewMode.startsWith('double') || currentPage + 1 >= pages.length
     ? `${currentPage + 1} / ${pages.length}`
@@ -157,7 +165,7 @@ export default function CbzViewerPage() {
         <div style={{ display: 'flex', justifyContent: 'center', height: '100%' }}>
           {images[currentPage]
             ? <img src={images[currentPage]} style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} alt={`Page ${currentPage + 1}`} />
-            : <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}>{tr('common.loading')}</div>
+            : <div role={errors[currentPage] ? 'alert' : undefined} style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}>{tr(errors[currentPage] ? 'viewer.cbz.pageError' : 'common.loading')}</div>
           }
         </div>
       )
@@ -171,13 +179,13 @@ export default function CbzViewerPage() {
         <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
           {images[leftIdx]
             ? <img src={images[leftIdx]} style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} alt={`Page ${leftIdx + 1}`} />
-            : <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}>{tr('common.loading')}</div>
+            : leftIdx < pages.length ? <div role={errors[leftIdx] ? 'alert' : undefined} style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}>{tr(errors[leftIdx] ? 'viewer.cbz.pageError' : 'common.loading')}</div> : null
           }
         </div>
         <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
           {images[rightIdx]
             ? <img src={images[rightIdx]} style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} alt={`Page ${rightIdx + 1}`} />
-            : null
+            : rightIdx < pages.length ? <div role={errors[rightIdx] ? 'alert' : undefined} style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}>{tr(errors[rightIdx] ? 'viewer.cbz.pageError' : 'common.loading')}</div> : null
           }
         </div>
       </div>

@@ -271,6 +271,8 @@ export const zhMessages: Record<string, string> = {
   'viewer.currentPrefix': '当前: ',
   'viewer.pdf.loading': '正在加载 PDF...',
   'viewer.cbz.loading': '正在加载 ZIP...',
+  'viewer.cbz.loadError': '无法打开 ZIP，或没有可显示的图片。',
+  'viewer.cbz.pageError': '无法加载此页。请切换到其他页后重试。',
   'viewer.cbz.loadingPage': '正在加载第 {page} 页...',
   'viewer.cbz.prevPage': '上一页',
   'viewer.cbz.nextPage': '下一页',

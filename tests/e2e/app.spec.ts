@@ -1,9 +1,11 @@
 import { expect, test, _electron, type ElectronApplication, type Page } from '@playwright/test'
 import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import JSZip from 'jszip'
+import sharp from 'sharp'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { randomBytes } from 'node:crypto'
 
 const root = path.resolve(__dirname, '../..')
 const executablePath = require('electron') as string
@@ -42,6 +44,141 @@ test.describe('profile and data flows', () => {
   test.afterEach(async () => {
     await app?.close()
     await rm(directory, { recursive: true, force: true })
+  })
+
+  test('bounds ZIP images, preloads complete spreads and releases resources across playlist transitions and exit', async () => {
+    await page.getByRole('button', { name: '선택한 프로필로 시작' }).click()
+    for (const [name, count, color] of [['first', 12, '#3366cc'], ['second', 3, '#cc6633']] as const) {
+      const zip = new JSZip()
+      const image = await sharp({ create: { width: 40, height: 60, channels: 3, background: color } }).png().toBuffer()
+      for (let index = count; index >= 1; index--) zip.file(`${index}.png`, image)
+      await writeFile(path.join(directory, `${name}.zip`), await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }))
+    }
+    const first = await call<any>(page, 'items', 'add', { filePath: directory, fileName: 'first', fileExtension: 'zip' })
+    const second = await call<any>(page, 'items', 'add', { filePath: directory, fileName: 'second', fileExtension: 'zip' })
+    await call(page, 'items', 'update', first.id, { lastPageIndex: 4 })
+    await call(page, 'items', 'update', second.id, { lastPageIndex: 999 })
+    await call(page, 'settings', 'set', 'cbz.viewMode', 'single')
+    await call(page, 'playlists', 'addItem', first.id)
+    await call(page, 'playlists', 'addItem', second.id)
+    await page.evaluate(() => {
+      const active = new Set<string>()
+      ;(window as any).cbzActiveUrls = active
+      const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL)
+      URL.createObjectURL = blob => { const url = create(blob); active.add(url); return url }
+      URL.revokeObjectURL = url => { active.delete(url); revoke(url) }
+    })
+    const urls = () => page.evaluate(() => [...(window as any).cbzActiveUrls] as string[])
+    await page.evaluate(id => { location.hash = `/view/cbz/${id}` }, first.id)
+    await expect(page.getByRole('img', { name: 'Page 5', exact: true })).toBeVisible()
+    await expect.poll(async () => (await urls()).length).toBe(3)
+    const before = await urls()
+    await page.keyboard.press('ArrowRight')
+    await expect(page.getByRole('img', { name: 'Page 6', exact: true })).toBeVisible()
+    expect(before).toContain(await page.getByRole('img', { name: 'Page 6', exact: true }).getAttribute('src'))
+    await page.keyboard.press('2')
+    await expect(page.getByRole('img', { name: 'Page 7', exact: true })).toBeVisible()
+    await expect.poll(async () => (await urls()).length).toBe(6)
+    await page.keyboard.press('ArrowRight')
+    await expect(page.getByRole('img', { name: 'Page 8', exact: true })).toBeVisible()
+    await expect(page.getByRole('img', { name: 'Page 9', exact: true })).toBeVisible()
+    await page.keyboard.press('2')
+    await expect.poll(() => page.locator('.viewer-root img').evaluateAll(images => images.map(image => image.getAttribute('alt')))).toEqual(['Page 9', 'Page 8'])
+    for (let index = 0; index < 20; index++) await page.keyboard.press(index % 2 ? 'ArrowLeft' : 'ArrowRight')
+    await expect.poll(async () => (await urls()).length).toBe(6)
+    const firstUrls = await urls()
+    await page.keyboard.press('PageDown')
+    await expect(page).toHaveURL(new RegExp(`#/view/cbz/${second.id}$`))
+    await expect(page.getByRole('img', { name: 'Page 3', exact: true })).toBeVisible()
+    await expect.poll(async () => (await urls()).length).toBe(3)
+    expect((await urls()).some(url => firstUrls.includes(url))).toBe(false)
+    await expect.poll(async () => (await call<any>(page, 'items', 'getById', second.id)).lastPageIndex).toBe(2)
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.viewer-root')).toHaveCount(0)
+    await expect.poll(async () => (await urls()).length).toBe(0)
+  })
+
+  test('reports invalid and empty ZIPs and ignores late pages after an immediate file switch', async () => {
+    await page.getByRole('button', { name: '선택한 프로필로 시작' }).click()
+    await writeFile(path.join(directory, 'invalid.zip'), 'not a zip')
+    await writeFile(path.join(directory, 'empty.zip'), await new JSZip().generateAsync({ type: 'nodebuffer' }))
+    const zip = new JSZip()
+    zip.file('1.png', await sharp({ create: { width: 20, height: 30, channels: 3, background: '#33cc66' } }).png().toBuffer())
+    await writeFile(path.join(directory, 'valid.zip'), await zip.generateAsync({ type: 'nodebuffer' }))
+    const items = []
+    for (const fileName of ['invalid', 'empty', 'valid']) items.push(await call<any>(page, 'items', 'add', { filePath: directory, fileName, fileExtension: 'zip' }))
+    for (const item of items.slice(0, 2)) {
+      await page.evaluate(id => { location.hash = `/view/cbz/${id}` }, item.id)
+      await expect(page.getByRole('alert')).toHaveText('ZIP을 열 수 없거나 표시할 이미지가 없습니다.')
+    }
+    await page.evaluate(id => { location.hash = `/view/cbz/${id}` }, items[2].id)
+    await expect(page.getByRole('img', { name: 'Page 1', exact: true })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await page.evaluate(id => { location.hash = `/view/cbz/${id}` }, items[2].id)
+    await page.evaluate(id => { location.hash = `/view/cbz/${id}` }, items[0].id)
+    await expect(page.getByRole('alert')).toHaveText('ZIP을 열 수 없거나 표시할 이미지가 없습니다.')
+    await expect(page.locator('.viewer-root img')).toHaveCount(0)
+  })
+
+  test('measures first display, cached turns, image decode and a distant jump in a large ZIP', async () => {
+    test.setTimeout(60_000)
+    await page.getByRole('button', { name: '선택한 프로필로 시작' }).click()
+    const image = await sharp(randomBytes(1024 * 1536 * 3), { raw: { width: 1024, height: 1536, channels: 3 } }).jpeg({ quality: 90 }).toBuffer()
+    const zip = new JSZip()
+    for (let index = 1; index <= 96; index++) zip.file(`${index}.jpg`, image)
+    const archive = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 1 } })
+    await writeFile(path.join(directory, 'large.zip'), archive)
+    const item = await call<any>(page, 'items', 'add', { filePath: directory, fileName: 'large', fileExtension: 'zip' })
+    await call(page, 'items', 'update', item.id, { lastPageIndex: 80 })
+    await call(page, 'settings', 'set', 'cbz.viewMode', 'single')
+    await page.evaluate(() => {
+      const timing: any = { decodeMs: [], active: new Set<string>() }
+      ;(window as any).cbzTiming = timing
+      const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL)
+      URL.createObjectURL = blob => { const url = create(blob); timing.active.add(url); return url }
+      URL.revokeObjectURL = url => { timing.active.delete(url); revoke(url) }
+      const decode = HTMLImageElement.prototype.decode
+      HTMLImageElement.prototype.decode = async function () {
+        const started = performance.now()
+        await decode.call(this)
+        timing.decodeMs.push(performance.now() - started)
+      }
+    })
+    const firstMs = await page.evaluate(id => new Promise<number>(resolve => {
+      const started = performance.now()
+      const observer = new MutationObserver(() => {
+        const image = document.querySelector<HTMLImageElement>('.viewer-root img[alt="Page 81"]')
+        if (image?.complete && image.naturalWidth) requestAnimationFrame(() => {
+          observer.disconnect(); resolve(performance.now() - started)
+        })
+      })
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true })
+      location.hash = `/view/cbz/${id}`
+    }), item.id)
+    await expect.poll(() => page.evaluate(() => (window as any).cbzTiming.active.size)).toBe(3)
+    const turn = (key: string, alt: string) => page.evaluate(({ key, alt }) => new Promise<number>(resolve => {
+      const started = performance.now()
+      const observer = new MutationObserver(() => {
+        const image = document.querySelector<HTMLImageElement>(`.viewer-root img[alt="${alt}"]`)
+        if (image?.complete && image.naturalWidth) requestAnimationFrame(() => {
+          observer.disconnect(); resolve(performance.now() - started)
+        })
+      })
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true })
+      document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+    }), { key, alt })
+    const nextMs = await turn('ArrowRight', 'Page 82')
+    await expect.poll(() => page.evaluate(() => (window as any).cbzTiming.active.size)).toBe(3)
+    const previousMs = await turn('ArrowLeft', 'Page 81')
+    const jumpMs = await turn('Home', 'Page 1')
+    await page.keyboard.press('2')
+    await expect(page.getByRole('img', { name: 'Page 2', exact: true })).toBeVisible()
+    await expect.poll(() => page.evaluate(() => (window as any).cbzTiming.active.size)).toBe(4)
+    const decodeMs = await page.evaluate(() => (window as any).cbzTiming.decodeMs as number[])
+    console.log('[cbz-renderer benchmark]', JSON.stringify({ archiveMiB: archive.length / 1024 ** 2, firstMs, nextMs, previousMs, jumpMs,
+      meanDecodeMs: decodeMs.reduce((sum, value) => sum + value, 0) / decodeMs.length }))
+    await page.keyboard.press('Escape')
+    await expect.poll(() => page.evaluate(() => (window as any).cbzTiming.active.size)).toBe(0)
   })
 
   test('selects a profile and opens the library', async () => {
@@ -447,7 +584,7 @@ test.describe('profile and data flows', () => {
       await dialog.getByRole('button', { name: '뷰어 열기', exact: true }).click()
       await expect(page).toHaveURL(new RegExp(`#/view/${entry.route}/${added.id}$`))
       if (entry.fileType === 'pdf') await expect(page.locator('canvas').first()).toBeVisible()
-      if (entry.fileType === 'zip') await expect(page.locator('img[src^="data:image/"]').first()).toBeVisible()
+      if (entry.fileType === 'zip') await expect(page.locator('img[src^="blob:"]').first()).toBeVisible()
       if (entry.fileType === 'video') await expect(page.locator('video')).toBeVisible()
       if (entry.fileType !== 'video') {
         await page.mouse.move(400, 300)

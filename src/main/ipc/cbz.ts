@@ -1,35 +1,46 @@
-import { ipcMain } from 'electron'
-import fs from 'fs'
-import JSZip from 'jszip'
-
-function naturalSort(a: string, b: string): number {
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-}
-
-function isImageFile(name: string): boolean {
-  return /\.(jpe?g|png|gif|webp|bmp)$/i.test(name)
-}
+import { ipcMain, type WebContents } from 'electron'
+import { randomUUID } from 'node:crypto'
+import { CbzArchive } from '../services/cbzArchive'
 
 export function registerCbzIPC() {
-  ipcMain.handle('cbz:getPages', async (_event, { filePath }: { filePath: string }) => {
-    const data = fs.readFileSync(filePath)
-    const zip = await JSZip.loadAsync(data)
-    const pages = Object.keys(zip.files)
-      .filter(name => isImageFile(name) && !zip.files[name].dir)
-      .sort(naturalSort)
-    return pages
+  const sessions = new Map<number, { id: string; archive: Promise<CbzArchive> }>()
+  const watched = new WeakSet<WebContents>()
+  const close = (owner: number) => {
+    const session = sessions.get(owner)
+    sessions.delete(owner)
+    if (session) void session.archive.then(archive => archive.dispose()).catch(() => {})
+  }
+
+  ipcMain.handle('cbz:open', async (event, { filePath }: { filePath: string }) => {
+    const sender = event.sender
+    if (!watched.has(sender)) {
+      watched.add(sender)
+      sender.once('destroyed', () => close(sender.id))
+      sender.on('render-process-gone', () => close(sender.id))
+      sender.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+        if (isMainFrame && !isInPlace) close(sender.id)
+      })
+    }
+    close(sender.id)
+    const session = { id: randomUUID(), archive: CbzArchive.open(filePath) }
+    sessions.set(sender.id, session)
+    try {
+      const archive = await session.archive
+      if (sessions.get(sender.id) !== session) throw new Error('ZIP viewer session is closed')
+      return { sessionId: session.id, pages: archive.pages }
+    } catch (error) {
+      if (sessions.get(sender.id) === session) close(sender.id)
+      throw error
+    }
   })
 
-  ipcMain.handle('cbz:getPage', async (_event, { filePath, pageIndex }: { filePath: string; pageIndex: number }) => {
-    const data = fs.readFileSync(filePath)
-    const zip = await JSZip.loadAsync(data)
-    const pages = Object.keys(zip.files)
-      .filter(name => isImageFile(name) && !zip.files[name].dir)
-      .sort(naturalSort)
+  ipcMain.handle('cbz:getPage', async (event, { sessionId, pageIndex }: { sessionId: string; pageIndex: number }) => {
+    const session = sessions.get(event.sender.id)
+    if (!session || session.id !== sessionId) throw new Error('ZIP viewer session is closed')
+    return (await session.archive).getPage(pageIndex)
+  })
 
-    if (pageIndex >= pages.length) throw new Error('Page index out of range')
-
-    const imageData = await zip.files[pages[pageIndex]].async('arraybuffer')
-    return Buffer.from(imageData).toString('base64')
+  ipcMain.handle('cbz:close', async (event, { sessionId }: { sessionId: string }) => {
+    if (sessions.get(event.sender.id)?.id === sessionId) close(event.sender.id)
   })
 }

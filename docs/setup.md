@@ -1,6 +1,6 @@
 # Setup
 
-Last updated: 2026-10-04
+Last updated: 2026-10-05
 
 ## 사전 요구사항
 
@@ -49,7 +49,8 @@ npm run test:e2e
 ### 테스트 주의사항
 
 - `npm test`는 Electron의 Node 실행 모드로 Vitest를 실행하며, 메모리 SQLite 통합 테스트를 포함합니다.
-- `npm run test:e2e`는 앱을 빌드한 뒤 임시 데이터베이스에서 Electron을 실행합니다. 프로필 선택과 자동 진입을 포함한 E2E 3개를 검증합니다.
+- `npm run test:e2e`는 앱을 빌드한 뒤 임시 데이터베이스에서 Electron을 실행합니다. 프로필 선택·자동 진입·데이터 처리·뷰어와 ZIP 성능 등의 흐름을 검증합니다.
+- ZIP의 파일 처리 비교는 `node scripts/benchmark-cbz.cjs --optimized`, 화면 측정은 빌드 후 `npx playwright test -g "measures first display"`로 실행합니다. 측정 조건과 한계는 `zip-performance.md`에서 확인합니다.
 
 ## Windows 초기 실행 트러블슈팅
 

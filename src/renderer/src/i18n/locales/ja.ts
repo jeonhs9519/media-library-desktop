@@ -271,6 +271,8 @@ export const jaMessages: Record<string, string> = {
   'viewer.currentPrefix': '現在: ',
   'viewer.pdf.loading': 'PDFを読み込み中...',
   'viewer.cbz.loading': 'ZIPを読み込み中...',
+  'viewer.cbz.loadError': 'ZIPを開けないか、表示する画像がありません。',
+  'viewer.cbz.pageError': 'ページを読み込めませんでした。別のページに移動してから再試行してください。',
   'viewer.cbz.loadingPage': '{page}ページを読み込み中...',
   'viewer.cbz.prevPage': '前のページ',
   'viewer.cbz.nextPage': '次のページ',

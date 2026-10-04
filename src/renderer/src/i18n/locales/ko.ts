@@ -312,6 +312,8 @@ export const koMessages: Record<string, string> = {
   'viewer.currentPrefix': '현재: ',
   'viewer.pdf.loading': 'PDF 불러오는 중...',
   'viewer.cbz.loading': 'ZIP 불러오는 중...',
+  'viewer.cbz.loadError': 'ZIP을 열 수 없거나 표시할 이미지가 없습니다.',
+  'viewer.cbz.pageError': '페이지를 불러오지 못했습니다. 다른 페이지로 이동한 후 다시 시도해 주세요.',
   'viewer.cbz.loadingPage': '{page}페이지 불러오는 중...',
   'viewer.cbz.prevPage': '이전 페이지',
   'viewer.cbz.nextPage': '다음 페이지',

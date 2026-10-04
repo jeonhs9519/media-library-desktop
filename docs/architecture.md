@@ -20,6 +20,7 @@ Last updated: 2026-10-05
 - `db/`: Drizzle 스키마와 마이그레이션
 - `services/`: IPC 여러 곳에서 재사용하는 도메인 유지보수 기능
 - `services/windowState.ts`: 창 저장값 검증과 모니터 작업 영역에 따른 복원 좌표 계산. `index.ts`가 userData JSON 저장과 BrowserWindow 이벤트를 연결합니다.
+- `services/cbzArchive.ts`: 한 번 연 ZIP의 이미지 목록과 압축 데이터 재사용, 이미지 MIME type과 바이너리 반환, 동일 페이지의 진행 중 요청 합류를 처리합니다. `ipc/cbz.ts`가 sender별 세션과 종료·reload 정리를 연결합니다.
 - `utils/`: 제목 정규화, 썸네일 생성 등 보조 로직
 
 ### `src/preload`
@@ -34,6 +35,7 @@ Last updated: 2026-10-05
 - `src/routes/viewerPages.ts`: 뷰어 route lazy loading과 idle preload 진입점
 - `src/pages/LibraryPage.tsx`: 메인 라이브러리 화면
 - `src/pages/*ViewerPage.tsx`: 포맷별 뷰어 화면
+- `src/useCbzPages.ts`, `src/cbzPageCache.ts`: ZIP 바이너리의 Blob URL과 decode, 앞뒤 한 화면의 순차 미리 읽기, 추정 이미지 예산 128MiB, 오래된 결과 폐기와 URL 해제를 처리합니다. ZIP IPC는 `open/getPage/close` 세션 API를 사용합니다.
 - `src/components/`: 공용 UI 조각
 - `src/components/PasteInput.tsx`: 상세보기 텍스트 입력과 입력란 내부 SVG 붙여넣기 버튼, 전체 텍스트 교체와 포커스 복원을 처리합니다.
 - `src/components/Library/`: 라이브러리 화면 전용 툴바, 목록, 카드, 모달, hook

@@ -312,6 +312,8 @@ export const enMessages: Record<string, string> = {
   'viewer.currentPrefix': 'Current: ',
   'viewer.pdf.loading': 'Loading PDF...',
   'viewer.cbz.loading': 'Loading ZIP...',
+  'viewer.cbz.loadError': 'Unable to open ZIP, or no images to display.',
+  'viewer.cbz.pageError': 'Unable to load this page. Move to another page and try again.',
   'viewer.cbz.loadingPage': 'Loading page {page}...',
   'viewer.cbz.prevPage': 'Previous page',
   'viewer.cbz.nextPage': 'Next page',

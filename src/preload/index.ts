@@ -102,8 +102,9 @@ const api = {
     readFile: (filePath: string) => ipcRenderer.invoke('pdf:readFile', { filePath }),
   },
   cbz: {
-    getPages: (filePath: string) => ipcRenderer.invoke('cbz:getPages', { filePath }),
-    getPage: (filePath: string, pageIndex: number) => ipcRenderer.invoke('cbz:getPage', { filePath, pageIndex }),
+    open: (filePath: string): Promise<{ sessionId: string; pages: string[] }> => ipcRenderer.invoke('cbz:open', { filePath }),
+    getPage: (sessionId: string, pageIndex: number): Promise<{ data: Uint8Array; mimeType: string }> => ipcRenderer.invoke('cbz:getPage', { sessionId, pageIndex }),
+    close: (sessionId: string): Promise<void> => ipcRenderer.invoke('cbz:close', { sessionId }),
   },
   video: {
     getLocalUrl: (filePath: string) => ipcRenderer.invoke('video:getLocalUrl', { filePath }),
