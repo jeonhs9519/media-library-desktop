@@ -178,7 +178,7 @@ export default function LibraryGrid({
               ? tr('library.context.moveCurrent')
               : undefined,
           disabled: profile.disabled,
-          onSelect: () => onMoveToProfile(item, profile.id, profile.name),
+          onSelect: async () => { await onMoveToProfile(item, profile.id, profile.name) },
         }))
     const copyTargetItems: ContextMenuEntry[] = currentMoveTargets?.loading
       ? [{
@@ -196,7 +196,7 @@ export default function LibraryGrid({
               ? tr('library.context.moveCurrent')
               : undefined,
           disabled: profile.disabled,
-          onSelect: () => onCopyToProfile(item, profile.id, profile.name),
+          onSelect: async () => { await onCopyToProfile(item, profile.id, profile.name) },
         }))
 
     return [
@@ -217,7 +217,7 @@ export default function LibraryGrid({
       {
         key: 'playlist-add',
         label: tr('playlist.addToList'),
-        disabled: item.contentType === 'other',
+        disabled: !viewerPath,
         onSelect: () => onAddToPlaylist(item),
       },
       { key: 'separator-open', type: 'separator' },
@@ -310,12 +310,13 @@ export default function LibraryGrid({
     ))
 
     const gridIndex = focusableElements.findIndex((element) => element === grid)
+    const precedingElements = focusableElements.filter((element) => {
+      const position = element.compareDocumentPosition(grid)
+      return Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)
+    })
     const previous = gridIndex > 0
       ? focusableElements[gridIndex - 1]
-      : focusableElements.filter((element) => {
-          const position = element.compareDocumentPosition(grid)
-          return Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)
-        }).at(-1)
+      : precedingElements[precedingElements.length - 1]
 
     previous?.focus()
   }
@@ -397,6 +398,7 @@ export default function LibraryGrid({
                   }}
                   item={item}
                   thumbnailUrl={thumbnails[item.id]}
+                  thumbnailMissingLabel={tr('library.thumbnailMissing')}
                   active={index === activeIndex}
                   tabIndex={-1}
                   onOpenDetail={() => {
@@ -410,7 +412,7 @@ export default function LibraryGrid({
                     setContextMenu({ x: event.clientX, y: event.clientY, item })
                   }}
                   onDragStart={(event) => {
-                    if (item.contentType === 'other') {
+                    if (!getViewerPath(item)) {
                       event.preventDefault()
                       return
                     }

@@ -731,6 +731,46 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--accent);
 }
 
+.paste-input-control {
+  position: relative;
+  min-width: 0;
+}
+
+.paste-input-control input {
+  display: block;
+}
+
+.paste-input-button {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  z-index: 1;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: color 0.2s, opacity 0.2s;
+}
+
+.paste-input-button:hover,
+.paste-input-button:focus {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+.paste-input-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+
 .dropdown {
   position: relative;
   width: 100%;
@@ -1473,12 +1513,48 @@ input:focus, select:focus, textarea:focus {
 
 .settings-folder-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 132px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px 8px;
 }
 
-.settings-folder-grid > button {
-  width: 132px;
+.path-picker-input {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.path-picker-input:focus-within {
+  border-color: var(--accent);
+}
+
+.path-picker-input input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0 3px 3px 0;
+}
+
+.path-picker-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px 0 0 3px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.settings-import-actions {
+  justify-content: space-between;
+}
+
+.settings-section-action-spacer {
+  flex: 1 1 auto;
 }
 
 .settings-hidden-file-input {

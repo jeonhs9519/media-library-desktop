@@ -14,7 +14,7 @@ export interface Item {
   progress: number
   lastPageIndex?: number | null
   lastPositionSeconds?: number | null
-  totalContent?: number | null // Pages for book/comic, seconds for video
+  totalContent?: number | null // 파일 타입 기준 PDF/ZIP 페이지 수 또는 동영상 재생 시간
   thumbnail?: Buffer | null
   thumbnailBase64?: string | null
   createdAt: number

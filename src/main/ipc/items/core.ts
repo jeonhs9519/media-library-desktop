@@ -5,7 +5,7 @@ import path from 'path'
 import { itemTags, items, reviews, tags } from '../../db/schema'
 import { cleanupUnusedTags } from '../../services/tagMaintenance'
 import { getActiveProfileId } from '../../services/profileState'
-import { normalizeTitle, detectContentType, detectContainerType } from '../../utils/titleNormalizer'
+import { normalizeTitle, getDefaultContentType, detectContainerType } from '../../utils/titleNormalizer'
 import { generateThumbnailFromCbz } from '../../utils/thumbnail'
 import type { DB } from './utils'
 
@@ -180,8 +180,8 @@ export function registerItemCoreIPC(db: DB) {
     const activeProfileId = getActiveProfileId()
     const ext = data.fileExtension
     const title = data.title || normalizeTitle(data.fileName)
-    const contentType = (data.contentType || detectContentType(ext)) as 'book' | 'comic' | 'video' | 'other'
-    const containerType = (data.containerType || detectContainerType(ext)) as 'pdf' | 'zip' | 'video' | 'other'
+    const containerType = detectContainerType(ext)
+    const contentType = data.contentType || getDefaultContentType(containerType)
 
     const result = db.insert(items).values({
       filePath: data.filePath,
@@ -223,6 +223,12 @@ export function registerItemCoreIPC(db: DB) {
 
   ipcMain.handle('items:update', async (_event, { id, ...fields }: { id: number; [key: string]: any }) => {
     const now = Date.now()
+
+    // 파일 타입은 확장자로 관리하고 콘텐츠 분류 수정과 분리합니다.
+    delete fields.containerType
+    if (fields.fileExtension !== undefined) {
+      fields.containerType = detectContainerType(fields.fileExtension)
+    }
 
     if (fields.progress !== undefined && fields.progress >= 0.9) {
       fields.watched = 1

@@ -29,6 +29,8 @@ export default function Modal({
   zIndex,
 }: Props) {
   const contentRef = useRef<HTMLDivElement>(null)
+  const pointerStartedOnBackdropRef = useRef(false)
+  const pointerEndedOnBackdropRef = useRef(false)
   const modalIdRef = useRef<number | null>(null)
 
   if (modalIdRef.current === null) {
@@ -37,9 +39,12 @@ export default function Modal({
   }
 
   useEffect(() => {
+    pointerStartedOnBackdropRef.current = false
+    pointerEndedOnBackdropRef.current = false
     if (!open) return
 
     const modalId = modalIdRef.current
+    if (modalId === null) return
     modalStack.push(modalId)
 
     return () => {
@@ -124,7 +129,23 @@ export default function Modal({
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         zIndex: zIndex ?? 1000,
       }}
-      onClick={onClose}
+      onPointerDownCapture={event => {
+        pointerStartedOnBackdropRef.current = event.button === 0 && event.target === event.currentTarget
+        pointerEndedOnBackdropRef.current = false
+      }}
+      onPointerUpCapture={event => {
+        pointerEndedOnBackdropRef.current = event.target === event.currentTarget
+      }}
+      onPointerCancel={() => {
+        pointerStartedOnBackdropRef.current = false
+        pointerEndedOnBackdropRef.current = false
+      }}
+      onClick={event => {
+        const clickedBackdrop = pointerStartedOnBackdropRef.current && pointerEndedOnBackdropRef.current
+        pointerStartedOnBackdropRef.current = false
+        pointerEndedOnBackdropRef.current = false
+        if (clickedBackdrop && event.target === event.currentTarget && isTopModal()) onClose()
+      }}
     >
       <div
         ref={contentRef}

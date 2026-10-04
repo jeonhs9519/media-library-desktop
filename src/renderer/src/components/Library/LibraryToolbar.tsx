@@ -3,7 +3,7 @@ import type { TagUsageCount, Translate } from './types'
 import { RefreshIcon, SearchIcon, SettingsGearIcon } from '../icons'
 
 interface Props {
-  searchRef: React.RefObject<HTMLButtonElement>
+  searchRef: React.RefObject<HTMLButtonElement | null>
   search: string
   setSearch: (value: string) => void
   contentType: string

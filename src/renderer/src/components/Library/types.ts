@@ -15,7 +15,7 @@ export type HdtPreviewItem = {
   filePath: string
   fileName: string
   fileExtension: string
-  contentType: 'comic' | 'video'
+  contentType: 'book' | 'comic' | 'video' | 'other'
   duplicate: boolean
   hasThumbnail: boolean
   thumbnailBase64?: string

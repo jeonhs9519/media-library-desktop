@@ -11,6 +11,7 @@ import { registerSettingsIPC } from './ipc/settings'
 import { registerPlaylistsIPC } from './ipc/playlists'
 import { registerProfilesIPC } from './ipc/profiles'
 import { registerFilesIPC } from './ipc/files'
+import { registerClipboardIPC } from './ipc/clipboard'
 import { registerPdfIPC } from './ipc/pdf'
 import { registerCbzIPC } from './ipc/cbz'
 import { registerVideoIPC } from './ipc/video'
@@ -488,7 +489,8 @@ app.whenReady().then(async () => {
     registerSettingsIPC(db)
     registerPlaylistsIPC(db)
     registerProfilesIPC(db)
-    registerFilesIPC()
+  registerFilesIPC()
+  registerClipboardIPC()
     registerPdfIPC()
     registerCbzIPC()
     registerVideoIPC()

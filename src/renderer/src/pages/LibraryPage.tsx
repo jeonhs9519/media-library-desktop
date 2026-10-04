@@ -21,9 +21,10 @@ import { useLibrarySearchFilters } from '../components/Library/hooks/useLibraryS
 import { useLibraryThumbnails } from '../components/Library/hooks/useLibraryThumbnails'
 import { useLibraryMetadataFill } from '../components/Library/hooks/useLibraryMetadataFill'
 import { preloadViewerPages } from '../routes/viewerPages'
+import { getViewerPath } from '../components/Library/mediaLabels'
 
 function runWhenIdle(task: () => void) {
-  if ('requestIdleCallback' in window) {
+  if (typeof window.requestIdleCallback === 'function') {
     const callbackId = window.requestIdleCallback(task, { timeout: 3000 })
     return () => window.cancelIdleCallback(callbackId)
   }
@@ -208,7 +209,7 @@ export default function LibraryPage() {
   }
 
   const handleAddToPlaylist = async (item: Item) => {
-    if (item.contentType === 'other') return
+    if (!getViewerPath(item)) return
     await api.playlists.addItem(item.id)
     await loadPlaylistItems()
     updatePlaylistCollapsed(false)
@@ -216,7 +217,7 @@ export default function LibraryPage() {
 
   const handleAddToPlaylistFromLibrary = async (item: Item) => {
     await handleAddToPlaylist(item)
-    if (item.contentType !== 'other') {
+    if (getViewerPath(item)) {
       setPlaylistFocusItemId(item.id)
       setPlaylistFocusRequest((value) => value + 1)
     }
@@ -269,7 +270,7 @@ export default function LibraryPage() {
 
   const handleDropToPlaylist = async (itemId: number, position?: number) => {
     const item = items.find((candidate) => candidate.id === itemId)
-    if (item?.contentType === 'other') return
+    if (!item || !getViewerPath(item)) return
     await api.playlists.addItem(itemId, position)
     await loadPlaylistItems()
     updatePlaylistCollapsed(false)

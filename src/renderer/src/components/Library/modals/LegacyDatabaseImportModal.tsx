@@ -218,7 +218,7 @@ function ItemRow({ item, tr }: { item: LegacyDatabasePreviewItem; tr: Translate 
           {item.filePath}\\{fileLabel}
         </div>
         <div className="legacy-db-item-meta">
-          <span>{tr('modal.hdtImport.field.type')}: {item.contentType}</span>
+          <span>{tr('detail.contentType')}: {tr(`filters.type.${item.contentType}`)}</span>
           <span>{tr('settings.legacyDb.item.progress')}: {Math.round(item.progress * 100)}%</span>
           <span>{tr('settings.legacyDb.item.watched')}: {item.watched ? tr('common.ok') : tr('detail.unknown')}</span>
           <span>{tr('settings.legacyDb.item.thumbnail')}: {item.hasThumbnail ? tr('common.ok') : tr('detail.unknown')}</span>

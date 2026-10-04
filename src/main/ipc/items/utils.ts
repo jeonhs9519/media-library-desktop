@@ -13,8 +13,8 @@ export type HdtPreparedItem = {
   title: string
   sourceUrl?: string
   author?: string
-  contentType: 'comic' | 'video'
-  containerType: 'zip' | 'video'
+  contentType: 'book' | 'comic' | 'video' | 'other'
+  containerType: 'pdf' | 'zip' | 'video' | 'other'
   duplicate: boolean
   disabledReason?: 'missing_title' | 'missing_path' | 'invalid_entry' | 'duplicate'
   thumbnailBuffer?: Buffer

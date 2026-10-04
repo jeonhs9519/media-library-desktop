@@ -10,7 +10,7 @@ import * as schema from '../db/schema'
 type DB = BetterSQLite3Database<typeof schema>
 
 const DEFAULT_PLAYLIST_NAME = 'Default'
-const allowedContentTypes = new Set(['book', 'comic', 'video'])
+const allowedFileTypes = new Set(['pdf', 'zip', 'video'])
 
 function getDefaultPlaylist(db: DB) {
   const activeProfileId = getActiveProfileId()
@@ -104,7 +104,7 @@ export function registerPlaylistsIPC(db: DB) {
       .where(sql`${items.id} = ${itemId} AND ${items.profileId} = ${getActiveProfileId()}`)
       .get()
     if (!item) return { ok: false, reason: 'missing-item' }
-    if (!allowedContentTypes.has(item.contentType)) return { ok: false, reason: 'unsupported-type' }
+    if (!allowedFileTypes.has(item.containerType)) return { ok: false, reason: 'unsupported-type' }
 
     const now = Date.now()
     const currentRows = db.select({ itemId: playlistItems.itemId })

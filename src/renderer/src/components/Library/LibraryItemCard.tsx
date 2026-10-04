@@ -29,6 +29,7 @@ const LANGUAGE_GLYPH_STYLE: React.CSSProperties = {
 interface Props {
   item: Item & { fileExists?: boolean }
   thumbnailUrl?: string
+  thumbnailMissingLabel: string
   onOpenDetail: () => void
   onContextMenu: (event: React.MouseEvent) => void
   onDragStart?: (event: React.DragEvent<HTMLButtonElement>) => void
@@ -79,6 +80,7 @@ function formatVideoProgress(currentRaw: number, totalRaw: number): string {
 const LibraryItemCard = forwardRef<HTMLButtonElement, Props>(function LibraryItemCard({
   item,
   thumbnailUrl,
+  thumbnailMissingLabel,
   onOpenDetail,
   onContextMenu,
   onDragStart,
@@ -89,14 +91,14 @@ const LibraryItemCard = forwardRef<HTMLButtonElement, Props>(function LibraryIte
   const languageBadge = getLanguageBadge(item.language)
 
   const contentInfo = item.totalContent
-    ? item.contentType === 'video'
+    ? item.containerType === 'video'
       ? formatVideoDuration(item.totalContent)
-      : item.contentType === 'book' || item.contentType === 'comic'
+      : item.containerType === 'pdf' || item.containerType === 'zip'
         ? `${Math.round(item.totalContent)}p`
         : ''
     : ''
   const progressInfo = item.totalContent
-    ? item.contentType === 'video'
+    ? item.containerType === 'video'
       ? formatVideoProgress(item.progress * item.totalContent, item.totalContent)
       : `${Math.round(item.progress * item.totalContent)}/${Math.round(item.totalContent)}p`
     : ''
@@ -143,7 +145,12 @@ const LibraryItemCard = forwardRef<HTMLButtonElement, Props>(function LibraryIte
           <img src={thumbnailUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={item.title} />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <span style={TYPE_GLYPH_STYLE}>{getContentTypeIcon(item.contentType)}</span>
+            <span
+              role="img"
+              aria-label={thumbnailMissingLabel}
+              title={thumbnailMissingLabel}
+              style={{ color: 'var(--text-secondary)', fontSize: 20, fontWeight: 600, letterSpacing: '0.04em' }}
+            >N/A</span>
           </div>
         )}
         {missing && (

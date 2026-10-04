@@ -122,7 +122,7 @@ export default function HdtImportModal({
 
                     <div className="hdt-preview-main">
                       <div className="hdt-preview-title">{item.title || tr('modal.hdtImport.untitled')}</div>
-                      <div className="hdt-preview-subline">{tr('modal.hdtImport.field.type')}: {item.contentType}</div>
+                      <div className="hdt-preview-subline">{tr('detail.contentType')}: {tr(`filters.type.${item.contentType}`)}</div>
                       <div className="hdt-preview-subline" title={item.sourceUrl || tr('detail.unknown')}>
                         {tr('modal.hdtImport.field.sourceUrl')}: {item.sourceUrl || tr('detail.unknown')}
                       </div>

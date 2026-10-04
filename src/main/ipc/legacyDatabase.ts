@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm'
 import { SYSTEM_PROFILE_ID, itemTags, items, playlistItems, playlists, reviews, settings, tags } from '../db/schema'
 import { cleanupUnusedTags } from '../services/tagMaintenance'
 import { getActiveProfileId } from '../services/profileState'
+import { detectContainerType, getDefaultContentType } from '../utils/titleNormalizer'
 import type { DB } from './items/utils'
 
 type LegacyRow = Record<string, unknown>
@@ -131,13 +132,6 @@ function optionalBufferValue(row: LegacyRow, key: string) {
   return Buffer.isBuffer(value) ? value : undefined
 }
 
-function buildContainerType(contentType: string, fileExtension: string) {
-  if (contentType === 'video') return 'video'
-  if (fileExtension.toLowerCase() === 'pdf') return 'pdf'
-  if (fileExtension.toLowerCase() === 'cbz') return 'zip'
-  return 'zip'
-}
-
 function getSettingProfileId(key: string) {
   return SYSTEM_SETTING_KEYS.has(key) ? SYSTEM_PROFILE_ID : getActiveProfileId()
 }
@@ -168,7 +162,7 @@ function makePreviewItem(
   const fileName = stringValue(row, 'fileName').trim()
   const fileExtension = stringValue(row, 'fileExtension').trim()
   const title = stringValue(row, 'title').trim()
-  const contentType = stringValue(row, 'contentType', 'comic').trim() || 'comic'
+  const contentType = stringValue(row, 'contentType').trim() || getDefaultContentType(detectContainerType(fileExtension))
   const review = reviewByItemId.get(legacyId)
 
   const invalid = !legacyId || !filePath || !fileName || !title
@@ -342,7 +336,7 @@ function importLegacyDatabase(db: DB, dbPath: string) {
 
         const now = Date.now()
         const fileExtension = stringValue(row, 'fileExtension').trim()
-        const contentType = stringValue(row, 'contentType', 'comic').trim() || 'comic'
+        const contentType = stringValue(row, 'contentType').trim() || getDefaultContentType(detectContainerType(fileExtension))
         const inserted = tx.insert(items).values({
           profileId: activeProfileId,
           filePath: stringValue(row, 'filePath').trim(),
@@ -353,7 +347,7 @@ function importLegacyDatabase(db: DB, dbPath: string) {
           author: optionalStringValue(row, 'author'),
           memo: optionalStringValue(row, 'memo'),
           contentType,
-          containerType: stringValue(row, 'containerType').trim() || buildContainerType(contentType, fileExtension),
+          containerType: detectContainerType(fileExtension),
           language: stringValue(row, 'language'),
           watched: numberValue(row, 'watched'),
           progress: numberValue(row, 'progress'),

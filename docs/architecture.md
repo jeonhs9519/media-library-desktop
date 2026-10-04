@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-05-07
+Last updated: 2026-10-04
 
 ## 개요
 
@@ -24,6 +24,7 @@ Last updated: 2026-05-07
 ### `src/preload`
 
 - `index.ts`: `window.api` 브리지를 노출합니다.
+- `api.clipboard.readText()`는 `main/ipc/clipboard.ts`의 IPC로 시스템 클립보드 텍스트를 읽습니다. 사용자가 붙여넣기 버튼을 누를 때만 호출합니다.
 
 ### `src/renderer`
 
@@ -32,11 +33,22 @@ Last updated: 2026-05-07
 - `src/pages/LibraryPage.tsx`: 메인 라이브러리 화면
 - `src/pages/*ViewerPage.tsx`: 포맷별 뷰어 화면
 - `src/components/`: 공용 UI 조각
+- `src/components/PasteInput.tsx`: 상세보기 텍스트 입력과 입력란 내부 SVG 붙여넣기 버튼, 전체 텍스트 교체와 포커스 복원을 처리합니다.
 - `src/components/Library/`: 라이브러리 화면 전용 툴바, 목록, 카드, 모달, hook
 - `src/components/icons/`: 뷰어와 라이브러리에서 공유하는 SVG 아이콘 컴포넌트
 - `src/i18n/`: 다국어 리소스
 
 ## 런타임 흐름
+
+### 콘텐츠 분류와 파일 타입
+
+- `items.contentType`은 사용자가 지정하는 도서/만화책/동영상/기타 분류이며 검색 조건에도 사용합니다.
+- `items.containerType`은 확장자 기반 파일 타입(`pdf`/`zip`/`video`/`other`)입니다. 상세정보에서는 읽기 전용으로 표시합니다.
+- 뷰어 경로는 `components/Library/mediaLabels.ts`의 `getViewerPath`로 결정하고, 진행률 단위와 플레이리스트 등록 조건도 파일 타입을 사용합니다.
+- 일반 등록과 HDT 가져오기는 PDF/ZIP을 도서, 동영상을 동영상으로 기본 분류합니다. 기존 데이터와 과거 DB 가져오기는 저장된 콘텐츠 분류를 보존합니다.
+- 파일 재연결에서는 새 확장자로 파일 타입을 다시 산정하며 콘텐츠 분류는 바꾸지 않습니다.
+
+### 앱 시작 순서
 
 1. Electron 앱 시작
 2. 포터블 경로 및 userData/sessionData 경로 설정

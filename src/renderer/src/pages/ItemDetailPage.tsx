@@ -6,9 +6,11 @@ import Modal from '../components/Modal'
 import StarRating from '../components/StarRating'
 import ChoiceInput from '../components/ChoiceInput'
 import Dropdown from '../components/Dropdown'
+import PasteInput from '../components/PasteInput'
 import TagSearchInput from '../components/TagSearchInput'
 import { PlaylistAddIcon, ShareIcon } from '../components/icons'
 import { useI18n } from '../useI18n'
+import { getViewerPath } from '../components/Library/mediaLabels'
 
 function formatVideoProgress(currentRaw: number, totalRaw: number): string {
   const total = Math.max(0, Math.floor(totalRaw))
@@ -44,7 +46,7 @@ function formatProgressDetail(item: any): string {
     return `${formatVideoProgress(pos, item.totalContent)} (${pct}%)`
   }
 
-  // book / comic: lastPageIndex is 0-based
+  // PDF/ZIP의 lastPageIndex는 0부터 시작합니다.
   const current = (item.lastPageIndex ?? 0) + 1
   const total = Math.round(item.totalContent)
   return `${current}p/${total}p (${pct}%)`
@@ -227,9 +229,8 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
 
   const handleOpenViewer = () => {
     const state = { returnTo: `/items/${itemId}` }
-    if (item.containerType === 'pdf') navigate(`/view/pdf/${itemId}`, { state })
-    else if (item.containerType === 'zip') navigate(`/view/cbz/${itemId}`, { state })
-    else if (item.containerType === 'video') navigate(`/view/video/${itemId}`, { state })
+    const viewerPath = getViewerPath(item)
+    if (viewerPath) navigate(viewerPath, { state })
   }
 
   const handleAddTag = async () => {
@@ -327,15 +328,22 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
             {thumbnail
               ? <img src={thumbnail} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={item.title} />
               : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: 48 }}>
-                  {item.contentType === 'video' ? '🎬' : item.contentType === 'comic' ? '🎨' : '📚'}
+                  {item.contentType === 'video' ? '🎬' : item.contentType === 'comic' ? '🎨' : item.contentType === 'book' ? '📚' : '📄'}
                 </div>
             }
           </div>
 
           <div style={{ flex: 1 }}>
             {editing ? (
-              <input value={editForm.title} onChange={e => setEditForm((f: any) => ({ ...f, title: e.target.value }))}
-                style={{ fontSize: 24, width: '100%', marginBottom: 8 }} />
+              <PasteInput
+                value={editForm.title}
+                onChange={value => setEditForm((f: any) => ({ ...f, title: value }))}
+                label={tr('filters.sort.title')}
+                pasteLabel={tr('common.paste')}
+                pasteErrorLabel={tr('common.pasteFailed')}
+                style={{ marginBottom: 8 }}
+                inputStyle={{ fontSize: 24 }}
+              />
             ) : (
               <h1 style={{ fontSize: 24, marginBottom: 8 }}>{item.title}</h1>
             )}
@@ -344,7 +352,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
 
         <div className="detail-action-bar">
           <div className="detail-primary-actions">
-            <button className="btn-primary" style={{ width: 128 }} onClick={handleOpenViewer} disabled={item.fileExists === false}>
+            <button className="btn-primary" style={{ width: 128 }} onClick={handleOpenViewer} disabled={!getViewerPath(item) || item.fileExists === false}>
               {tr('detail.openViewer')}
             </button>
             {onAddToPlaylist && (
@@ -353,7 +361,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
                 title={tr('playlist.addToList')}
                 aria-label={tr('playlist.addToList')}
                 onClick={() => onAddToPlaylist(item)}
-                disabled={item.contentType === 'other'}
+                disabled={!getViewerPath(item)}
               >
                 <PlaylistAddIcon size={18} />
               </button>
@@ -382,47 +390,55 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
         <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
           <h2 style={{ marginBottom: 12, fontSize: 16 }}>{tr('detail.metadata')}</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 12, rowGap: 12 }}>
-            <Field label={tr('detail.contentType')}>
-              {editing
-                ? (
-                    <Dropdown
-                      value={editForm.contentType}
-                      options={[
-                        { value: 'book', label: tr('filters.type.book') },
-                        { value: 'comic', label: tr('filters.type.comic') },
-                        { value: 'video', label: tr('filters.type.video') },
-                        { value: 'other', label: tr('filters.type.other') },
-                      ]}
-                      onChange={(nextValue) => setEditForm((f: any) => ({ ...f, contentType: nextValue }))}
-                      ariaLabel={tr('detail.contentType')}
-                    />
-                  )
-                : tr(`filters.type.${item.contentType}`)
-              }
-            </Field>
-            <Field label={tr('detail.language')}>
-              {editing
-                ? (
-                    <Dropdown
-                      value={editForm.language}
-                      options={[
-                        { value: '', label: tr('detail.unknown') },
-                        { value: 'ko', label: tr('filters.language.ko') },
-                        { value: 'ja', label: tr('filters.language.ja') },
-                        { value: 'en', label: tr('filters.language.en') },
-                        { value: 'zh', label: tr('filters.language.zh') },
-                        { value: 'other', label: tr('filters.language.other') },
-                      ]}
-                      onChange={(nextValue) => setEditForm((f: any) => ({ ...f, language: nextValue }))}
-                      ariaLabel={tr('detail.language')}
-                    />
-                  )
-                : (item.language ? tr(`filters.language.${item.language}`) : tr('detail.unknown'))
-              }
-            </Field>
+            <div className="detail-type-fields" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, gridColumn: '1 / -1' }}>
+              <Field label={tr('detail.contentType')}>
+                {editing
+                  ? (
+                      <Dropdown
+                        value={editForm.contentType}
+                        options={[
+                          { value: 'book', label: tr('filters.type.book') },
+                          { value: 'comic', label: tr('filters.type.comic') },
+                          { value: 'video', label: tr('filters.type.video') },
+                          { value: 'other', label: tr('filters.type.other') },
+                        ]}
+                        onChange={(nextValue) => setEditForm((f: any) => ({ ...f, contentType: nextValue }))}
+                        ariaLabel={tr('detail.contentType')}
+                      />
+                    )
+                  : tr(`filters.type.${item.contentType}`)
+                }
+              </Field>
+              <Field label={tr('detail.fileType')}>
+                {editing
+                  ? <input readOnly aria-label={tr('detail.fileType')} value={tr(`files.type.${item.containerType}`)} style={{ width: '100%', height: 35 }} />
+                  : tr(`files.type.${item.containerType}`)
+                }
+              </Field>
+              <Field label={tr('detail.language')}>
+                {editing
+                  ? (
+                      <Dropdown
+                        value={editForm.language}
+                        options={[
+                          { value: '', label: tr('detail.unknown') },
+                          { value: 'ko', label: tr('filters.language.ko') },
+                          { value: 'ja', label: tr('filters.language.ja') },
+                          { value: 'en', label: tr('filters.language.en') },
+                          { value: 'zh', label: tr('filters.language.zh') },
+                          { value: 'other', label: tr('filters.language.other') },
+                        ]}
+                        onChange={(nextValue) => setEditForm((f: any) => ({ ...f, language: nextValue }))}
+                        ariaLabel={tr('detail.language')}
+                      />
+                    )
+                  : (item.language ? tr(`filters.language.${item.language}`) : tr('detail.unknown'))
+                }
+              </Field>
+            </div>
             <Field label={tr('detail.author')} style={{ gridColumn: '1 / -1' }}>
               {editing
-                ? <input value={editForm.author} onChange={e => setEditForm((f: any) => ({ ...f, author: e.target.value }))} style={{ width: '100%' }} />
+                ? <PasteInput value={editForm.author} onChange={value => setEditForm((f: any) => ({ ...f, author: value }))} label={tr('detail.author')} pasteLabel={tr('common.paste')} pasteErrorLabel={tr('common.pasteFailed')} />
                 : (item.author || '—')
               }
             </Field>
@@ -444,7 +460,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
             </Field>
             <Field label={tr('detail.sourceUrl')} style={{ gridColumn: '1 / -1' }}>
               {editing
-                ? <input value={editForm.sourceUrl} onChange={e => setEditForm((f: any) => ({ ...f, sourceUrl: e.target.value }))} style={{ width: '100%' }} />
+                ? <PasteInput value={editForm.sourceUrl} onChange={value => setEditForm((f: any) => ({ ...f, sourceUrl: value }))} label={tr('detail.sourceUrl')} pasteLabel={tr('common.paste')} pasteErrorLabel={tr('common.pasteFailed')} />
                 : (item.sourceUrl
                     ? (
                         <a

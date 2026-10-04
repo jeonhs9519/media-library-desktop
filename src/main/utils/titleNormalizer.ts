@@ -8,17 +8,9 @@ export function normalizeTitle(fileName: string): string {
   return title || fileName
 }
 
-export function detectContentType(ext: string): 'book' | 'comic' | 'video' | 'other' {
-  const lower = ext.toLowerCase().replace('.', '')
-  if (['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'm4v', 'ts', 'mpg', 'mpeg'].includes(lower)) {
-    return 'video'
-  }
-  if (['pdf', 'epub', 'mobi', 'azw', 'azw3', 'fb2'].includes(lower)) {
-    return 'book'
-  }
-  if (['cbz', 'cbr', 'zip', 'cb7'].includes(lower)) {
-    return 'comic'
-  }
+export function getDefaultContentType(fileType: string): 'book' | 'video' | 'other' {
+  if (fileType === 'pdf' || fileType === 'zip') return 'book'
+  if (fileType === 'video') return 'video'
   return 'other'
 }
 

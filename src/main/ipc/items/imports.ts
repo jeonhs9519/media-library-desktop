@@ -5,7 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import { items } from '../../db/schema'
 import { getActiveProfileId } from '../../services/profileState'
-import { normalizeTitle } from '../../utils/titleNormalizer'
+import { normalizeTitle, detectContainerType, getDefaultContentType } from '../../utils/titleNormalizer'
 import { resizeToThumbnail } from '../../utils/thumbnail'
 import {
   decodeBase64Image,
@@ -51,7 +51,7 @@ export function registerItemImportIPC(db: DB) {
             fileName: '',
             fileExtension: '',
             title: '',
-            contentType: 'comic',
+            contentType: 'book',
             containerType: 'zip',
             duplicate: false,
             disabledReason: 'invalid_entry',
@@ -82,7 +82,7 @@ export function registerItemImportIPC(db: DB) {
             fileName: '',
             fileExtension: '',
             title: normalizeTitle(titleRaw),
-            contentType: anime ? 'video' : 'comic',
+            contentType: anime ? 'video' : 'book',
             containerType: anime ? 'video' : 'zip',
             duplicate: false,
             disabledReason: 'missing_path',
@@ -118,8 +118,8 @@ export function registerItemImportIPC(db: DB) {
           title: normalizeTitle(titleRaw),
           sourceUrl,
           author,
-          contentType: anime ? 'video' : 'comic',
-          containerType: anime ? 'video' : 'zip',
+          contentType: getDefaultContentType(detectContainerType(fileExtension)),
+          containerType: detectContainerType(fileExtension),
           duplicate,
           disabledReason: duplicate ? 'duplicate' : undefined,
           thumbnailBuffer: rawThumbnail ?? undefined,

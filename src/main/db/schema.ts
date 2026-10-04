@@ -28,7 +28,7 @@ export const items = sqliteTable('items', {
   progress: real('progress').notNull().default(0),
   lastPageIndex: integer('lastPageIndex'),
   lastPositionSeconds: real('lastPositionSeconds'),
-  totalContent: real('totalContent'), // Pages for book/comic, seconds for video
+  totalContent: real('totalContent'), // 파일 타입 기준 PDF/ZIP 페이지 수 또는 동영상 재생 시간
   thumbnail: blob('thumbnail', { mode: 'buffer' }),
   createdAt: integer('createdAt').notNull(),
   updatedAt: integer('updatedAt').notNull(),

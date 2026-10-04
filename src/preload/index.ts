@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 const api = {
+  clipboard: {
+    readText: (): Promise<string> => ipcRenderer.invoke('clipboard:readText'),
+  },
   startup: {
     getStatus: () => ipcRenderer.invoke('startup:getStatus'),
     markLibraryReady: () => ipcRenderer.invoke('startup:markLibraryReady'),

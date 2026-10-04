@@ -3,6 +3,7 @@ import { and, eq, ne } from 'drizzle-orm'
 import path from 'path'
 import { items } from '../../db/schema'
 import { getActiveProfileId } from '../../services/profileState'
+import { detectContainerType } from '../../utils/titleNormalizer'
 import {
   buildItemFullPath,
   buildItemIdentityKey,
@@ -49,6 +50,7 @@ export function registerItemRelinkIPC(db: DB) {
         filePath: parsed.dir,
         fileName: parsed.name,
         fileExtension: ext,
+        containerType: detectContainerType(ext),
         updatedAt: now,
       }).where(and(eq(items.id, id), eq(items.profileId, activeProfileId))).run()
     } catch (error: any) {
