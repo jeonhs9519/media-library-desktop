@@ -15,9 +15,9 @@
     "preview": "electron-vite preview",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write src",
-    "test": "vitest run",
-    "test:ui": "vitest --ui",
-    "test:e2e": "playwright test",
+    "test": "node scripts/run-tests.js",
+    "test:ui": "node scripts/run-tests.js --ui",
+    "test:e2e": "npm run build && playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "postinstall": "electron-builder install-app-deps"

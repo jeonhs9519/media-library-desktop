@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-05-07
+Last updated: 2026-10-04
 
 `media-library-desktop`는 Electron + React + SQLite 기반의 개인용 미디어 라이브러리 앱입니다. PDF, CBZ, 비디오 파일을 등록하고, 썸네일, 진행률, 태그, 리뷰, 다국어 UI를 함께 관리하는 방향으로 구현되어 있습니다.
 
@@ -164,9 +164,10 @@ Last updated: 2026-05-07
 - `items` IPC는 진입점과 core/relink/imports/metadata 세부 모듈로 분리되었습니다. renderer/preload의 `api.items.*` 호출명은 유지합니다.
 - 뷰어 화면의 `ESC`, `Backspace`, 라이브러리/상세 팝업 포커스 이동, 검색 툴바/페이지네이션/설정 팝업 `title` 동작은 확인 완료했습니다.
 - renderer 코드의 `alert()`, `confirm()`, `prompt()` 호출은 제거했습니다.
-- 테스트는 현재 얇은 편이며, 핵심 사용자 흐름을 충분히 보호하지 못합니다.
-- 프로필 선택 화면 도입 이후 E2E 테스트는 실제 초기 진입 흐름에 맞춰 갱신이 필요합니다.
-- 미사용 태그 정리 기능은 단위 테스트가 추가되었지만, 현재 로컬 `better-sqlite3` 네이티브 모듈 잠금 이슈 때문에 실제 SQLite 통합 테스트 대신 호출 계약 중심으로 검증합니다.
+- Electron E2E는 프로필 선택, 신규 생성, 다음 실행 자동 진입과 항목 복사·중복 이동 차단을 검증합니다.
+- SQLite 통합 테스트는 항목 이동·복사, 프로필 삭제 이관의 중복 처리, 태그·리뷰·플레이리스트 연결 정리를 검증합니다.
+- `npm test`는 Electron의 Node 실행 모드로 Vitest를 구동해 `better-sqlite3` 통합 테스트를 실행합니다.
+- 그 밖의 파일 추가, relink, HDT, 키보드 조작, 플레이리스트 흐름은 자동 검증이 더 필요합니다.
 - 개선 전 병목 후보는 DB 초기화보다 창 생성과 renderer 로드 구간이었습니다.
 - 뷰어 route lazy loading 적용 후 production renderer 초기 JS는 약 `1,705.13 kB`에서 약 `847.29 kB`로 줄었습니다.
 - 플레이리스트 자동 다음 항목 실행은 PDF, CBZ, 비디오 뷰어에 연결되어 있습니다.

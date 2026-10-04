@@ -1,6 +1,6 @@
 # Setup
 
-Last updated: 2026-05-06
+Last updated: 2026-10-04
 
 ## 사전 요구사항
 
@@ -48,8 +48,8 @@ npm run test:e2e
 
 ### 테스트 주의사항
 
-- 현재 E2E 테스트는 최소 smoke test 수준입니다.
-- 프로필 선택 화면 도입 이후 초기 진입 흐름을 반영해 E2E 시나리오 갱신이 필요합니다.
+- `npm test`는 Electron의 Node 실행 모드로 Vitest를 실행하며, 메모리 SQLite 통합 테스트를 포함합니다.
+- `npm run test:e2e`는 앱을 빌드한 뒤 임시 데이터베이스에서 Electron을 실행합니다. 프로필 선택과 자동 진입을 포함한 E2E 3개를 검증합니다.
 
 ## Windows 초기 실행 트러블슈팅
 
