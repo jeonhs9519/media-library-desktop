@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-10-04
+Last updated: 2026-10-05
 
 ## 개요
 
@@ -19,6 +19,7 @@ Last updated: 2026-10-04
 - `ipc/`: 렌더러에서 호출하는 기능 단위 IPC 핸들러
 - `db/`: Drizzle 스키마와 마이그레이션
 - `services/`: IPC 여러 곳에서 재사용하는 도메인 유지보수 기능
+- `services/windowState.ts`: 창 저장값 검증과 모니터 작업 영역에 따른 복원 좌표 계산. `index.ts`가 userData JSON 저장과 BrowserWindow 이벤트를 연결합니다.
 - `utils/`: 제목 정규화, 썸네일 생성 등 보조 로직
 
 ### `src/preload`
@@ -29,6 +30,7 @@ Last updated: 2026-10-04
 ### `src/renderer`
 
 - `src/App.tsx`: 라우트 구성
+- `src/useViewerIdle.ts`: PDF·ZIP·동영상의 공통 2.4초 숨김 타이머와 조작 이벤트 처리. 뷰어 루트의 `viewer-idle`로 커서를 숨기고 툴바의 `inert`로 숨긴 조작 영역을 비활성화합니다.
 - `src/routes/viewerPages.ts`: 뷰어 route lazy loading과 idle preload 진입점
 - `src/pages/LibraryPage.tsx`: 메인 라이브러리 화면
 - `src/pages/*ViewerPage.tsx`: 포맷별 뷰어 화면

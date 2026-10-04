@@ -25,6 +25,7 @@ import Toast, { useToast } from '../components/Toast'
 import { getNextPlaylistViewerPath } from '../playlistAutoAdvance'
 import { useViewerPlaylist } from '../useViewerPlaylist'
 import PlaylistPanel from '../components/Library/PlaylistPanel'
+import { useViewerIdle } from '../useViewerIdle'
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00'
@@ -53,22 +54,22 @@ export default function VideoPlayerPage() {
   const [volume, setVolume] = useState(1)
   const [isLooping, setIsLooping] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [isControlsVisible, setIsControlsVisible] = useState(false)
   const [hoverRatio, setHoverRatio] = useState<number | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const idle = useViewerIdle(contextMenu !== null)
+  const isControlsVisible = idle.visible
+  const showControls = idle.show
+  const hideControlsWithDelay = idle.scheduleHide
   const thumbnailToast = useToast()
   const viewerPlaylist = useViewerPlaylist(itemId, navigate, returnTo)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const progressRef = useRef<HTMLDivElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const volumeSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const controlsHideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const playStartHideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const videoClickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const isLoopingRef = useRef(false)
-  const hoverRatioRef = useRef<number | null>(null)
-  const didRunInitialOverlayAutoHideRef = useRef(false)
 
   const debounceSaveVolume = (vol: number) => {
     clearTimeout(volumeSaveTimer.current)
@@ -216,60 +217,9 @@ export default function VideoPlayerPage() {
 
   useEffect(() => {
     return () => {
-      clearTimeout(controlsHideTimer.current)
-      clearTimeout(playStartHideTimer.current)
       clearTimeout(videoClickTimer.current)
     }
   }, [])
-
-  useEffect(() => {
-    if (!isPlaying) {
-      clearTimeout(controlsHideTimer.current)
-      setIsControlsVisible(true)
-    }
-  }, [isPlaying])
-
-  const showControls = () => {
-    clearTimeout(controlsHideTimer.current)
-    setIsControlsVisible(true)
-  }
-
-  const hideControlsWithDelay = () => {
-    clearTimeout(controlsHideTimer.current)
-    if (!isPlaying) {
-      setIsControlsVisible(true)
-      return
-    }
-    controlsHideTimer.current = setTimeout(() => {
-      setIsControlsVisible(false)
-    }, 3000)
-  }
-
-  const scheduleAutoHideAfterPlay = () => {
-    if (didRunInitialOverlayAutoHideRef.current) return
-    didRunInitialOverlayAutoHideRef.current = true
-
-    clearTimeout(playStartHideTimer.current)
-    playStartHideTimer.current = setTimeout(async () => {
-      const video = videoRef.current
-      if (!video || video.paused) return
-
-      try {
-        const isCursorInsideWindow = await api.app.isCursorInsideWindow()
-        if (!isCursorInsideWindow) {
-          setIsControlsVisible(false)
-        }
-      } catch {
-        // Keep current overlay state if cursor query fails.
-      }
-    }, 3000)
-  }
-
-  useEffect(() => {
-    didRunInitialOverlayAutoHideRef.current = false
-    if (!videoUrl || error) return
-    setIsControlsVisible(true)
-  }, [videoUrl, error])
 
   const handleLoadedMetadata = async () => {
     const video = videoRef.current
@@ -340,12 +290,10 @@ export default function VideoPlayerPage() {
   const handleProgressMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-    hoverRatioRef.current = ratio
     setHoverRatio(ratio)
   }
 
   const handleProgressMouseLeave = () => {
-    hoverRatioRef.current = null
     setHoverRatio(null)
   }
 
@@ -362,6 +310,7 @@ export default function VideoPlayerPage() {
   const handleProgressKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const video = videoRef.current
     if (!video || duration <= 0) return
+    if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) e.stopPropagation()
     if (e.key === 'ArrowLeft') {
       e.preventDefault()
       seekBy(-5)
@@ -465,7 +414,6 @@ export default function VideoPlayerPage() {
   }
 
   const playRatio = duration > 0 ? currentTime / duration : 0
-  const displayRatio = hoverRatio !== null ? hoverRatio : playRatio
   const volumeIcon = volume === 0
     ? <VolumeMuteIcon size={28} />
     : volume < 0.5
@@ -551,6 +499,7 @@ export default function VideoPlayerPage() {
   return (
     <div
       ref={containerRef}
+      className={isControlsVisible ? 'viewer-root' : 'viewer-root viewer-idle'}
       style={{ display: 'flex', flexDirection: 'column', height: '100vh', minHeight: 0, overflow: 'hidden', background: '#000' }}
       onContextMenu={handleContextMenu}
     >
@@ -572,6 +521,8 @@ export default function VideoPlayerPage() {
           <Toast toast={thumbnailToast.toast} onClose={thumbnailToast.hideToast} />
           {videoUrl && !error && (
             <div
+              className="viewer-toolbar"
+              inert={!isControlsVisible}
               style={{
                 position: 'absolute',
                 left: 0,
@@ -715,12 +666,9 @@ export default function VideoPlayerPage() {
               onTimeUpdate={handleTimeUpdate}
               onPlay={() => {
                 setIsPlaying(true)
-                showControls()
-                scheduleAutoHideAfterPlay()
               }}
               onPause={() => {
                 setIsPlaying(false)
-                showControls()
               }}
               onEnded={handleEnded}
               onError={handleVideoError}
@@ -762,6 +710,8 @@ export default function VideoPlayerPage() {
 
           {videoUrl && !error && (
             <div
+              className="viewer-toolbar"
+              inert={!isControlsVisible}
               style={{
                 position: 'absolute',
                 left: 0,
@@ -782,44 +732,48 @@ export default function VideoPlayerPage() {
               }}
             >
             <div
-              className="video-progress-track"
-              role="slider"
-              aria-label={tr('viewer.video.seekForward5s')}
-              aria-valuemin={0}
-              aria-valuemax={Math.max(0, Math.floor(duration))}
-              aria-valuenow={Math.max(0, Math.floor(currentTime))}
-              tabIndex={controlsTabIndex}
-              style={{
-                height: 6,
-                background: 'rgba(255,255,255,0.2)',
-                borderRadius: 3,
-                cursor: 'pointer',
-                position: 'relative',
-              }}
+              className="video-progress-hit-area"
+              onPointerDown={() => progressRef.current?.focus()}
               onMouseMove={handleProgressMouseMove}
               onMouseLeave={handleProgressMouseLeave}
               onClick={handleProgressClick}
-              onKeyDown={handleProgressKeyDown}
             >
               <div
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: `${displayRatio * 100}%`,
-                  background: hoverRatio !== null ? 'rgba(255,255,255,0.7)' : 'var(--accent, #4a9eff)',
-                  borderRadius: 3,
-                  transition: hoverRatio !== null ? 'none' : 'width 0.1s',
-                }}
+                ref={progressRef}
+                className="video-progress-track"
+                role="slider"
+                aria-label={tr('viewer.video.seekForward5s')}
+                aria-valuemin={0}
+                aria-valuemax={Math.max(0, Math.floor(duration))}
+                aria-valuenow={Math.max(0, Math.floor(currentTime))}
+                tabIndex={controlsTabIndex}
+                style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 3, cursor: 'pointer', position: 'relative' }}
+                onKeyDown={handleProgressKeyDown}
+              >
+              {hoverRatio !== null && (
+                <div
+                  className="video-progress-hover"
+                  style={{ position: 'absolute', inset: '0 auto 0 0', width: `${hoverRatio * 100}%`, background: 'rgba(255,255,255,0.7)', borderRadius: 3, zIndex: 1, pointerEvents: 'none' }}
+                />
+              )}
+              <div
+                className="video-progress-played"
+                style={{ position: 'absolute', inset: '0 auto 0 0', width: `${Math.max(0, Math.min(1, playRatio)) * 100}%`, background: 'var(--accent, #4a9eff)', borderRadius: 3, zIndex: 2, pointerEvents: 'none' }}
               />
+              {hoverRatio !== null && (
+                <div
+                  className="video-progress-overlap"
+                  style={{ position: 'absolute', inset: '0 auto 0 0', width: `${Math.min(hoverRatio, Math.max(0, Math.min(1, playRatio))) * 100}%`, background: 'rgba(255,255,255,0.3)', borderRadius: 3, zIndex: 3, pointerEvents: 'none' }}
+                />
+              )}
               {hoverRatio !== null && (
                 <div
                   style={{
                     position: 'absolute',
                     bottom: 14,
+                    zIndex: 4,
                     left: `${hoverRatio * 100}%`,
-                    transform: 'translateX(-50%)',
+                    transform: hoverRatio < 0.05 ? 'none' : hoverRatio > 0.95 ? 'translateX(-100%)' : 'translateX(-50%)',
                     background: 'rgba(0,0,0,0.8)',
                     color: '#fff',
                     fontSize: 11,
@@ -832,6 +786,7 @@ export default function VideoPlayerPage() {
                   {formatTime(hoverRatio * duration)}
                 </div>
               )}
+              </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', rowGap: 6 }}>
@@ -890,27 +845,34 @@ export default function VideoPlayerPage() {
 
               <div className="video-volume-group" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ color: '#fff', fontSize: 12, userSelect: 'none', minWidth: 36 }}>{volumeIcon}</span>
-                <input
-                  className="video-volume-slider"
-                  tabIndex={controlsTabIndex}
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={volume}
-                  onChange={handleVolumeChange}
-                  style={{
-                    width: 'clamp(58px, 16vw, 96px)',
-                    cursor: 'pointer',
-                    appearance: 'none',
-                    height: 4,
-                    padding: 0,
-                    border: 'none',
-                    borderRadius: 999,
-                    background: `linear-gradient(to right, #4a9eff 0%, #4a9eff ${volumePercent}%, rgba(255,255,255,0.28) ${volumePercent}%, rgba(255,255,255,0.28) 100%)`,
-                  }}
-                  title={`${volumePercent}%`}
-                />
+                <div className="video-volume-hit-area" style={{ '--volume-percent': `${volumePercent}%` } as React.CSSProperties}>
+                  <input
+                    className="video-volume-slider"
+                    tabIndex={controlsTabIndex}
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={volume}
+                    onChange={handleVolumeChange}
+                    style={{
+                      cursor: 'pointer',
+                      appearance: 'none',
+                      height: 16,
+                      padding: 0,
+                      border: 'none',
+                      borderRadius: 999,
+                      background: 'transparent',
+                    } as React.CSSProperties}
+                    title={`${volumePercent}%`}
+                  />
+                  <div
+                    className="video-volume-track"
+                    aria-hidden="true"
+                    style={{ background: `linear-gradient(to right, #4a9eff 0%, #4a9eff ${volumePercent}%, rgba(255,255,255,0.28) ${volumePercent}%, rgba(255,255,255,0.28) 100%)` }}
+                  />
+                  <div className="video-volume-thumb" aria-hidden="true" />
+                </div>
               </div>
 
               <button

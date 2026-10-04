@@ -18,6 +18,7 @@ import { registerVideoIPC } from './ipc/video'
 import { registerThumbnailsIPC } from './ipc/thumbnails'
 import { registerLegacyDatabaseIPC } from './ipc/legacyDatabase'
 import { cleanupUnusedTags } from './services/tagMaintenance'
+import { parseWindowState, restoreWindowBounds, type WindowState } from './services/windowState'
 
 const isDev = !app.isPackaged
 const isWindows = process.platform === 'win32'
@@ -237,12 +238,15 @@ process.on('unhandledRejection', (reason) => {
 })
 
 async function createWindow() {
+  const statePath = path.join(app.getPath('userData'), 'window-state.json')
+  let savedState: WindowState | null = null
+  try { savedState = parseWindowState(JSON.parse(fs.readFileSync(statePath, 'utf8'))) } catch {}
+  const bounds = restoreWindowBounds(savedState, screen.getAllDisplays(), screen.getPrimaryDisplay())
   mainWindow = new BrowserWindow({
     show: false,
-    width: 1280,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
+    ...bounds,
+    minWidth: Math.min(800, bounds.width),
+    minHeight: Math.min(600, bounds.height),
     backgroundColor: '#111111',
     autoHideMenuBar: true,
     webPreferences: {
@@ -268,7 +272,30 @@ async function createWindow() {
     mainWindow.setMenuBarVisibility(false)
   }
 
-  mainWindow.center()
+  const window = mainWindow
+  let saveWindowTimer: ReturnType<typeof setTimeout> | undefined
+  let maximized = savedState?.maximized || false
+  const saveWindowState = () => {
+    if (window.isDestroyed()) return
+    const normalBounds = window.getNormalBounds()
+    const display = screen.getDisplayMatching(normalBounds)
+    const state: WindowState = { bounds: normalBounds, displayId: display.id, workArea: display.workArea, maximized }
+    try {
+      fs.writeFileSync(`${statePath}.tmp`, JSON.stringify(state))
+      fs.renameSync(`${statePath}.tmp`, statePath)
+    } catch (error) { console.error('Window state save failed:', error) }
+  }
+  const scheduleWindowSave = () => {
+    clearTimeout(saveWindowTimer)
+    saveWindowTimer = setTimeout(saveWindowState, 250)
+  }
+  window.on('move', scheduleWindowSave)
+  window.on('resize', scheduleWindowSave)
+  window.on('maximize', () => { if (!window.isFullScreen()) maximized = true; scheduleWindowSave() })
+  window.on('unmaximize', () => { if (!window.isFullScreen()) maximized = false; scheduleWindowSave() })
+  window.on('close', () => { clearTimeout(saveWindowTimer); saveWindowState() })
+  window.on('closed', () => clearTimeout(saveWindowTimer))
+  if (maximized) window.maximize()
   mainWindow.show()
   mainWindow.focus()
   console.log(`[startup] window:shown-early ${(performance.now() - startupStartedAt).toFixed(1)}ms`)
@@ -278,7 +305,6 @@ async function createWindow() {
     if (!mainWindow) return
     if (!mainWindow.isVisible()) {
       if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.center()
       mainWindow.show()
       mainWindow.focus()
     }

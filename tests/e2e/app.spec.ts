@@ -53,6 +53,130 @@ test.describe('profile and data flows', () => {
     await expect(page.getByRole('heading', { name: '프로필 선택' })).toBeVisible()
   })
 
+  test('restores normal window bounds and maximized state on restart', async () => {
+    const bounds = await app.evaluate(({ BrowserWindow, screen }) => {
+      const window = BrowserWindow.getAllWindows()[0]
+      window.unmaximize()
+      const area = screen.getPrimaryDisplay().workArea
+      const bounds = { x: area.x + 40, y: area.y + 40, width: Math.min(900, area.width - 40), height: Math.min(650, area.height - 40) }
+      window.setBounds(bounds)
+      return window.getBounds()
+    })
+    await app.close()
+    ;({ app, page } = await launch(directory))
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds())).toEqual(bounds)
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].maximize())
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isMaximized())).toBe(true)
+    await app.close()
+    ;({ app, page } = await launch(directory))
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isMaximized())).toBe(true)
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].unmaximize())
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds())).toEqual(bounds)
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setFullScreen(true))
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isFullScreen())).toBe(true)
+    await app.close()
+    ;({ app, page } = await launch(directory))
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isFullScreen())).toBe(false)
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds())).toEqual(bounds)
+  })
+
+  test('keeps video playback and hover progress visible together and hides idle controls', async () => {
+    await page.getByRole('button', { name: '선택한 프로필로 시작' }).click()
+    const bytes = await page.evaluate(async () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 64; canvas.height = 64
+      const stream = canvas.captureStream(10)
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' })
+      const chunks: Blob[] = []
+      recorder.ondataavailable = event => chunks.push(event.data)
+      const done = new Promise<void>(resolve => { recorder.onstop = () => resolve() })
+      recorder.start()
+      const draw = setInterval(() => {
+        const ctx = canvas.getContext('2d')!
+        ctx.fillStyle = '#4a9eff'; ctx.fillRect(0, 0, 64, 64)
+      }, 100)
+      await new Promise(resolve => setTimeout(resolve, 1200))
+      recorder.stop()
+      await done
+      clearInterval(draw)
+      stream.getTracks().forEach(track => track.stop())
+      return Array.from(new Uint8Array(await new Blob(chunks).arrayBuffer()))
+    })
+    await writeFile(path.join(directory, 'idle.webm'), Buffer.from(bytes))
+    const item = await call<any>(page, 'items', 'add', { filePath: directory, fileName: 'idle', fileExtension: 'webm', title: 'Idle video' })
+    await page.evaluate(id => { location.hash = `/view/video/${id}` }, item.id)
+    const video = page.locator('video')
+    await expect(video).toBeVisible()
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(2)
+    await video.evaluate((v: HTMLVideoElement) => {
+      v.pause()
+      v.currentTime = 0.6
+      v.dispatchEvent(new Event('timeupdate'))
+    })
+    const track = page.locator('.video-progress-track')
+    const rect = (await track.boundingBox())!
+    for (const ratio of [0.2, 0.8]) {
+      await page.mouse.move(rect.x + rect.width * ratio, rect.y + rect.height / 2)
+      await expect(page.locator('.video-progress-hover')).toHaveCount(1)
+      expect(await page.locator('.video-progress-played').evaluate(el => parseFloat((el as HTMLElement).style.width))).toBeGreaterThan(0)
+      const layers = await page.locator('.video-progress-track').evaluate(el => {
+        const hover = el.querySelector('.video-progress-hover')!
+        const played = el.querySelector('.video-progress-played')!
+        return [getComputedStyle(hover).zIndex, getComputedStyle(played).zIndex]
+      })
+      expect(layers).toEqual(['1', '2'])
+      const overlap = await page.locator('.video-progress-overlap').evaluate(el => ({
+        width: parseFloat((el as HTMLElement).style.width),
+        color: getComputedStyle(el).backgroundColor,
+        zIndex: getComputedStyle(el).zIndex,
+      }))
+      const playedWidth = await page.locator('.video-progress-played').evaluate(el => parseFloat((el as HTMLElement).style.width))
+      expect(overlap.width).toBeCloseTo(Math.min(ratio * 100, playedWidth), 0)
+      expect(overlap.color).toBe('rgba(255, 255, 255, 0.3)')
+      expect(overlap.zIndex).toBe('3')
+      await page.screenshot({ path: path.join(root, `test-results/video-seek-hover-${ratio}.png`) })
+    }
+    const volumeArea = page.locator('.video-volume-hit-area')
+    const volumeTrack = page.locator('.video-volume-track')
+    const volumeThumb = page.locator('.video-volume-thumb')
+    await page.mouse.move(0, 0)
+    await expect.poll(() => volumeTrack.evaluate(el => getComputedStyle(el).height)).toBe('4px')
+    expect(await volumeTrack.evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0.16s')
+    const restingThumbCenter = await volumeThumb.evaluate(el => {
+      const rect = el.getBoundingClientRect()
+      return rect.top + rect.height / 2
+    })
+    await page.mouse.move((await volumeArea.boundingBox())!.x + 20, (await volumeArea.boundingBox())!.y + 8)
+    await page.waitForTimeout(60)
+    const transitioningHeight = parseFloat(await volumeTrack.evaluate(el => getComputedStyle(el).height))
+    expect(transitioningHeight).toBeGreaterThan(4)
+    expect(transitioningHeight).toBeLessThan(12)
+    const hoveringThumbCenter = await volumeThumb.evaluate(el => {
+      const rect = el.getBoundingClientRect()
+      return rect.top + rect.height / 2
+    })
+    expect(Math.abs(hoveringThumbCenter - restingThumbCenter)).toBeLessThan(0.5)
+    await expect.poll(() => volumeTrack.evaluate(el => getComputedStyle(el).height)).toBe('12px')
+    await page.mouse.move(0, 0)
+    await expect.poll(() => volumeTrack.evaluate(el => getComputedStyle(el).height)).toBe('4px')
+    await volumeArea.locator('input').focus()
+    await expect.poll(() => volumeTrack.evaluate(el => getComputedStyle(el).height)).toBe('4px')
+    await page.screenshot({ path: path.join(root, 'test-results/video-seek-hover.png') })
+    await expect(page.locator('.viewer-root')).toHaveClass(/viewer-idle/, { timeout: 4000 })
+    await expect(page.locator('.viewer-toolbar').first()).toHaveAttribute('inert', '')
+    expect(await video.evaluate(el => getComputedStyle(el).cursor)).toBe('none')
+    await page.mouse.move(rect.x + 10, rect.y - 50)
+    await expect(page.locator('.viewer-root')).not.toHaveClass(/viewer-idle/)
+    await expect(page.locator('.video-progress-hover')).toHaveCount(0)
+    await expect(page.locator('.video-progress-overlap')).toHaveCount(0)
+    await page.keyboard.press('r')
+    await video.evaluate((v: HTMLVideoElement) => v.play())
+    await expect(page.locator('.viewer-root')).toHaveClass(/viewer-idle/, { timeout: 4000 })
+    await page.keyboard.press('Tab')
+    await expect(page.locator('.viewer-root')).not.toHaveClass(/viewer-idle/)
+    await expect(page.locator('.viewer-toolbar').first()).not.toHaveAttribute('inert', '')
+  })
+
   for (const sourceIsOlder of [true, false]) {
     test(`renames and merges profile tags while preserving search filters (sourceIsOlder=${sourceIsOlder})`, async () => {
       await page.getByRole('button', { name: '선택한 프로필로 시작' }).click()
@@ -325,6 +449,13 @@ test.describe('profile and data flows', () => {
       if (entry.fileType === 'pdf') await expect(page.locator('canvas').first()).toBeVisible()
       if (entry.fileType === 'zip') await expect(page.locator('img[src^="data:image/"]').first()).toBeVisible()
       if (entry.fileType === 'video') await expect(page.locator('video')).toBeVisible()
+      if (entry.fileType !== 'video') {
+        await page.mouse.move(400, 300)
+        await expect(page.locator('.viewer-root')).toHaveClass(/viewer-idle/, { timeout: 4000 })
+        expect(await page.locator('.viewer-root').evaluate(el => getComputedStyle(el).cursor)).toBe('none')
+        await page.mouse.move(410, 310)
+        await expect(page.locator('.viewer-root')).not.toHaveClass(/viewer-idle/)
+      }
       await page.keyboard.press('Escape')
       await expect(page.getByRole('dialog')).toBeVisible()
       await page.getByRole('dialog').getByRole('button', { name: '닫기', exact: true }).click()

@@ -377,6 +377,7 @@ export default function BookViewerOverlay({
   return (
     <div
       ref={containerRef}
+      className={isTopOverlayVisible ? 'viewer-root' : 'viewer-root viewer-idle'}
       style={CONTAINER_STYLE}
       onContextMenu={onContextMenu}
     >
@@ -387,6 +388,8 @@ export default function BookViewerOverlay({
         onMouseLeave={onMouseLeave}
       >
         <div
+          className="viewer-toolbar"
+          inert={!isTopOverlayVisible}
           style={{
             ...OVERLAY_GRADIENT_STYLE,
             opacity: isTopOverlayVisible ? 1 : 0,
