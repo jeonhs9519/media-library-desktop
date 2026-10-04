@@ -9,6 +9,7 @@ export function getContentTypeIcon(ct: string) {
 
 export function getLanguageBadge(lang: string) {
   switch (lang) {
+    case 'none': return 'N/A'
     case 'ko': return 'KOR'
     case 'ja': return 'JPN'
     case 'en': return 'ENG'

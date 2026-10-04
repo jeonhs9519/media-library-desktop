@@ -10,7 +10,7 @@ import { registerItemImportIPC } from '../../src/main/ipc/items/imports'
 import { registerItemRelinkIPC } from '../../src/main/ipc/items/relink'
 import { registerLegacyDatabaseIPC } from '../../src/main/ipc/legacyDatabase'
 import { registerPlaylistsIPC } from '../../src/main/ipc/playlists'
-import { clearActiveProfileId } from '../../src/main/services/profileState'
+import { clearActiveProfileId, setActiveProfileId } from '../../src/main/services/profileState'
 
 const handlers = vi.hoisted(() => new Map<string, (_event: unknown, payload?: any) => Promise<any>>())
 vi.mock('electron', () => ({
@@ -57,6 +57,36 @@ afterEach(() => {
 })
 
 describe('independent content and file types', () => {
+  it('distinguishes unspecified and no-dialogue language, prevents clearing a set language, and scopes filters', async () => {
+    const unspecified = await add('unspecified-language', 'pdf')
+    const noDialogue = await add('no-dialogue', 'pdf', { language: 'none' })
+    const korean = await add('korean', 'pdf', { language: 'ko' })
+    const other = await add('other-language', 'pdf', { language: 'other' })
+    setActiveProfileId(2)
+    await add('foreign-profile', 'pdf')
+    setActiveProfileId(3)
+    expect(unspecified.language).toBe('unspecified')
+    expect((await invoke('items:getAll', { language: 'unspecified' })).items.map((row: any) => row.id)).toEqual([unspecified.id])
+    expect((await invoke('items:getAll', { language: 'none' })).items.map((row: any) => row.id)).toEqual([noDialogue.id])
+    expect((await invoke('items:getAll', { language: 'ko' })).items.map((row: any) => row.id)).toEqual([korean.id])
+    expect((await invoke('items:getAll', { language: 'other' })).items.map((row: any) => row.id)).toEqual([other.id])
+    expect((await invoke('items:getAll', { language: '' })).total).toBe(4)
+    await invoke('items:update', { id: korean.id, language: '' })
+    expect((await invoke('items:getById', { id: korean.id })).language).toBe('ko')
+    await invoke('items:update', { id: korean.id, language: 'none' })
+    expect((await invoke('items:getAll', { language: 'none' })).items.map((row: any) => row.id).sort()).toEqual([noDialogue.id, korean.id].sort())
+    await invoke('items:update', { id: noDialogue.id, language: 'unspecified' })
+    expect((await invoke('items:getById', { id: noDialogue.id })).language).toBe('none')
+    expect(sqlite.prepare('SELECT language FROM items WHERE id = ?').get(unspecified.id)).toEqual({ language: 'unspecified' })
+  })
+
+  it('converts legacy empty language values to unspecified during runtime schema checks', async () => {
+    const item = await add('legacy-empty-language', 'pdf')
+    sqlite.prepare("UPDATE items SET language = '' WHERE id = ?").run(item.id)
+    ensureRuntimeSchema(sqlite)
+    expect((await invoke('items:getById', { id: item.id })).language).toBe('unspecified')
+  })
+
   it('defaults PDF/ZIP/CBZ to books and video files to videos', async () => {
     for (const [extension, contentType, containerType] of [
       ['PDF', 'book', 'pdf'], ['zip', 'book', 'zip'], ['cbz', 'book', 'zip'],

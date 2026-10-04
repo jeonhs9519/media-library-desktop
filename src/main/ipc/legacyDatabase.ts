@@ -348,7 +348,7 @@ function importLegacyDatabase(db: DB, dbPath: string) {
           memo: optionalStringValue(row, 'memo'),
           contentType,
           containerType: detectContainerType(fileExtension),
-          language: stringValue(row, 'language'),
+          language: stringValue(row, 'language').trim() || 'unspecified',
           watched: numberValue(row, 'watched'),
           progress: numberValue(row, 'progress'),
           lastPageIndex: optionalNumberValue(row, 'lastPageIndex'),

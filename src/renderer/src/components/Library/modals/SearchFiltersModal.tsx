@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Modal from '../../Modal'
 import Dropdown from '../../Dropdown'
+import TagSearchInput from '../../TagSearchInput'
 import { SortAscendingIcon, SortDescendingIcon } from '../../icons'
 import type { TagUsageCount, Translate } from '../types'
 
 type WatchedState = 'all' | 'unread' | 'inProgress' | 'completed'
 type FileState = 'all' | 'normal' | 'missing'
-const COLLAPSED_TAG_LIMIT = 20
 
 interface Props {
   open: boolean
@@ -61,18 +61,27 @@ export default function SearchFiltersModal({
   onResetSearch,
   tr,
 }: Props) {
-  const [tagsExpanded, setTagsExpanded] = useState(false)
+  const [tagQuery, setTagQuery] = useState('')
+  const selectedTags = tagUsageCounts.filter((tag) => !untaggedOnly && selectedTagIds.includes(tag.id))
+  const availableTags = useMemo(
+    () => tagUsageCounts.filter((tag) => !selectedTagIds.includes(tag.id) || untaggedOnly),
+    [tagUsageCounts, selectedTagIds, untaggedOnly],
+  )
+  const matchingTag = availableTags.find((tag) => tag.name.toLocaleLowerCase() === tagQuery.trim().toLocaleLowerCase())
+  const selectTag = (name: string) => {
+    const tag = availableTags.find((option) => option.name.toLocaleLowerCase() === name.trim().toLocaleLowerCase())
+    if (!tag) return
+    onToggleTag(tag.id)
+    setTagQuery('')
+  }
   const hasSelectedTags = untaggedOnly || selectedTagIds.length > 0
-  const hasHiddenTags = tagUsageCounts.length > COLLAPSED_TAG_LIMIT
-  const visibleTags = tagsExpanded ? tagUsageCounts : tagUsageCounts.slice(0, COLLAPSED_TAG_LIMIT)
-  const hiddenTagCount = Math.max(0, tagUsageCounts.length - COLLAPSED_TAG_LIMIT)
 
   return (
     <Modal
       open={open}
       onClose={onClose}
       contentWidth={600}
-      contentHeight="calc(100vh - 100px)"
+      contentHeight="auto"
       contentMaxWidth="calc(100vw - 80px)"
       contentPadding={0}
     >
@@ -116,6 +125,8 @@ export default function SearchFiltersModal({
                   value={language}
                   options={[
                     { value: '', label: tr('filters.allLanguages') },
+                    { value: 'unspecified', label: tr('filters.language.unspecified') },
+                    { value: 'none', label: tr('filters.language.none') },
                     { value: 'ko', label: tr('filters.language.ko') },
                     { value: 'ja', label: tr('filters.language.ja') },
                     { value: 'en', label: tr('filters.language.en') },
@@ -197,7 +208,55 @@ export default function SearchFiltersModal({
                 {tr('filters.clearTags')}
               </button>
             </div>
-            <div className="search-filter-tags">
+            <div
+              className="search-filter-selected-tags"
+              role="group"
+              aria-label={tr('filters.selectedTags')}
+              tabIndex={0}
+            >
+              {untaggedOnly ? (
+                <button
+                  type="button"
+                  className="library-tag-chip is-selected"
+                  onClick={onToggleUntagged}
+                  aria-label={tr('filters.removeTag', { name: tr('filters.untagged') })}
+                >
+                  <span className="library-tag-chip-name">{tr('filters.untagged')}</span>
+                  <span aria-hidden="true">×</span>
+                </button>
+              ) : selectedTags.length > 0 ? selectedTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  className="library-tag-chip is-selected"
+                  onClick={() => onToggleTag(tag.id)}
+                  aria-label={tr('filters.removeTag', { name: tag.name })}
+                >
+                  <span className="library-tag-chip-name">{tag.name}</span>
+                  <span aria-hidden="true">×</span>
+                </button>
+              )) : <span className="search-filter-selected-empty">{tr('filters.noSelectedTags')}</span>}
+            </div>
+            <form
+              className="search-filter-tag-search"
+              onSubmit={(event) => {
+                event.preventDefault()
+                selectTag(tagQuery)
+              }}
+            >
+              <TagSearchInput
+                value={tagQuery}
+                options={availableTags}
+                onChange={setTagQuery}
+                onCommit={selectTag}
+                placeholder={tr('filters.searchTags')}
+                ariaLabel={tr('filters.searchTags')}
+              />
+              <button type="submit" className="btn-secondary" disabled={!matchingTag}>
+                {tr('filters.selectTag')}
+              </button>
+            </form>
+            <div className="search-filter-tags" role="group" aria-label={tr('filters.registeredTags')} tabIndex={0}>
               <button
                 type="button"
                 className={`library-tag-chip${untaggedOnly ? ' is-selected' : ''}`}
@@ -206,7 +265,7 @@ export default function SearchFiltersModal({
               >
                 <span className="library-tag-chip-name">{tr('filters.untagged')}</span>
               </button>
-              {visibleTags.map((tag) => {
+              {tagUsageCounts.map((tag) => {
                 const selected = !untaggedOnly && selectedTagIds.includes(tag.id)
                 return (
                   <button
@@ -222,17 +281,6 @@ export default function SearchFiltersModal({
                   </button>
                 )
               })}
-              {hasHiddenTags && (
-                <button
-                  type="button"
-                  className="btn-secondary search-filter-tag-more"
-                  onClick={() => setTagsExpanded((expanded) => !expanded)}
-                >
-                  {tagsExpanded
-                    ? tr('filters.showLessTags')
-                    : tr('filters.showMoreTags', { count: hiddenTagCount })}
-                </button>
-              )}
             </div>
           </section>
         </div>

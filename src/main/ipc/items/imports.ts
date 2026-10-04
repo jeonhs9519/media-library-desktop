@@ -200,7 +200,7 @@ export function registerItemImportIPC(db: DB) {
         author: item.author,
         contentType: item.contentType,
         containerType: item.containerType,
-        language: '',
+        language: 'unspecified',
         watched: 0,
         progress: 0,
         createdAt: now,

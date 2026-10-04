@@ -167,7 +167,7 @@ function rebuildProfileScopedTables(sqlite: Database.Database) {
       memo text,
       contentType text NOT NULL,
       containerType text NOT NULL,
-      language text DEFAULT '' NOT NULL,
+      language text DEFAULT 'unspecified' NOT NULL,
       watched integer DEFAULT 0 NOT NULL,
       progress real DEFAULT 0 NOT NULL,
       lastPageIndex integer,
@@ -364,4 +364,6 @@ export function ensureRuntimeSchema(sqlite: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_position
       ON playlistItems (playlistId, position);
   `)
+
+  sqlite.prepare("UPDATE items SET language = 'unspecified' WHERE language = ''").run()
 }

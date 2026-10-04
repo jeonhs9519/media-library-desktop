@@ -30,6 +30,7 @@ interface Props {
   item: Item & { fileExists?: boolean }
   thumbnailUrl?: string
   thumbnailMissingLabel: string
+  languageNoneLabel: string
   onOpenDetail: () => void
   onContextMenu: (event: React.MouseEvent) => void
   onDragStart?: (event: React.DragEvent<HTMLButtonElement>) => void
@@ -81,6 +82,7 @@ const LibraryItemCard = forwardRef<HTMLButtonElement, Props>(function LibraryIte
   item,
   thumbnailUrl,
   thumbnailMissingLabel,
+  languageNoneLabel,
   onOpenDetail,
   onContextMenu,
   onDragStart,
@@ -161,7 +163,16 @@ const LibraryItemCard = forwardRef<HTMLButtonElement, Props>(function LibraryIte
         )}
         <div style={{ position: 'absolute', top: 2, left: 2, right: 2, display: 'flex', gap: 4, justifyContent: 'space-between' }}>
           <span style={TYPE_GLYPH_STYLE}>{getContentTypeIcon(item.contentType)}</span>
-          {languageBadge ? <span style={LANGUAGE_GLYPH_STYLE}>{languageBadge}</span> : null}
+          {languageBadge ? (
+            <span
+              role={item.language === 'none' ? 'img' : undefined}
+              aria-label={item.language === 'none' ? languageNoneLabel : undefined}
+              title={item.language === 'none' ? languageNoneLabel : undefined}
+              style={LANGUAGE_GLYPH_STYLE}
+            >
+              {languageBadge}
+            </span>
+          ) : null}
         </div>
         {contentInfo && (
           <div style={{ position: 'absolute', bottom: 2, right: 2, fontSize: 11, color: '#e0e0e0', background: 'rgba(10, 16, 32, 0.45)', padding: '2px 6px', borderRadius: 3 }}>

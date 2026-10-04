@@ -1204,7 +1204,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 .search-filter-dialog {
-  height: 100%;
+  height: auto;
+  max-height: calc(100vh - 100px);
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1223,10 +1224,11 @@ input:focus, select:focus, textarea:focus {
 }
 
 .search-filter-body {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
   overflow: auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 16px;
   padding: 16px;
@@ -1248,6 +1250,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .search-filter-section {
+  min-width: 0;
   padding: 16px;
   border-radius: 8px;
   background: var(--bg-secondary);
@@ -1316,7 +1319,57 @@ input:focus, select:focus, textarea:focus {
 .search-filter-tags {
   display: flex;
   flex-wrap: wrap;
+  align-content: flex-start;
   gap: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  padding: 2px;
+}
+
+.search-filter-selected-tags {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 48px;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scrollbar-color: var(--border) rgba(255, 255, 255, 0.04);
+  padding: 4px 2px 8px;
+  margin-bottom: 8px;
+}
+
+.search-filter-selected-tags .library-tag-chip {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.search-filter-selected-tags::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.search-filter-selected-empty {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.search-filter-tag-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.search-filter-tag-search .tag-search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-filter-tag-search > button {
+  flex: 0 0 auto;
 }
 
 .search-filter-tag-reset {
@@ -1325,13 +1378,6 @@ input:focus, select:focus, textarea:focus {
   font-size: 12px;
   line-height: 18px;
   white-space: nowrap;
-}
-
-.search-filter-tag-more {
-  flex: 1 0 100%;
-  width: 100%;
-  height: 34px;
-  margin-top: 4px;
 }
 
 .settings-dialog {
@@ -1376,6 +1422,65 @@ input:focus, select:focus, textarea:focus {
 .settings-section h3 {
   margin: 0 0 12px;
   font-size: 16px;
+}
+
+.detail-language-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tooltip-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.detail-language-help-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: help;
+}
+
+.detail-language-help-button:hover,
+.detail-language-help-button:focus-visible {
+  color: var(--text-primary);
+  background: rgba(138, 164, 255, .12);
+}
+
+.detail-language-help-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tooltip-content {
+  position: absolute;
+  top: 100%;
+  z-index: 20;
+  width: 240px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .25);
+  font-size: 12px;
+  line-height: 1.5;
+  visibility: hidden;
+  opacity: 0;
+}
+
+.tooltip-content[data-open="true"] {
+  visibility: visible;
+  opacity: 1;
 }
 
 .settings-section-help {

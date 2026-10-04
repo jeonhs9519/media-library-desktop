@@ -9,7 +9,7 @@ CREATE TABLE `items` (
   `memo` text,
   `contentType` text NOT NULL,
   `containerType` text NOT NULL,
-  `language` text DEFAULT '' NOT NULL,
+  `language` text DEFAULT 'unspecified' NOT NULL,
   `watched` integer DEFAULT 0 NOT NULL,
   `progress` real DEFAULT 0 NOT NULL,
   `lastPageIndex` integer,

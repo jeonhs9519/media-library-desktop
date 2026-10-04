@@ -62,6 +62,12 @@ Last updated: 2026-10-04
 10. 최초 라이브러리 목록 표시 시점에 `library:list-ready` 로그 기록
 11. 썸네일 로드와 뷰어 route preload는 목록 표시 이후 비동기로 진행
 
+## 공용 툴팁
+
+- `src/renderer/src/components/Tooltip`은 호버·포커스 표시, Escape 닫기, 가장 가까운 컨테이너의 경계와 오른쪽 넘침 보정을 관리합니다.
+- 컨테이너는 `.tooltip-container`와 `data-tooltip-boundary`로 지정합니다. 기본 폭은 240px이며 경계는 콘텐츠·패딩·테두리 영역 중 선택합니다.
+- 상세보기 언어 안내는 메타데이터 전체의 콘텐츠 경계를 기준으로 표시합니다. 세부 기준과 사용 예는 [툴팁 기준](tooltip-guidelines.md)을 따릅니다.
+
 ## Startup 흐름
 
 - `src/main/index.ts`는 startup 단계별 상태를 저장하고 renderer에 `startup:status`, `startup:ready` 이벤트로 전달합니다.
@@ -124,6 +130,15 @@ Last updated: 2026-10-04
 - `getTagUsageCounts`는 사용 중인 태그만 `{ id, name, count }` 형식으로 반환하며, 건수 내림차순과 이름 오름차순으로 정렬합니다.
 - `items:getAll`은 `tagIds`를 받으면 선택된 모든 태그가 연결된 아이템만 반환하는 AND 필터를 적용합니다.
 - `items:getAll`은 `untagged`를 받으면 태그가 하나도 연결되지 않은 아이템만 반환합니다.
+- 검색 조건 모달은 선택 태그 한 줄 목록과 기존 등록 목록 사이에 공용 `TagSearchInput`과 선택 버튼을 표시합니다. 이미 선택한 태그와 다른 프로필의 태그는 검색 후보에서 제외합니다.
+
+## 콘텐츠 언어와 검색 조건
+
+- `items.language`는 `unspecified`를 기본값으로 사용합니다. 상세정보와 검색 조건에서 `미지정`으로 표시하고 라이브러리 카드에는 언어 배지를 표시하지 않습니다.
+- `items.language = 'none'`은 대사 등이 없는 콘텐츠를 뜻하며, 카드에 `N/A` 배지를 표시합니다. `ko`, `ja`, `en`, `zh`, `other`는 기존 지정 언어 값을 유지합니다.
+- 기존 빈 언어값은 DB migration과 runtime schema 점검에서 `unspecified`로 변환합니다. HDT와 과거 DB 가져오기에서 값이 비어 있는 경우도 `unspecified`를 사용합니다.
+- `items:getAll`의 `language`가 생략되거나 빈 문자열이면 전체 언어를 조회하며, 지정 값은 그대로 `items.language`와 비교합니다.
+- 현재 값이 `unspecified`가 아니면 renderer의 언어 선택과 `items:update` IPC 모두 `unspecified`로의 변경을 막습니다.
 
 ## 주의할 코드 영역
 
@@ -198,7 +213,7 @@ Last updated: 2026-10-04
 
 ### `src/renderer/src/components/TagSearchInput.tsx`
 
-- 상세 정보 태그 추가 입력에 사용하는 검색형 입력 컴포넌트입니다.
+- 상세 정보 태그 추가와 검색 조건 태그 선택에 사용하는 검색형 입력 컴포넌트입니다.
 - 현재 프로필에서 실제 사용 중인 태그 후보만 받아 필터링하고, 입력란에서 위/아래 방향키로 active option을 이동한 뒤 Enter로 등록합니다.
 - 옵션 목록은 포커스 가능한 버튼이 아니라 `aria-activedescendant` 기반 listbox로 렌더링해, Tab/Shift+Tab이 입력란 주변 컨트롤로 이동하도록 유지합니다.
 
@@ -213,7 +228,9 @@ Last updated: 2026-10-04
 
 - 검색어, 타입, 언어, 진행 상태, 파일 상태, 정렬 방식, 정렬 방향, 태그 조건을 한곳에서 지정합니다.
 - 태그 조건은 전체, 미지정, 선택 태그 AND 필터 중 하나의 흐름으로 동작합니다.
-- 태그 목록은 사용 건수 기준 상위 20개를 기본 표시하고, 하단 전체 폭 버튼으로 더보기/접기를 전환합니다.
+- 등록 태그는 사용 건수 순서로 전체 목록을 표시하며, 최대 180px 높이의 목록 내부에서 세로 스크롤합니다. 목록 끝에서 스크롤해도 부모 본문으로 스크롤을 전달하지 않습니다.
+- 검색 조건 팝업은 내용에 맞게 높이를 정하고 화면 높이를 넘지 않도록 제한합니다.
+- 선택 태그 행은 48px 고정 높이이며 가로 스크롤바를 항상 표시합니다.
 - 태그 초기화 버튼은 header 오른쪽에 항상 표시하고, 태그 조건이 없으면 비활성화합니다.
 - 정렬 방향은 select가 아니라 아이콘과 문구가 있는 토글 버튼으로 전환합니다.
 

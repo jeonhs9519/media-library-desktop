@@ -39,7 +39,9 @@ export function registerItemCoreIPC(db: DB) {
       )
     }
     if (contentType) conditions.push(eq(items.contentType, contentType))
-    if (language) conditions.push(eq(items.language, language))
+    if (language) {
+      conditions.push(eq(items.language, language))
+    }
     if (watchedState === 'unread') {
       conditions.push(sql`(coalesce(${items.progress}, 0) <= 0 AND ${items.watched} = 0)` as any)
     }
@@ -194,7 +196,7 @@ export function registerItemCoreIPC(db: DB) {
       memo: data.memo,
       contentType,
       containerType,
-      language: data.language || '',
+      language: data.language || 'unspecified',
       watched: 0,
       progress: 0,
       createdAt: now,
@@ -223,6 +225,15 @@ export function registerItemCoreIPC(db: DB) {
 
   ipcMain.handle('items:update', async (_event, { id, ...fields }: { id: number; [key: string]: any }) => {
     const now = Date.now()
+    const existingItem = db.select({ language: items.language })
+      .from(items)
+      .where(and(eq(items.id, id), eq(items.profileId, getActiveProfileId())))
+      .get()
+
+    if (fields.language === '') fields.language = 'unspecified'
+    if (existingItem && existingItem.language !== 'unspecified' && fields.language === 'unspecified') {
+      delete fields.language
+    }
 
     // 파일 타입은 확장자로 관리하고 콘텐츠 분류 수정과 분리합니다.
     delete fields.containerType

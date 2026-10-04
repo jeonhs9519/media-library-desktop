@@ -8,6 +8,7 @@ import ChoiceInput from '../components/ChoiceInput'
 import Dropdown from '../components/Dropdown'
 import PasteInput from '../components/PasteInput'
 import TagSearchInput from '../components/TagSearchInput'
+import Tooltip from '../components/Tooltip'
 import { PlaylistAddIcon, ShareIcon } from '../components/icons'
 import { useI18n } from '../useI18n'
 import { getViewerPath } from '../components/Library/mediaLabels'
@@ -125,7 +126,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
       setEditForm({
         title: data?.title || '',
         contentType: data?.contentType || 'other',
-        language: data?.language || '',
+        language: data?.language || 'unspecified',
         author: data?.author || '',
         memo: data?.memo || '',
         sourceUrl: data?.sourceUrl || '',
@@ -387,7 +388,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
 
       <div className="detail-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 16px' }}>
 
-        <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+        <div className="tooltip-container" data-tooltip-boundary="content-box" style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
           <h2 style={{ marginBottom: 12, fontSize: 16 }}>{tr('detail.metadata')}</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 12, rowGap: 12 }}>
             <div className="detail-type-fields" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, gridColumn: '1 / -1' }}>
@@ -415,13 +416,29 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
                   : tr(`files.type.${item.containerType}`)
                 }
               </Field>
-              <Field label={tr('detail.language')}>
+              <Field label={
+                <span className="detail-language-label">
+                  {tr('detail.language')}
+                  {editing && item.language !== 'unspecified' && (
+                    <Tooltip content={tr('detail.languageUnspecifiedLocked')}>
+                      <button type="button" className="detail-language-help-button" aria-label={tr('detail.language')}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <circle cx="12" cy="12" r="9" />
+                          <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 3.5" />
+                          <path d="M12 16h.01" />
+                        </svg>
+                      </button>
+                    </Tooltip>
+                  )}
+                </span>
+              }>
                 {editing
                   ? (
                       <Dropdown
                         value={editForm.language}
                         options={[
-                          { value: '', label: tr('detail.unknown') },
+                          { value: 'unspecified', label: tr('filters.language.unspecified'), disabled: item.language !== 'unspecified' },
+                          { value: 'none', label: tr('filters.language.none') },
                           { value: 'ko', label: tr('filters.language.ko') },
                           { value: 'ja', label: tr('filters.language.ja') },
                           { value: 'en', label: tr('filters.language.en') },
@@ -432,7 +449,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
                         ariaLabel={tr('detail.language')}
                       />
                     )
-                  : (item.language ? tr(`filters.language.${item.language}`) : tr('detail.unknown'))
+                  : tr(`filters.language.${item.language || 'unspecified'}`)
                 }
               </Field>
             </div>
@@ -701,7 +718,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
   )
 }
 
-function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: React.CSSProperties }) {
+function Field({ label, children, style }: { label: React.ReactNode; children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{ lineHeight: '24px', ...style }}>
       <div style={{ fontSize: 12, color: '#a0a0b0', marginBottom: 4 }}>{label}</div>

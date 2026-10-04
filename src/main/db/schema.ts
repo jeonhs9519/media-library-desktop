@@ -23,7 +23,7 @@ export const items = sqliteTable('items', {
   memo: text('memo'),
   contentType: text('contentType').notNull(),
   containerType: text('containerType').notNull(),
-  language: text('language').notNull().default(''),
+  language: text('language').notNull().default('unspecified'),
   watched: integer('watched').notNull().default(0),
   progress: real('progress').notNull().default(0),
   lastPageIndex: integer('lastPageIndex'),

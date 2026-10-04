@@ -23,6 +23,7 @@
 - `AI_WORKFLOW.md`: 미래 세션을 위한 문서 갱신 및 작업 운영 기준
 - `doc-style-guide.md`: 문서 작성 톤과 commit message 규칙
 - `architecture.md`: 앱 구조와 주요 파일 맵
+- `tooltip-guidelines.md`: 공용 툴팁의 표시·정렬·컨테이너 경계와 적용 기준
 - `setup.md`: 개발 환경, 실행, 테스트, 트러블슈팅
 - `release-ci.md`: Windows 패키징, 코드 서명, CI 아티팩트 운영 가이드
 - `release-notes/`: 태그별 릴리즈 노트

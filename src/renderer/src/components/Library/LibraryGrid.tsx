@@ -399,6 +399,7 @@ export default function LibraryGrid({
                   item={item}
                   thumbnailUrl={thumbnails[item.id]}
                   thumbnailMissingLabel={tr('library.thumbnailMissing')}
+                  languageNoneLabel={tr('filters.language.none')}
                   active={index === activeIndex}
                   tabIndex={-1}
                   onOpenDetail={() => {
