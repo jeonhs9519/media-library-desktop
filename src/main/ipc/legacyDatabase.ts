@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm'
 import { SYSTEM_PROFILE_ID, itemTags, items, playlistItems, playlists, reviews, settings, tags } from '../db/schema'
 import { cleanupUnusedTags } from '../services/tagMaintenance'
 import { getActiveProfileId } from '../services/profileState'
+import { PLAYLIST_SELECTION_KEY, setSelectedPlaylist } from '../services/playlistSelection'
 import { detectContainerType, getDefaultContentType } from '../utils/titleNormalizer'
 import type { DB } from './items/utils'
 
@@ -401,7 +402,7 @@ function importLegacyDatabase(db: DB, dbPath: string) {
       for (const row of readTable(sqlite, 'settings', validation.tables)) {
         const key = stringValue(row, 'key').trim()
         const value = stringValue(row, 'value')
-        if (!key) continue
+        if (!key || key === PLAYLIST_SELECTION_KEY) continue
         const profileId = getSettingProfileId(key)
         const existing = tx.select({ key: settings.key }).from(settings).where(and(eq(settings.profileId, profileId), eq(settings.key, key))).get()
         if (existing) continue
@@ -423,6 +424,15 @@ function importLegacyDatabase(db: DB, dbPath: string) {
           updatedAt: numberValue(row, 'updatedAt', now),
         }).returning({ id: playlists.id }).get()
         legacyToCurrentPlaylistId.set(legacyPlaylistId, currentPlaylist.id)
+      }
+
+      const existingSelection = tx.select().from(settings)
+        .where(and(eq(settings.profileId, activeProfileId), eq(settings.key, PLAYLIST_SELECTION_KEY))).get()
+      if (!existingSelection) {
+        const sourceSelection = readTable(sqlite, 'settings', validation.tables)
+          .find(row => stringValue(row, 'key') === PLAYLIST_SELECTION_KEY)
+        const selectedId = sourceSelection ? legacyToCurrentPlaylistId.get(numberValue(sourceSelection, 'value')) : undefined
+        if (selectedId) { setSelectedPlaylist(tx, activeProfileId, selectedId); importedSettings++ }
       }
 
       for (const row of readTable(sqlite, 'playlistItems', validation.tables)) {

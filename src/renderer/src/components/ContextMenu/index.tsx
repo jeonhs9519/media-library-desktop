@@ -7,6 +7,7 @@ export type ContextMenuItemBase = {
   description?: string
   icon?: React.ReactNode
   shortcut?: string
+  trailingLabel?: string
   tone?: 'default' | 'accent' | 'danger'
   disabled?: boolean
   checked?: boolean
@@ -74,8 +75,8 @@ function getTextLength(text: string) {
 
 function getShortcutMinWidth(items: ContextMenuEntry[]) {
   const maxShortcutLength = items.reduce((max, item) => {
-    if (isSeparator(item) || !item.shortcut) return max
-    return Math.max(max, getTextLength(item.shortcut))
+    if (isSeparator(item)) return max
+    return Math.max(max, getTextLength(item.trailingLabel || item.shortcut || ''))
   }, 0)
   if (maxShortcutLength <= 0) return 56
   return Math.max(56, Math.min(140, maxShortcutLength * 9 + 18))
@@ -521,10 +522,10 @@ export default function ContextMenu({
                   fontSize: 11.5,
                   letterSpacing: 0.15,
                   whiteSpace: 'nowrap',
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                  fontFamily: item.trailingLabel ? 'inherit' : 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
                 }}
               >
-                {item.shortcut || ''}
+                {item.trailingLabel || item.shortcut || ''}
               </span>
               {isSubmenuItem && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
@@ -644,10 +645,10 @@ export default function ContextMenu({
                     fontSize: 11.5,
                     letterSpacing: 0.15,
                     whiteSpace: 'nowrap',
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                    fontFamily: item.trailingLabel ? 'inherit' : 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
                   }}
                 >
-                  {item.shortcut || ''}
+                  {item.trailingLabel || item.shortcut || ''}
                 </span>
               </button>
             )

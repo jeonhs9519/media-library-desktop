@@ -22,7 +22,7 @@ export function getPlaylistViewerPathAtOffset(
   return null
 }
 
-export async function getNextPlaylistViewerPath(currentItemId: number) {
-  const playlistItems = await api.playlists.getItems()
+export async function getNextPlaylistViewerPath(currentItemId: number, playlistId?: number) {
+  const playlistItems = await api.playlists.getItems(playlistId)
   return getPlaylistViewerPathAtOffset(playlistItems, currentItemId, 1)
 }

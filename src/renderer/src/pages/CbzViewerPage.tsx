@@ -6,7 +6,6 @@ import BookViewerOverlay, { useBookViewerViewMode } from '../components/BookView
 import { useBookViewerOverlayUx } from '../components/BookViewerOverlay/useBookViewerOverlayUx.ts'
 import { useBookViewerKeyboard } from '../components/BookViewerOverlay/useBookViewerKeyboard.ts'
 import Toast, { useToast } from '../components/Toast'
-import { getNextPlaylistViewerPath } from '../playlistAutoAdvance'
 import BookScrollView, { type BookScrollHandle } from '../components/BookScrollView'
 import { useBookScrollPosition } from '../useBookScrollPosition'
 import { useViewerPlaylist } from '../useViewerPlaylist'
@@ -112,16 +111,12 @@ export default function CbzViewerPage() {
 
   const goToNextPageByStep = useCallback((step: number) => {
     if (pages.length > 0 && currentPage + step >= pages.length) {
-      getNextPlaylistViewerPath(itemId)
-        .then((nextPath) => {
-          if (nextPath) navigate(nextPath, { state: { returnTo } })
-        })
-        .catch(console.error)
+      viewerPlaylist.advance().catch(console.error)
       return
     }
 
     setCurrentPage((p) => Math.min(pages.length - 1, p + step))
-  }, [currentPage, itemId, navigate, pages.length, returnTo])
+  }, [currentPage, pages.length, viewerPlaylist.advance])
 
   useEffect(() => { if (viewMode !== 'scroll') flushScrollPosition() }, [viewMode, flushScrollPosition])
 
@@ -251,6 +246,7 @@ export default function CbzViewerPage() {
       onReorderPlaylistItems={viewerPlaylist.reorderItems}
       onClearPlaylist={viewerPlaylist.clear}
       viewerReturnTo={returnTo}
+      playlistId={viewerPlaylist.playlistId}
       contextMenu={contextMenu}
       onCloseContextMenu={closeContextMenu}
       contextMenuId="cbz-context-menu"

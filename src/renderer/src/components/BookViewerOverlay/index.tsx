@@ -61,6 +61,7 @@ type BookViewerOverlayProps = {
   onReorderPlaylistItems: (itemIds: number[]) => void
   onClearPlaylist: () => void
   viewerReturnTo: string
+  playlistId?: number
   contextMenu: { x: number; y: number } | null
   onCloseContextMenu: () => void
   contextMenuId: string
@@ -233,6 +234,7 @@ export default function BookViewerOverlay({
   onReorderPlaylistItems,
   onClearPlaylist,
   viewerReturnTo,
+  playlistId,
   contextMenu,
   onCloseContextMenu,
   contextMenuId,
@@ -623,6 +625,7 @@ export default function BookViewerOverlay({
               viewerMode
               currentItemId={currentItemId}
               viewerReturnTo={viewerReturnTo}
+              playlistId={playlistId}
               tr={tr}
             />
           </div>

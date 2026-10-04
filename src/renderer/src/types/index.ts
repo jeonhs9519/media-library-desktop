@@ -47,6 +47,18 @@ export interface PlaylistItem {
   item: Item
 }
 
+export interface Playlist {
+  id: number
+  name: string
+  count: number
+}
+
+export interface PlaylistState {
+  profileId: number
+  selectedId: number
+  lists: Playlist[]
+}
+
 export type SortField = 'title' | 'createdAt' | 'updatedAt' | 'fileModifiedAt' | 'rating'
 export type SortDir = 'asc' | 'desc'
 export type ContentType = 'book' | 'comic' | 'video' | 'other'

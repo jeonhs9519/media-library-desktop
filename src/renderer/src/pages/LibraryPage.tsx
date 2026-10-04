@@ -1,11 +1,13 @@
 ﻿import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Item, PlaylistItem } from '../types'
+import { Item } from '../types'
 import { useI18n } from '../useI18n'
 import { api } from '../api'
 import LibraryGrid from '../components/Library/LibraryGrid'
 import LibraryToolbar from '../components/Library/LibraryToolbar'
 import PlaylistPanel from '../components/Library/PlaylistPanel'
+import PlaylistManager from '../components/Library/PlaylistManager'
+import { useLibraryPlaylists } from '../components/Library/hooks/useLibraryPlaylists'
 import DuplicateFileModal from '../components/Library/modals/DuplicateFileModal'
 import FileDropModal from '../components/Library/modals/FileDropModal'
 import HdtImportModal from '../components/Library/modals/HdtImportModal'
@@ -45,7 +47,9 @@ export default function LibraryPage() {
   const [searchFiltersOpen, setSearchFiltersOpen] = useState(false)
   const [detailItemId, setDetailItemId] = useState<number | null>(null)
   const [detailReturnTarget, setDetailReturnTarget] = useState<'library' | 'playlist'>('library')
-  const [playlistItems, setPlaylistItems] = useState<PlaylistItem[]>([])
+  const playlists = useLibraryPlaylists()
+  const playlistItems = playlists.items
+  const selectedPlaylistId = playlists.state?.selectedId
   const [playlistCollapsed, setPlaylistCollapsed] = useState(true)
   const [playlistFocusRequest, setPlaylistFocusRequest] = useState(0)
   const [playlistFocusItemId, setPlaylistFocusItemId] = useState<number | null>(null)
@@ -99,10 +103,7 @@ export default function LibraryPage() {
     searchFilters.reconcileTagUsageCounts,
   ])
 
-  const loadPlaylistItems = useCallback(async () => {
-    const result = await api.playlists.getItems()
-    setPlaylistItems(result)
-  }, [])
+  const loadPlaylistItems = playlists.reload
 
   const updatePlaylistCollapsed = useCallback((next: boolean | ((value: boolean) => boolean)) => {
     setPlaylistCollapsed((current) => {
@@ -116,7 +117,10 @@ export default function LibraryPage() {
 
   const fileImport = useFileImport({ tr, loadItems })
   const hdtImport = useHdtImport({ tr, loadItems })
-  const librarySettings = useLibrarySettings({ tr, changeLanguageSetting, loadItems })
+  const reloadLibraryData = useCallback(async () => {
+    await Promise.all([loadItems(), loadPlaylistItems()])
+  }, [loadItems, loadPlaylistItems])
+  const librarySettings = useLibrarySettings({ tr, changeLanguageSetting, loadItems: reloadLibraryData })
 
   useEffect(() => {
     searchFilters.persist()
@@ -125,10 +129,6 @@ export default function LibraryPage() {
   useEffect(() => {
     loadItems()
   }, [loadItems])
-
-  useEffect(() => {
-    loadPlaylistItems()
-  }, [loadPlaylistItems])
 
   useEffect(() => {
     if (!libraryToast) return
@@ -200,7 +200,7 @@ export default function LibraryPage() {
     const returnTarget = detailReturnTarget
     setDetailItemId(null)
     navigate('/')
-    await loadItems()
+    await Promise.all([loadItems(), loadPlaylistItems()])
     if (returnTarget === 'playlist') {
       setPlaylistFocusRequest((value) => value + 1)
     } else {
@@ -208,19 +208,26 @@ export default function LibraryPage() {
     }
   }
 
-  const handleAddToPlaylist = async (item: Item) => {
-    if (!getViewerPath(item)) return
-    await api.playlists.addItem(item.id)
-    await loadPlaylistItems()
-    updatePlaylistCollapsed(false)
+  const handleAddToPlaylist = async (item: Item, playlistId = selectedPlaylistId): Promise<boolean> => {
+    if (!getViewerPath(item) || playlistId === undefined) return false
+    try {
+      const result = await api.playlists.addItem(item.id, undefined, playlistId)
+      if (!result.ok) { showLibraryToast(tr('playlist.error.failed'), 'error'); return false }
+      await loadPlaylistItems()
+      if (playlistId !== selectedPlaylistId) {
+        showLibraryToast(tr('playlist.added', { name: playlists.state?.lists.find(list => list.id === playlistId)?.name ?? '' }), 'success')
+      }
+      return true
+    } catch {
+      showLibraryToast(tr('playlist.error.failed'), 'error')
+      return false
+    }
   }
 
-  const handleAddToPlaylistFromLibrary = async (item: Item) => {
-    await handleAddToPlaylist(item)
-    if (getViewerPath(item)) {
-      setPlaylistFocusItemId(item.id)
-      setPlaylistFocusRequest((value) => value + 1)
-    }
+  const handleAddToPlaylistFromLibrary = async (item: Item, playlistId = selectedPlaylistId) => {
+    if (!await handleAddToPlaylist(item, playlistId) || playlistCollapsed) return
+    setPlaylistFocusItemId(playlistId === selectedPlaylistId ? item.id : null)
+    setPlaylistFocusRequest((value) => value + 1)
   }
 
   const showLibraryToast = useCallback((message: string, tone: 'success' | 'error') => {
@@ -270,38 +277,36 @@ export default function LibraryPage() {
 
   const handleDropToPlaylist = async (itemId: number, position?: number) => {
     const item = items.find((candidate) => candidate.id === itemId)
-    if (!item || !getViewerPath(item)) return
-    await api.playlists.addItem(itemId, position)
+    if (!item || !getViewerPath(item) || selectedPlaylistId === undefined || playlists.busy) return
+    await api.playlists.addItem(itemId, position, selectedPlaylistId)
     await loadPlaylistItems()
-    updatePlaylistCollapsed(false)
+    if (playlistCollapsed) return
     setPlaylistFocusItemId(itemId)
     setPlaylistFocusRequest((value) => value + 1)
   }
 
   const handleRemoveFromPlaylist = async (itemId: number) => {
-    await api.playlists.removeItem(itemId)
+    if (selectedPlaylistId === undefined) return
+    await api.playlists.removeItem(itemId, selectedPlaylistId)
     await loadPlaylistItems()
   }
 
   const handleClearPlaylist = async () => {
-    await api.playlists.clear()
+    if (selectedPlaylistId === undefined) return
+    await api.playlists.clear(selectedPlaylistId)
     await loadPlaylistItems()
   }
 
   const handleReorderPlaylistItems = async (itemIds: number[]) => {
-    setPlaylistItems((currentItems) => {
-      const itemById = new Map(currentItems.map((entry) => [entry.itemId, entry]))
-      return itemIds.map((itemId, position) => {
-        const entry = itemById.get(itemId)
-        return entry ? { ...entry, position } : entry
-      }).filter((entry): entry is PlaylistItem => Boolean(entry))
-    })
-    await api.playlists.reorderItems(itemIds)
+    if (selectedPlaylistId === undefined) return
+    await api.playlists.reorderItems(itemIds, selectedPlaylistId)
     await loadPlaylistItems()
   }
 
   const playlistPanel = (
     <PlaylistPanel
+      playlistId={selectedPlaylistId}
+      header={<PlaylistManager state={playlists.state} busy={playlists.busy} reload={loadPlaylistItems} tr={tr} />}
       items={playlistItems}
       thumbnails={playlistThumbnails}
       collapsed={playlistCollapsed}
@@ -383,6 +388,8 @@ export default function LibraryPage() {
           setPage={searchFilters.setPage}
           onOpenDetail={handleOpenDetail}
           onAddToPlaylist={handleAddToPlaylistFromLibrary}
+          playlists={playlists.state?.lists ?? []}
+          selectedPlaylistId={selectedPlaylistId}
           onMoveToProfile={handleMoveToProfile}
           onCopyToProfile={handleCopyToProfile}
           playlistPanel={playlistPanel}

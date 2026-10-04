@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Item } from '../../types'
+import { Item, Playlist } from '../../types'
 import { api } from '../../api'
 import ContextMenu, { ContextMenuEntry } from '../ContextMenu'
 import { CaretLeftIcon, CaretRightIcon } from '../icons'
@@ -18,7 +18,9 @@ interface Props {
   perPage: number
   setPage: React.Dispatch<React.SetStateAction<number>>
   onOpenDetail: (itemId: number) => void
-  onAddToPlaylist: (item: Item) => void
+  onAddToPlaylist: (item: Item, playlistId?: number) => void
+  playlists?: Playlist[]
+  selectedPlaylistId?: number
   onMoveToProfile: (item: Item, targetProfileId: number, targetProfileName: string) => Promise<boolean>
   onCopyToProfile: (item: Item, targetProfileId: number, targetProfileName: string) => Promise<boolean>
   playlistPanel?: React.ReactNode
@@ -33,6 +35,7 @@ function getFullPath(item: Item) {
 }
 
 type PaginationItem = number | 'ellipsis-start' | 'ellipsis-end'
+type LibraryContextMenu = { x: number; y: number; item: Item }
 
 function getPaginationItems(currentPage: number, totalPages: number): PaginationItem[] {
   if (totalPages <= 9) {
@@ -78,6 +81,8 @@ export default function LibraryGrid({
   setPage,
   onOpenDetail,
   onAddToPlaylist,
+  playlists = [],
+  selectedPlaylistId,
   onMoveToProfile,
   onCopyToProfile,
   playlistPanel,
@@ -88,7 +93,8 @@ export default function LibraryGrid({
   const navigate = useNavigate()
   const gridRef = useRef<HTMLDivElement>(null)
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: Item } | null>(null)
+  const [contextMenu, setContextMenu] = useState<LibraryContextMenu | null>(null)
+  const [playlistMembership, setPlaylistMembership] = useState<{ menu: LibraryContextMenu; ids: number[] } | null>(null)
   const [moveTargets, setMoveTargets] = useState<{
     itemId: number
     loading: boolean
@@ -156,11 +162,26 @@ export default function LibraryGrid({
     }
   }, [contextMenu?.item.id])
 
+  useEffect(() => {
+    if (!contextMenu) {
+      setPlaylistMembership(null)
+      return
+    }
+    let canceled = false
+    api.playlists.getItemPlaylistIds(contextMenu.item.id)
+      .then(ids => {
+        if (!canceled) setPlaylistMembership({ menu: contextMenu, ids })
+      })
+      .catch(console.error)
+    return () => { canceled = true }
+  }, [contextMenu, playlists])
+
   const contextMenuItems = useMemo<ContextMenuEntry[]>(() => {
     if (!contextMenu) return []
     const item = contextMenu.item
     const fullPath = getFullPath(item)
     const viewerPath = getViewerPath(item)
+    const currentMembership = playlistMembership?.menu === contextMenu ? playlistMembership : null
     const currentMoveTargets = moveTargets?.itemId === item.id ? moveTargets : null
     const moveTargetItems: ContextMenuEntry[] = currentMoveTargets?.loading
       ? [{
@@ -211,14 +232,19 @@ export default function LibraryGrid({
         label: tr('detail.openViewer'),
         disabled: !viewerPath || item.fileExists === false,
         onSelect: () => {
-          if (viewerPath) navigate(viewerPath, { state: { returnTo: '/' } })
+          if (viewerPath) navigate(viewerPath, { state: { returnTo: '/', playlistId: selectedPlaylistId } })
         },
       },
       {
         key: 'playlist-add',
         label: tr('playlist.addToList'),
-        disabled: !viewerPath,
-        onSelect: () => onAddToPlaylist(item),
+        disabled: !viewerPath || playlists.length === 0,
+        children: playlists.map(list => ({
+          key: `playlist-${list.id}`, label: list.name,
+          checked: currentMembership ? currentMembership.ids.includes(list.id) : undefined,
+          trailingLabel: list.id === selectedPlaylistId ? tr('playlist.current') : undefined,
+          onSelect: () => onAddToPlaylist(item, list.id),
+        })),
       },
       { key: 'separator-open', type: 'separator' },
       {
@@ -255,7 +281,7 @@ export default function LibraryGrid({
         children: copyTargetItems,
       },
     ]
-  }, [contextMenu, moveTargets, navigate, onAddToPlaylist, onCopyToProfile, onMoveToProfile, onOpenDetail, tr])
+  }, [contextMenu, moveTargets, navigate, onAddToPlaylist, onCopyToProfile, onMoveToProfile, onOpenDetail, playlists, playlistMembership, selectedPlaylistId, tr])
 
   const getColumnCount = () => {
     const grid = gridRef.current

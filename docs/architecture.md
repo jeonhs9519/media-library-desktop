@@ -119,7 +119,7 @@ Last updated: 2026-10-05
 - `itemTags`: 아이템-태그 매핑
 - `reviews`: 별점/코멘트
 - `settings`: 간단한 키-값 설정
-- `playlists`: 기본 플레이리스트
+- `playlists`: 프로필별 복수 플레이리스트
 - `playlistItems`: 플레이리스트 항목과 표시 순서
 
 ## 프로필 구조
@@ -175,9 +175,12 @@ Last updated: 2026-10-05
 
 ### `src/main/ipc/playlists.ts`
 
-- 기본 플레이리스트 조회, 항목 추가, 항목 제거, 초기화, 순서 변경을 담당합니다.
-- 항목 추가 시 target position을 받을 수 있으며, 이미 포함된 항목이면 중복 추가 대신 해당 위치로 이동합니다.
+- 프로필별 목록·건수 조회, 생성·이름 변경·삭제·선택과 목록 id별 항목 추가·제거·초기화·순서 변경을 담당합니다. 명시된 id가 다른 프로필이거나 삭제되었으면 기본 목록으로 바꾸지 않고 읽기는 빈 목록, 변경은 실패로 처리합니다.
+- `services/playlistSelection.ts`가 `playlist.activeId` 저장·복원과 유효성 보정을 관리합니다. 목록이 없을 때만 `Default`를 생성하며 기존 목록의 이름 변경·삭제 후에는 다시 만들지 않습니다.
+- `getItemPlaylistIds`는 현재 프로필에서 지정 항목이 등록된 목록 id만 조회합니다. 라이브러리 우클릭 메뉴는 목록 전체 항목이나 썸네일을 읽지 않고 이 결과로 등록 체크를 표시합니다.
+- 항목 추가 시 target position을 받을 수 있습니다. 이미 포함된 항목의 일반 추가는 순서를 유지하고, 위치를 지정한 drop은 해당 위치로 이동합니다.
 - 항목 응답에는 뷰어와 패널에서 즉시 사용할 수 있도록 `thumbnailBase64`를 포함합니다.
+- `.db` 가져오기는 `playlist.activeId`를 다른 일반 설정처럼 그대로 복사하지 않고 목록 id 매핑 후 처리합니다. 대상 프로필에 이미 선택값이 있으면 유지합니다.
 
 ### `src/renderer/src/pages/LibraryPage.tsx`
 
@@ -203,6 +206,8 @@ Last updated: 2026-10-05
 ### `src/renderer/src/components/Library/PlaylistPanel.tsx`
 
 - 라이브러리와 뷰어에서 공유하는 플레이리스트 패널입니다.
+- `PlaylistManager.tsx`가 라이브러리 전용 목록 선택·관리 Modal을 표시하며 `hooks/useLibraryPlaylists.ts`가 목록 상태·항목의 함께 갱신과 오래된 응답 폐기를 처리합니다.
+- 뷰어의 `useViewerPlaylist`는 진입 시 목록 id를 보관합니다. 라우트 state의 `playlistId`와 함께 타입 간 이동·자동 이어보기에 전달하며, 선택값을 매번 다시 읽지 않습니다.
 - 라이브러리 화면에서는 좌/우 표시 설정을 지원하되, HTML 순서는 툴바 다음, 라이브러리 본문 이전으로 유지합니다.
 - 항목 클릭으로 뷰어를 열고, 항목별 제거와 전체 초기화를 제공합니다.
 - 목록은 단일 Tab 진입 영역이며, 위/아래 방향키로 active 항목을 이동하고 `Delete` 키로 active 항목을 제거합니다.

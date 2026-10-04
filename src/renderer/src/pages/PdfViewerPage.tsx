@@ -7,7 +7,6 @@ import BookViewerOverlay, { useBookViewerViewMode } from '../components/BookView
 import { useBookViewerOverlayUx } from '../components/BookViewerOverlay/useBookViewerOverlayUx.ts'
 import { useBookViewerKeyboard } from '../components/BookViewerOverlay/useBookViewerKeyboard.ts'
 import Toast, { useToast } from '../components/Toast'
-import { getNextPlaylistViewerPath } from '../playlistAutoAdvance'
 import BookScrollView, { type BookScrollHandle } from '../components/BookScrollView'
 import PdfScrollPage from '../components/PdfScrollPage'
 import { useBookScrollPosition } from '../useBookScrollPosition'
@@ -246,16 +245,12 @@ export default function PdfViewerPage() {
 
   const goToNextPageByStep = useCallback((step: number) => {
     if (pageCount > 0 && currentPage + step > pageCount) {
-      getNextPlaylistViewerPath(itemId)
-        .then((nextPath) => {
-          if (nextPath) navigate(nextPath, { state: { returnTo } })
-        })
-        .catch(console.error)
+      viewerPlaylist.advance().catch(console.error)
       return
     }
 
     setCurrentPage((p) => clampPage(p + step, pageCount))
-  }, [currentPage, itemId, navigate, pageCount, returnTo])
+  }, [currentPage, pageCount, viewerPlaylist.advance])
 
   useEffect(() => { if (viewMode !== 'scroll') flushScrollPosition() }, [viewMode, flushScrollPosition])
 
@@ -398,6 +393,7 @@ export default function PdfViewerPage() {
       onReorderPlaylistItems={viewerPlaylist.reorderItems}
       onClearPlaylist={viewerPlaylist.clear}
       viewerReturnTo={returnTo}
+      playlistId={viewerPlaylist.playlistId}
       contextMenu={contextMenu}
       onCloseContextMenu={closeContextMenu}
       contextMenuId="pdf-context-menu"

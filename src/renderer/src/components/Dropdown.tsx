@@ -4,6 +4,7 @@ import { CaretBottomIcon, CaretUpIcon } from './icons'
 export type DropdownOption = {
   value: string
   label: string
+  count?: number
   disabled?: boolean
 }
 
@@ -44,7 +45,7 @@ export default function Dropdown({
   const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : null
   const listboxId = `${id}-listbox`
   const activeOptionId = activeIndex >= 0 ? `${id}-option-${activeIndex}` : undefined
-  const classes = ['dropdown', className].filter(Boolean).join(' ')
+  const classes = ['dropdown', className, typeof selectedOption?.count === 'number' ? 'has-count' : ''].filter(Boolean).join(' ')
 
   const firstEnabledIndex = useMemo(
     () => options.findIndex((option) => !option.disabled),
@@ -149,6 +150,7 @@ export default function Dropdown({
         <span className={`dropdown-value${selectedOption ? '' : ' is-placeholder'}`}>
           {selectedOption?.label || ''}
         </span>
+        {typeof selectedOption?.count === 'number' ? <span className="dropdown-count">{selectedOption.count}</span> : null}
         <span className="dropdown-caret">
           {open ? <CaretUpIcon size={16} /> : <CaretBottomIcon size={16} />}
         </span>
@@ -174,7 +176,8 @@ export default function Dropdown({
               }}
               onClick={() => selectIndex(index)}
             >
-              {option.label}
+              <span className="dropdown-option-label">{option.label}</span>
+              {typeof option.count === 'number' ? <span className="dropdown-count">{option.count}</span> : null}
             </button>
           ))}
         </div>

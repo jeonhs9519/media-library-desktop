@@ -28,6 +28,8 @@ type Props = {
   focusRequest?: number
   focusItemId?: number | null
   tr: Translate
+  header?: React.ReactNode
+  playlistId?: number
 }
 
 function hasDragType(event: React.DragEvent, type: string) {
@@ -88,6 +90,8 @@ export default function PlaylistPanel({
   focusRequest = 0,
   focusItemId = null,
   tr,
+  header,
+  playlistId,
 }: Props) {
   const navigate = useNavigate()
   const draggingPlaylistItemIdRef = useRef<number | null>(null)
@@ -102,6 +106,7 @@ export default function PlaylistPanel({
   const itemElementRefs = useRef(new Map<number, HTMLDivElement>())
   const itemsContainerRef = useRef<HTMLDivElement | null>(null)
   const pendingFocusIndexRef = useRef<number | null>(null)
+  const handledFocusRequestRef = useRef(0)
   const suppressNextClickRef = useRef(false)
   const dropTargetIndexRef = useRef<number | null>(null)
   const [draggingPlaylistItemId, setDraggingPlaylistItemId] = useState<number | null>(null)
@@ -112,6 +117,13 @@ export default function PlaylistPanel({
   const collapseIcon = position === 'right'
     ? collapsed ? <CaretLeftIcon /> : <CaretRightIcon />
     : collapsed ? <CaretRightIcon /> : <CaretLeftIcon />
+
+  useEffect(() => {
+    setActiveIndex(0)
+    setContextMenu(null)
+    setDropTargetIndex(null)
+    dropTargetIndexRef.current = null
+  }, [playlistId])
 
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault()
@@ -132,7 +144,9 @@ export default function PlaylistPanel({
   }, [items.length])
 
   useEffect(() => {
-    if (!focusRequest || collapsed) return
+    if (!focusRequest || handledFocusRequestRef.current === focusRequest) return
+    handledFocusRequestRef.current = focusRequest
+    if (collapsed) return
 
     window.setTimeout(() => {
       if (focusItemId) {
@@ -297,7 +311,7 @@ export default function PlaylistPanel({
 
   const openViewer = (item: Item) => {
     const path = getViewerPath(item)
-    if (path) navigate(path, { state: { returnTo: viewerReturnTo } })
+    if (path) navigate(path, { state: { returnTo: viewerReturnTo, playlistId } })
   }
 
   const handleItemKeyDown = (event: React.KeyboardEvent, item: Item) => {
@@ -474,7 +488,7 @@ export default function PlaylistPanel({
 
       {!collapsed && (
         <>
-          {!viewerMode && (
+          {!viewerMode && header ? <div className="playlist-header">{header}</div> : !viewerMode && (
             <div className="playlist-header">
               <div>
                 <h2>{tr('playlist.title')}</h2>

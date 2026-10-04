@@ -22,7 +22,6 @@ import {
 } from '../components/icons'
 import ContextMenu, { ContextMenuEntry } from '../components/ContextMenu'
 import Toast, { useToast } from '../components/Toast'
-import { getNextPlaylistViewerPath } from '../playlistAutoAdvance'
 import { useViewerPlaylist } from '../useViewerPlaylist'
 import PlaylistPanel from '../components/Library/PlaylistPanel'
 import { useViewerIdle } from '../useViewerIdle'
@@ -276,8 +275,7 @@ export default function VideoPlayerPage() {
       lastPositionSeconds: video?.duration ?? 0,
     })
 
-    const nextPath = await getNextPlaylistViewerPath(itemId)
-    if (nextPath) navigate(nextPath, { state: { returnTo } })
+    await viewerPlaylist.advance()
   }
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -901,6 +899,7 @@ export default function VideoPlayerPage() {
                 onClear={viewerPlaylist.clear}
                 onReorderItems={viewerPlaylist.reorderItems}
                 viewerReturnTo={returnTo}
+                playlistId={viewerPlaylist.playlistId}
                 showCollapseButton={false}
                 viewerMode
                 currentItemId={itemId}
