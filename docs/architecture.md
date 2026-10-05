@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-10-05
+Last updated: 2026-10-06
 
 ## 개요
 
@@ -111,11 +111,12 @@ Last updated: 2026-10-05
 - 설정 팝업의 `과거 데이터 불러오기`에서 사용자가 직접 기존 `media-library.db`를 선택합니다.
 - 설정 팝업 내 진입 UI는 숨김 `input:file`, 파일명을 표시하는 readonly text input, `불러오기` 버튼으로 구성합니다.
 - `src/main/ipc/legacyDatabase.ts`는 선택한 DB를 읽기 전용으로 열어 `items` 테이블과 주요 컬럼을 확인하고, 중복/제외 항목 통계를 미리보기로 반환합니다.
-- 미리보기 Modal은 720px 폭의 `설정`, `태그`, `파일 정보` 아코디언으로 구성하며, 가져오지 않는 항목은 낮은 opacity로 표시합니다.
-- 가져오기 적용 시 중복되지 않은 `items`를 먼저 추가하고, 연결 가능한 `tags`, `itemTags`, `reviews`, `settings`, `playlists`, `playlistItems`를 현재 DB id 기준으로 매핑합니다.
-- 과거 DB 가져오기는 이미 active profile이 선택된 상태에서 실행하므로, 가져온 항목/태그/플레이리스트는 현재 프로필에 귀속합니다.
+- 미리보기 Modal은 720px 폭의 `프로필 관리`, `설정`, `태그`, `파일 정보` 아코디언으로 구성하며 대상 프로필을 표시합니다. 미리보기는 DB를 변경하지 않고, 파일 항목이 없어도 프로필·설정을 가져올 수 있습니다.
+- 가져오기 적용 시 `profiles`를 이름으로 연결하거나 생성하고, 중복되지 않은 `items`와 연결 가능한 `tags`, `itemTags`, `reviews`, `settings`, `playlists`, `playlistItems`를 현재 DB id 기준으로 매핑합니다. 프로필 생성부터 태그 정리까지 하나의 transaction으로 처리합니다.
+- 원본 사용자 프로필의 소속을 복원합니다. GUEST는 GUEST에 연결하고, 프로필 정보가 없는 행과 UNASSIGNED는 현재 프로필에 등록합니다. 존재하지 않는 사용자 프로필 참조는 오류로 처리합니다. 태그·플레이리스트의 연결이 다른 프로필의 항목으로 이어지지 않도록 검사합니다.
 - 기존 설정값은 같은 프로필 범위에 같은 key가 없을 때만 가져옵니다. 단, `SYSTEM` 설정 키는 `SYSTEM` 프로필 기준으로 처리합니다.
-- 가져오기 후 실제로 사용되지 않는 태그는 `cleanupUnusedTags`로 삭제합니다.
+- `playlist.activeId`, `profile.lastActiveId`, `profile.lastActiveIds`는 새 ID로 치환합니다. 현재 스키마의 모든 항목 필드를 가져오며 원본에 없는 필드는 지정된 기본값 또는 NULL을 사용합니다. 기존 빈 문자열과 실제 파일 경로·파일명은 보존합니다.
+- 가져오기에서 매핑한 태그 중 실제로 사용되지 않는 태그만 transaction 안에서 정리합니다.
 
 ## Renderer Route Loading
 

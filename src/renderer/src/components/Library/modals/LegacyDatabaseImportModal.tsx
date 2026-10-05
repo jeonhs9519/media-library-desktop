@@ -26,7 +26,7 @@ function getReasonLabel(item: LegacyDatabasePreviewItem, tr: Translate) {
   return tr('settings.legacyDb.reason.ready')
 }
 
-type AccordionId = 'settings' | 'tags' | 'items'
+type AccordionId = 'profiles' | 'settings' | 'tags' | 'items'
 
 export default function LegacyDatabaseImportModal({
   open,
@@ -37,6 +37,7 @@ export default function LegacyDatabaseImportModal({
   tr,
 }: Props) {
   const [openPanels, setOpenPanels] = useState<Record<AccordionId, boolean>>({
+    profiles: true,
     settings: true,
     tags: true,
     items: true,
@@ -75,6 +76,16 @@ export default function LegacyDatabaseImportModal({
           </div>
 
           <div className="legacy-db-accordion-list">
+            <AccordionSection id="profiles" title={tr('settings.profile.title')}
+              count={preview.profiles?.length ?? 0} open={openPanels.profiles} onToggle={togglePanel}>
+              {preview.profiles?.length ? preview.profiles.map(profile => (
+                <div className="legacy-db-data-row" key={profile.id}>
+                  <div className="legacy-db-data-title">{profile.name}</div>
+                  <div className="legacy-db-data-state">{profile.exists
+                    ? tr('settings.legacyDb.reason.duplicate') : tr('settings.legacyDb.reason.ready')}</div>
+                </div>
+              )) : <div className="legacy-db-empty">{tr('settings.legacyDb.empty')}</div>}
+            </AccordionSection>
             <AccordionSection
               id="settings"
               title={tr('settings.legacyDb.accordion.settings')}
@@ -85,7 +96,7 @@ export default function LegacyDatabaseImportModal({
               {preview.settings.length ? (
                 <div className="legacy-db-data-list">
                   {preview.settings.map((setting) => (
-                    <SettingRow key={setting.key} setting={setting} tr={tr} />
+                    <SettingRow key={`${setting.profileName}:${setting.key}`} setting={setting} tr={tr} />
                   ))}
                 </div>
               ) : (
@@ -135,7 +146,7 @@ export default function LegacyDatabaseImportModal({
             <button className="btn-secondary" onClick={onClose} disabled={importing}>
               {tr('common.cancel')}
             </button>
-            <button className="btn-primary" onClick={onApply} disabled={importing || !preview.ok || importableCount <= 0}>
+            <button className="btn-primary" onClick={onApply} disabled={importing || !preview.ok}>
               {importing ? tr('common.loading') : tr('settings.legacyDb.apply')}
             </button>
           </div>
@@ -184,6 +195,7 @@ function SettingRow({ setting, tr }: { setting: LegacyDatabasePreviewSetting; tr
     <div className={`legacy-db-data-row${setting.exists ? ' is-muted' : ''}`}>
       <div className="legacy-db-data-main">
         <div className="legacy-db-data-title">{setting.key}</div>
+        <div className="legacy-db-data-subline">{setting.profileName}</div>
         <div className="legacy-db-data-subline" title={setting.value}>{setting.value}</div>
       </div>
       <div className="legacy-db-data-state">
@@ -196,7 +208,7 @@ function SettingRow({ setting, tr }: { setting: LegacyDatabasePreviewSetting; tr
 function TagChip({ tag, tr }: { tag: LegacyDatabasePreviewTag; tr: Translate }) {
   return (
     <span className={`legacy-db-tag-chip${tag.exists ? ' is-muted' : ''}`} title={tag.name}>
-      {tag.name}
+      {tag.profileName ? `${tag.profileName}: ` : ''}{tag.name}
       <span>{tag.exists ? tr('settings.legacyDb.reason.duplicate') : tr('settings.legacyDb.reason.ready')}</span>
     </span>
   )
@@ -218,6 +230,7 @@ function ItemRow({ item, tr }: { item: LegacyDatabasePreviewItem; tr: Translate 
           {item.filePath}\\{fileLabel}
         </div>
         <div className="legacy-db-item-meta">
+          <span>{item.profileName}</span>
           <span>{tr('detail.contentType')}: {tr(`filters.type.${item.contentType}`)}</span>
           <span>{tr('settings.legacyDb.item.progress')}: {Math.round(item.progress * 100)}%</span>
           <span>{tr('settings.legacyDb.item.watched')}: {item.watched ? tr('common.ok') : tr('detail.unknown')}</span>

@@ -1,4 +1,6 @@
 export const jaMessages: Record<string, string> = {
+  'settings.legacyDb.help': '既存の .db ファイルからプロフィールとデータを読み込みます。同名のプロフィールは統合し、既存の重複データは保持します。プロフィール情報がないデータは現在のプロフィールに登録します。',
+  'settings.legacyDb.done': 'プロフィールを{profiles}件作成し、項目を{imported}件読み込みました。重複・無効な項目{skipped}件は除外しました。',
   'playlist.select': 'プレイリストを選択',
   'playlist.current': '(現在)',
   'playlist.create': '作成',

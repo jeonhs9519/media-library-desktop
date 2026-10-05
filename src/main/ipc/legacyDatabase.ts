@@ -2,9 +2,8 @@ import { ipcMain } from 'electron'
 import Database from 'better-sqlite3'
 import fs from 'fs'
 import path from 'path'
-import { and, eq } from 'drizzle-orm'
-import { SYSTEM_PROFILE_ID, itemTags, items, playlistItems, playlists, reviews, settings, tags } from '../db/schema'
-import { cleanupUnusedTags } from '../services/tagMaintenance'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import { SYSTEM_PROFILE_ID, UNASSIGNED_PROFILE_ID, GUEST_PROFILE_ID, profiles, itemTags, items, playlistItems, playlists, reviews, settings, tags } from '../db/schema'
 import { getActiveProfileId } from '../services/profileState'
 import { PLAYLIST_SELECTION_KEY, setSelectedPlaylist } from '../services/playlistSelection'
 import { detectContainerType, getDefaultContentType } from '../utils/titleNormalizer'
@@ -13,6 +12,7 @@ import type { DB } from './items/utils'
 type LegacyRow = Record<string, unknown>
 
 type LegacyPreviewItem = {
+  profileName: string
   previewId: string
   legacyId: number
   title: string
@@ -31,18 +31,21 @@ type LegacyPreviewItem = {
 }
 
 type LegacyPreviewSetting = {
+  profileName: string
   key: string
   value: string
   exists: boolean
 }
 
 type LegacyPreviewTag = {
+  profileName: string
   id: number
   name: string
   exists: boolean
 }
 
 type LegacyPreviewResult = {
+  profiles: Array<{ id: number; name: string; exists: boolean }>
   ok: boolean
   filePath?: string
   message?: string
@@ -124,7 +127,7 @@ function optionalNumberValue(row: LegacyRow, key: string) {
 
 function optionalStringValue(row: LegacyRow, key: string) {
   const value = row[key]
-  if (typeof value === 'string' && value.trim()) return value
+  if (typeof value === 'string') return value.trim() ? value : ''
   return undefined
 }
 
@@ -133,9 +136,43 @@ function optionalBufferValue(row: LegacyRow, key: string) {
   return Buffer.isBuffer(value) ? value : undefined
 }
 
-function getSettingProfileId(key: string) {
-  return SYSTEM_SETTING_KEYS.has(key) ? SYSTEM_PROFILE_ID : getActiveProfileId()
+function buildProfileMapping(db: DB | Parameters<Parameters<DB['transaction']>[0]>[0], rows: LegacyRow[], create = false) {
+  const mapping = new Map<number, number>([
+    [SYSTEM_PROFILE_ID, SYSTEM_PROFILE_ID],
+    [UNASSIGNED_PROFILE_ID, getActiveProfileId()],
+    [GUEST_PROFILE_ID, GUEST_PROFILE_ID],
+  ])
+  const preview: LegacyPreviewResult['profiles'] = []
+  for (const row of rows) {
+    const id = numberValue(row, 'id')
+    const name = stringValue(row, 'name').trim()
+    if (!Number.isInteger(id) || id <= 0 || !name) throw new Error('유효하지 않은 원본 프로필입니다.')
+    if (id <= GUEST_PROFILE_ID) continue
+    if (['SYSTEM', 'UNASSIGNED', 'GUEST'].includes(name) || name.length > 16) throw new Error(`유효하지 않은 프로필 이름: ${name}`)
+    const existing = db.select().from(profiles).where(eq(profiles.name, name)).get()
+    const now = Date.now()
+    const targetId = existing?.id ?? (create
+      ? db.insert(profiles).values({ name, createdAt: numberValue(row, 'createdAt', now), updatedAt: numberValue(row, 'updatedAt', now) }).returning().get().id
+      : -id)
+    mapping.set(id, targetId)
+    preview.push({ id, name, exists: Boolean(existing) })
+  }
+  const resolve = (row: LegacyRow, key?: string) => {
+    if (key && SYSTEM_SETTING_KEYS.has(key)) return SYSTEM_PROFILE_ID
+    if (row.profileId == null) return getActiveProfileId()
+    const id = mapping.get(numberValue(row, 'profileId'))
+    if (id == null) throw new Error(`원본 프로필을 찾을 수 없습니다: ${row.profileId}`)
+    return id
+  }
+  const name = (row: LegacyRow, key?: string) => {
+    const id = resolve(row, key)
+    return id < 0 ? preview.find(profile => profile.id === -id)!.name
+      : db.select().from(profiles).where(eq(profiles.id, id)).get()?.name ?? ''
+  }
+  return { mapping, resolve, name, preview }
 }
+
+type ProfileMapping = ReturnType<typeof buildProfileMapping>
 
 function validateLegacyDatabase(sqlite: Database.Database) {
   const tables = getTables(sqlite)
@@ -157,17 +194,18 @@ function makePreviewItem(
   row: LegacyRow,
   tagNamesByItemId: Map<number, string[]>,
   reviewByItemId: Map<number, LegacyRow>,
+  profileMapping: ProfileMapping,
 ): LegacyPreviewItem {
   const legacyId = numberValue(row, 'id')
-  const filePath = stringValue(row, 'filePath').trim()
-  const fileName = stringValue(row, 'fileName').trim()
-  const fileExtension = stringValue(row, 'fileExtension').trim()
+  const filePath = stringValue(row, 'filePath')
+  const fileName = stringValue(row, 'fileName')
+  const fileExtension = stringValue(row, 'fileExtension')
   const title = stringValue(row, 'title').trim()
   const contentType = stringValue(row, 'contentType').trim() || getDefaultContentType(detectContainerType(fileExtension))
   const review = reviewByItemId.get(legacyId)
 
   const invalid = !legacyId || !filePath || !fileName || !title
-  const activeProfileId = getActiveProfileId()
+  const activeProfileId = profileMapping.resolve(row)
   const duplicate = invalid
     ? false
     : Boolean(db.select({ id: items.id }).from(items)
@@ -180,6 +218,7 @@ function makePreviewItem(
       .get())
 
   return {
+    profileName: profileMapping.name(row),
     previewId: String(legacyId),
     legacyId,
     title,
@@ -198,12 +237,13 @@ function makePreviewItem(
   }
 }
 
-function buildPreviewTags(db: DB, rows: LegacyRow[]): LegacyPreviewTag[] {
-  const activeProfileId = getActiveProfileId()
+function buildPreviewTags(db: DB, rows: LegacyRow[], profileMapping: ProfileMapping): LegacyPreviewTag[] {
   return rows.map((row) => {
+    const activeProfileId = profileMapping.resolve(row)
     const id = numberValue(row, 'id')
     const name = stringValue(row, 'name').trim()
     return {
+      profileName: profileMapping.name(row),
       id,
       name,
       exists: name
@@ -213,11 +253,12 @@ function buildPreviewTags(db: DB, rows: LegacyRow[]): LegacyPreviewTag[] {
   }).filter(tag => tag.id && tag.name)
 }
 
-function buildPreviewSettings(db: DB, rows: LegacyRow[]): LegacyPreviewSetting[] {
+function buildPreviewSettings(db: DB, rows: LegacyRow[], profileMapping: ProfileMapping): LegacyPreviewSetting[] {
   return rows.map((row) => {
     const key = stringValue(row, 'key').trim()
-    const profileId = getSettingProfileId(key)
+    const profileId = profileMapping.resolve(row, key)
     return {
+      profileName: profileMapping.name(row, key),
       key,
       value: stringValue(row, 'value'),
       exists: key
@@ -256,6 +297,7 @@ function buildPreview(db: DB, dbPath: string): LegacyPreviewResult {
     const validation = validateLegacyDatabase(sqlite)
     if (!validation.ok) {
       return {
+        profiles: [],
         ok: false,
         filePath: dbPath,
         message: validation.message,
@@ -275,16 +317,18 @@ function buildPreview(db: DB, dbPath: string): LegacyPreviewResult {
       }
     }
 
+    const profileMapping = buildProfileMapping(db, readTable(sqlite, 'profiles', validation.tables))
     const itemRows = readTable(sqlite, 'items', validation.tables)
-    const tagRows = buildPreviewTags(db, readTable(sqlite, 'tags', validation.tables))
-    const settingRows = buildPreviewSettings(db, readTable(sqlite, 'settings', validation.tables))
+    const tagRows = buildPreviewTags(db, readTable(sqlite, 'tags', validation.tables), profileMapping)
+    const settingRows = buildPreviewSettings(db, readTable(sqlite, 'settings', validation.tables), profileMapping)
     const tagNamesByItemId = buildTagNamesByItemId(tagRows, readTable(sqlite, 'itemTags', validation.tables))
     const reviewByItemId = buildReviewByItemId(readTable(sqlite, 'reviews', validation.tables))
-    const previewItems = itemRows.map(row => makePreviewItem(db, row, tagNamesByItemId, reviewByItemId))
+    const previewItems = itemRows.map(row => makePreviewItem(db, row, tagNamesByItemId, reviewByItemId, profileMapping))
     const duplicateItemCount = previewItems.filter(item => item.disabledReason === 'duplicate').length
     const invalidItemCount = previewItems.filter(item => item.disabledReason === 'invalid_entry').length
 
     return {
+      profiles: profileMapping.preview,
       ok: true,
       filePath: dbPath,
       settings: settingRows,
@@ -321,7 +365,7 @@ function importLegacyDatabase(db: DB, dbPath: string) {
   let importedReviews = 0
   let importedPlaylistItems = 0
   let importedSettings = 0
-  const activeProfileId = getActiveProfileId()
+  let importedProfiles = 0
 
   const sqlite = openLegacyDatabase(dbPath)
   try {
@@ -331,17 +375,19 @@ function importLegacyDatabase(db: DB, dbPath: string) {
     }
 
     db.transaction((tx) => {
+      const profileMapping = buildProfileMapping(tx, readTable(sqlite, 'profiles', validation.tables), true)
+      importedProfiles = profileMapping.preview.filter(profile => !profile.exists).length
       for (const row of readTable(sqlite, 'items', validation.tables)) {
         const legacyId = numberValue(row, 'id')
         if (!importableLegacyIds.has(legacyId)) continue
 
         const now = Date.now()
-        const fileExtension = stringValue(row, 'fileExtension').trim()
+        const fileExtension = stringValue(row, 'fileExtension')
         const contentType = stringValue(row, 'contentType').trim() || getDefaultContentType(detectContainerType(fileExtension))
         const inserted = tx.insert(items).values({
-          profileId: activeProfileId,
-          filePath: stringValue(row, 'filePath').trim(),
-          fileName: stringValue(row, 'fileName').trim(),
+          profileId: profileMapping.resolve(row),
+          filePath: stringValue(row, 'filePath'),
+          fileName: stringValue(row, 'fileName'),
           fileExtension,
           title: stringValue(row, 'title').trim(),
           sourceUrl: optionalStringValue(row, 'sourceUrl'),
@@ -368,6 +414,7 @@ function importLegacyDatabase(db: DB, dbPath: string) {
       }
 
       for (const row of readTable(sqlite, 'tags', validation.tables)) {
+        const activeProfileId = profileMapping.resolve(row)
         const legacyTagId = numberValue(row, 'id')
         const name = stringValue(row, 'name').trim()
         if (!legacyTagId || !name) continue
@@ -382,6 +429,9 @@ function importLegacyDatabase(db: DB, dbPath: string) {
         const currentItemId = legacyToCurrentItemId.get(numberValue(row, 'itemId'))
         const currentTagId = legacyToCurrentTagId.get(numberValue(row, 'tagId'))
         if (!currentItemId || !currentTagId) continue
+        const item = tx.select().from(items).where(eq(items.id, currentItemId)).get()!
+        const tag = tx.select().from(tags).where(eq(tags.id, currentTagId)).get()!
+        if (item.profileId !== tag.profileId) continue
         tx.insert(itemTags).values({ itemId: currentItemId, tagId: currentTagId }).onConflictDoNothing().run()
       }
 
@@ -401,9 +451,20 @@ function importLegacyDatabase(db: DB, dbPath: string) {
 
       for (const row of readTable(sqlite, 'settings', validation.tables)) {
         const key = stringValue(row, 'key').trim()
-        const value = stringValue(row, 'value')
+        let value = stringValue(row, 'value')
         if (!key || key === PLAYLIST_SELECTION_KEY) continue
-        const profileId = getSettingProfileId(key)
+        const profileId = profileMapping.resolve(row, key)
+        if (key === 'profile.lastActiveId') {
+          const mappedId = profileMapping.mapping.get(Number(value))
+          value = String(mappedId && mappedId > UNASSIGNED_PROFILE_ID ? mappedId : GUEST_PROFILE_ID)
+        }
+        if (key === 'profile.lastActiveIds') {
+          let ids: unknown
+          try { ids = JSON.parse(value) } catch { ids = value.split(',') }
+          const mappedIds = Array.isArray(ids) ? ids.map(id => profileMapping.mapping.get(Number(id)))
+            .filter((id): id is number => id != null && id > UNASSIGNED_PROFILE_ID) : []
+          value = JSON.stringify([...new Set(mappedIds)].slice(0, 2))
+        }
         const existing = tx.select({ key: settings.key }).from(settings).where(and(eq(settings.profileId, profileId), eq(settings.key, key))).get()
         if (existing) continue
         tx.insert(settings).values({ profileId, key, value }).run()
@@ -412,6 +473,7 @@ function importLegacyDatabase(db: DB, dbPath: string) {
 
       const legacyToCurrentPlaylistId = new Map<number, number>()
       for (const row of readTable(sqlite, 'playlists', validation.tables)) {
+        const activeProfileId = profileMapping.resolve(row)
         const legacyPlaylistId = numberValue(row, 'id')
         const name = stringValue(row, 'name').trim()
         if (!legacyPlaylistId || !name) continue
@@ -426,19 +488,26 @@ function importLegacyDatabase(db: DB, dbPath: string) {
         legacyToCurrentPlaylistId.set(legacyPlaylistId, currentPlaylist.id)
       }
 
-      const existingSelection = tx.select().from(settings)
-        .where(and(eq(settings.profileId, activeProfileId), eq(settings.key, PLAYLIST_SELECTION_KEY))).get()
-      if (!existingSelection) {
-        const sourceSelection = readTable(sqlite, 'settings', validation.tables)
-          .find(row => stringValue(row, 'key') === PLAYLIST_SELECTION_KEY)
-        const selectedId = sourceSelection ? legacyToCurrentPlaylistId.get(numberValue(sourceSelection, 'value')) : undefined
-        if (selectedId) { setSelectedPlaylist(tx, activeProfileId, selectedId); importedSettings++ }
+      for (const row of readTable(sqlite, 'settings', validation.tables)) {
+        if (stringValue(row, 'key') !== PLAYLIST_SELECTION_KEY) continue
+        const profileId = profileMapping.resolve(row)
+        const existingSelection = tx.select().from(settings)
+          .where(and(eq(settings.profileId, profileId), eq(settings.key, PLAYLIST_SELECTION_KEY))).get()
+        const selectedId = legacyToCurrentPlaylistId.get(numberValue(row, 'value'))
+        const selected = selectedId ? tx.select().from(playlists).where(eq(playlists.id, selectedId)).get() : undefined
+        if (!existingSelection && selected?.profileId === profileId) {
+          setSelectedPlaylist(tx, profileId, selected.id)
+          importedSettings++
+        }
       }
 
       for (const row of readTable(sqlite, 'playlistItems', validation.tables)) {
         const currentPlaylistId = legacyToCurrentPlaylistId.get(numberValue(row, 'playlistId'))
         const currentItemId = legacyToCurrentItemId.get(numberValue(row, 'itemId'))
         if (!currentPlaylistId || !currentItemId) continue
+        const playlist = tx.select().from(playlists).where(eq(playlists.id, currentPlaylistId)).get()!
+        const item = tx.select().from(items).where(eq(items.id, currentItemId)).get()!
+        if (playlist.profileId !== item.profileId) continue
         tx.insert(playlistItems).values({
           playlistId: currentPlaylistId,
           itemId: currentItemId,
@@ -447,9 +516,12 @@ function importLegacyDatabase(db: DB, dbPath: string) {
         }).onConflictDoNothing().run()
         importedPlaylistItems++
       }
+      const tagIds = [...legacyToCurrentTagId.values()]
+      if (tagIds.length) tx.delete(tags).where(and(inArray(tags.id, tagIds), sql`NOT EXISTS (
+        SELECT 1 FROM ${itemTags} WHERE ${itemTags.tagId} = ${tags.id}
+      )`)).run()
     })
 
-    cleanupUnusedTags(db)
     return {
       ok: true,
       imported,
@@ -458,6 +530,7 @@ function importLegacyDatabase(db: DB, dbPath: string) {
       importedReviews,
       importedPlaylistItems,
       importedSettings,
+      importedProfiles,
     }
   } finally {
     sqlite.close()
@@ -496,6 +569,7 @@ export function registerLegacyDatabaseIPC(db: DB) {
 
 function buildEmptyPreview(filePath: string | undefined, message: string): LegacyPreviewResult {
   return {
+    profiles: [],
     ok: false,
     filePath,
     message,

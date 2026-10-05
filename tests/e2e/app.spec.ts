@@ -65,6 +65,47 @@ test.describe('profile and data flows', () => {
     await rm(directory, { recursive: true, force: true })
   })
 
+  for (const withMedia of [true, false]) {
+    test(`legacy db import restores a profile through the UI (${withMedia ? 'with media' : 'empty'})`, async () => {
+      const sourceDirectory = path.join(directory, 'previous')
+      await cp(path.join(root, 'src/main/db/migrations'), path.join(sourceDirectory, 'src/main/db/migrations'), { recursive: true })
+      const previous = await launch(sourceDirectory)
+      try {
+        await expect(previous.page.getByRole('heading', { name: '프로필 선택' })).toBeVisible()
+        await previous.page.getByPlaceholder('프로필명 입력').fill('Imported Reader')
+        await previous.page.getByPlaceholder('프로필명 입력').press('Enter')
+        await expect(previous.page.locator('.library-main-area')).toBeVisible()
+        if (withMedia) await call(previous.page, 'items', 'add', {
+          filePath: sourceDirectory, fileName: 'previous', fileExtension: 'pdf', title: 'Previous book',
+        })
+        await call(previous.page, 'settings', 'set', 'playlist.position', 'left')
+      } finally {
+        await previous.app.close()
+      }
+      await page.getByRole('button', { name: '선택한 프로필로 시작' }).click()
+      await expect(page.locator('.library-main-area')).toBeVisible()
+      await page.getByRole('button', { name: '설정', exact: true }).click()
+      await page.locator('.settings-tabs').getByRole('button', { name: '프로필 관리', exact: true }).click()
+      const section = page.locator('.settings-section').filter({ has: page.getByRole('heading', { name: '과거 데이터 불러오기', exact: true }) })
+      await section.locator('input[type="file"]').setInputFiles(path.join(sourceDirectory, 'media-library.db'))
+      await section.getByRole('button', { name: '불러오기', exact: true }).click()
+      const preview = page.getByRole('dialog', { name: '과거 데이터 가져오기' })
+      await expect(preview).toContainText('Imported Reader')
+      const apply = preview.getByRole('button', { name: '가져오기', exact: true })
+      await expect(apply).toBeEnabled()
+      await apply.click()
+      await expect(preview).toHaveCount(0)
+      await expect(section.locator('.settings-notice')).toContainText('프로필 1개')
+      expect((await call<any>(page, 'items', 'getAll')).total).toBe(0)
+      await page.getByRole('button', { name: '프로필 전환', exact: true }).click()
+      await page.getByRole('radio').filter({ hasText: 'Imported Reader' }).click()
+      await page.getByRole('button', { name: '선택한 프로필로 시작' }).click()
+      await expect(page.locator('.library-main-area')).toBeVisible()
+      await expect(page.locator('.library-card')).toHaveCount(withMedia ? 1 : 0)
+      expect(await call(page, 'settings', 'get', 'playlist.position')).toBe('left')
+    })
+  }
+
   test('regression: cancels file and HDT imports and rejects malformed previews without writing', async () => {
     await page.getByRole('button', { name: '선택한 프로필로 시작' }).click()
     await app.evaluate(({ ipcMain }) => {

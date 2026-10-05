@@ -300,11 +300,13 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems, onIte
       }
 
       setLegacyDbNotice(tr('settings.legacyDb.done', {
+        profiles: Number(result?.importedProfiles ?? 0),
         imported: Number(result?.imported ?? 0),
         skipped: Number(result?.skipped ?? 0),
       }))
       setLegacyDbPreviewOpen(false)
       setLegacyDbPreview(null)
+      await syncProfileStatus()
       if (Number(result?.imported ?? 0) > 0 && onItemsAdded) await onItemsAdded()
       else await loadItems()
     } catch (error: any) {
@@ -312,7 +314,7 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems, onIte
     } finally {
       setLegacyDbImporting(false)
     }
-  }, [legacyDbImporting, legacyDbPath, loadItems, onItemsAdded, tr])
+  }, [legacyDbImporting, legacyDbPath, loadItems, onItemsAdded, syncProfileStatus, tr])
 
   return {
     settingsModalOpen,

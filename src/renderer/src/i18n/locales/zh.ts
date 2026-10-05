@@ -1,4 +1,6 @@
 export const zhMessages: Record<string, string> = {
+  'settings.legacyDb.help': '从现有 .db 文件导入资料档案和数据。同名档案会合并，并保留现有的重复数据。没有档案信息的数据会添加到当前档案。',
+  'settings.legacyDb.done': '已创建 {profiles} 个档案，导入 {imported} 个条目，并跳过 {skipped} 个重复或无效条目。',
   'playlist.select': '选择播放列表',
   'playlist.current': '(当前)',
   'playlist.create': '创建',

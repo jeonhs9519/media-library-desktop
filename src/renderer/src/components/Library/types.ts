@@ -34,6 +34,7 @@ export type HdtPreviewResponse = {
 }
 
 export type LegacyDatabasePreviewItem = {
+  profileName?: string
   previewId: string
   legacyId: number
   title: string
@@ -52,18 +53,21 @@ export type LegacyDatabasePreviewItem = {
 }
 
 export type LegacyDatabasePreviewSetting = {
+  profileName?: string
   key: string
   value: string
   exists: boolean
 }
 
 export type LegacyDatabasePreviewTag = {
+  profileName?: string
   id: number
   name: string
   exists: boolean
 }
 
 export type LegacyDatabasePreview = {
+  profiles?: Array<{ id: number; name: string; exists: boolean }>
   ok: boolean
   filePath?: string
   message?: string
