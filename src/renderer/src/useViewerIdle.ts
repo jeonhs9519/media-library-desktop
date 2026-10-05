@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 export const VIEWER_IDLE_DELAY = 2400
 
-export function useViewerIdle(blocked = false) {
+export function useViewerIdle(blocked = false, keyboardMode: 'all' | 'toolbar' = 'all') {
   const [visible, setVisible] = useState(true)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const scheduleHide = useCallback(() => {
@@ -15,19 +15,23 @@ export function useViewerIdle(blocked = false) {
   }, [scheduleHide])
 
   useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (keyboardMode === 'all' || event.key === 'Tab' || event.key === 'ContextMenu'
+        || (event.key === 'F10' && event.shiftKey)) show()
+    }
     show()
     document.addEventListener('mousemove', show)
     document.addEventListener('pointerdown', show)
-    document.addEventListener('keydown', show, true)
+    document.addEventListener('keydown', handleKeyDown, true)
     window.addEventListener('focus', show)
     return () => {
       clearTimeout(timer.current)
       document.removeEventListener('mousemove', show)
       document.removeEventListener('pointerdown', show)
-      document.removeEventListener('keydown', show, true)
+      document.removeEventListener('keydown', handleKeyDown, true)
       window.removeEventListener('focus', show)
     }
-  }, [show])
+  }, [show, keyboardMode])
 
   return { visible, show, scheduleHide }
 }

@@ -12,59 +12,61 @@ type MetadataFillStatus = {
 type Params = {
   total: number
   loadItems: () => Promise<void>
+  refreshVersion?: number
 }
 
-export function useLibraryMetadataFill({ total, loadItems }: Params) {
-  const startedRef = useRef(false)
-  const updatedRef = useRef(0)
+export function useLibraryMetadataFill({ total, loadItems, refreshVersion = 0 }: Params) {
+  const latestLoadItems = useRef(loadItems)
+  latestLoadItems.current = loadItems
+  const enabled = total > 0 || refreshVersion > 0
 
   useEffect(() => {
-    if (startedRef.current || total <= 0) return
-
-    startedRef.current = true
+    if (!enabled) return
     let canceled = false
-    let pollTimer: ReturnType<typeof setInterval> | null = null
-
-    const syncStatus = async (status: MetadataFillStatus) => {
-      if (status.updated > updatedRef.current) {
-        updatedRef.current = status.updated
-        await loadItems()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let resume: (() => void) | undefined
+    const waitForCompletion = async (initial: MetadataFillStatus) => {
+      let status = initial
+      while (status.running && !canceled) {
+        await new Promise<void>(resolve => {
+          resume = resolve
+          timer = setTimeout(() => { resume = undefined; resolve() }, 1000)
+        })
+        if (canceled) break
+        status = await api.items.getMetadataFillStatus() as MetadataFillStatus
       }
-
-      if (!status.running && pollTimer) {
-        clearInterval(pollTimer)
-        pollTimer = null
-      }
+      return status
     }
 
     const startBackgroundFill = async () => {
       try {
-        const initialStatus = await api.items.fillMissingMetadata() as MetadataFillStatus
+        const current = await api.items.getMetadataFillStatus() as MetadataFillStatus
         if (canceled) return
-
-        await syncStatus(initialStatus)
-
-        if (initialStatus.running) {
-          pollTimer = setInterval(async () => {
-            try {
-              const nextStatus = await api.items.getMetadataFillStatus() as MetadataFillStatus
-              if (canceled) return
-              await syncStatus(nextStatus)
-            } catch (e) {
-              console.error('Failed to read metadata fill status:', e)
-            }
-          }, 2000)
+        let changed = false
+        if (current.running) {
+          const completed = await waitForCompletion(current)
+          changed = completed.updated > 0
         }
+        if (canceled) return
+        // 진행 중인 작업의 Queue에 없던 신규 항목은 완료 후 다시 수집합니다.
+        if (!current.running || refreshVersion > 0) {
+          const started = await api.items.fillMissingMetadata() as MetadataFillStatus
+          if (canceled) return
+          const completed = await waitForCompletion(started)
+          changed = changed || completed.updated > 0
+        }
+        if (!canceled && changed) await latestLoadItems.current()
       } catch (e) {
         console.error('Failed to start metadata fill:', e)
       }
     }
 
-    startBackgroundFill()
+    void startBackgroundFill()
 
     return () => {
       canceled = true
-      if (pollTimer) clearInterval(pollTimer)
+      clearTimeout(timer)
+      resume?.()
     }
-  }, [total, loadItems])
+  }, [enabled, refreshVersion])
 }

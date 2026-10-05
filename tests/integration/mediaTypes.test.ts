@@ -10,6 +10,8 @@ import { registerItemImportIPC } from '../../src/main/ipc/items/imports'
 import { registerItemRelinkIPC } from '../../src/main/ipc/items/relink'
 import { registerLegacyDatabaseIPC } from '../../src/main/ipc/legacyDatabase'
 import { registerPlaylistsIPC } from '../../src/main/ipc/playlists'
+import { registerReviewsIPC } from '../../src/main/ipc/reviews'
+import { registerTagsIPC } from '../../src/main/ipc/tags'
 import { clearActiveProfileId, setActiveProfileId } from '../../src/main/services/profileState'
 
 const handlers = vi.hoisted(() => new Map<string, (_event: unknown, payload?: any) => Promise<any>>())
@@ -48,6 +50,8 @@ beforeEach(() => {
   registerItemRelinkIPC(database.db)
   registerLegacyDatabaseIPC(database.db)
   registerPlaylistsIPC(database.db)
+  registerReviewsIPC(database.db)
+  registerTagsIPC(database.db)
 })
 
 afterEach(() => {
@@ -57,6 +61,34 @@ afterEach(() => {
 })
 
 describe('independent content and file types', () => {
+  it('trims saved item text and preserves empty values, internal whitespace and omitted fields', async () => {
+    const item = await add(' padded file name ', 'pdf', {
+      title: ' \tTitle  text\n', author: ' Author ', memo: '\n  First line\n  second line \n', sourceUrl: ' https://example.com/ ',
+    })
+    expect(item).toMatchObject({ title: 'Title  text', author: 'Author', memo: 'First line\n  second line', sourceUrl: 'https://example.com/', fileName: ' padded file name ' })
+    await invoke('items:update', { id: item.id, progress: 0.4 })
+    expect(await invoke('items:getById', { id: item.id })).toMatchObject({ title: 'Title  text', author: 'Author' })
+    await invoke('items:update', { id: item.id, title: '\t\n ', author: ' \u3000 ', memo: '\n\t ', sourceUrl: ' ' })
+    expect(await invoke('items:getById', { id: item.id })).toMatchObject({ title: '', author: '', memo: '', sourceUrl: '' })
+    expect(await add('blank-title', 'pdf', { title: ' ' })).toMatchObject({ title: '' })
+    expect((await add('automatic-title', 'pdf')).title).toBe('automatic-title')
+  })
+
+  it('trims reviews on insert and update without removing internal whitespace', async () => {
+    const item = await add('review-text', 'pdf')
+    expect(await invoke('reviews:upsert', { itemId: item.id, rating: 4, comment: ' \n First  line\n  next line \t' }))
+      .toMatchObject({ comment: 'First  line\n  next line' })
+    await invoke('reviews:upsert', { itemId: item.id, rating: 5, comment: ' \t\n\u3000' })
+    expect((await invoke('items:getById', { id: item.id })).review).toMatchObject({ rating: 5, comment: '' })
+  })
+
+  it('trims new tag names and rejects whitespace-only names before writing', async () => {
+    const tag = await invoke('tags:create', { name: ' \tTag  name\u3000' })
+    expect(tag.name).toBe('Tag  name')
+    await expect(invoke('tags:create', { name: ' \t\n\u3000' })).rejects.toThrow('Tag name is required')
+    expect(sqlite.prepare('SELECT name FROM tags').all()).toEqual([{ name: 'Tag  name' }])
+  })
+
   it('stores book modes per item, rejects invalid modes and preserves them across runtime checks', async () => {
     const first = await add('first-mode', 'pdf')
     const second = await add('second-mode', 'zip')

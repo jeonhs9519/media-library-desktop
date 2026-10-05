@@ -30,6 +30,8 @@ export function registerTagsIPC(db: DB) {
   })
 
   ipcMain.handle('tags:create', async (_event, { name }: { name: string }) => {
+    name = name.trim()
+    if (!name) throw new Error('Tag name is required')
     return db.insert(tags).values({ profileId: getActiveProfileId(), name }).returning().get()
   })
 

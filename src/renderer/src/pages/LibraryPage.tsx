@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useMatch } from 'react-router-dom'
 import { Item } from '../types'
 import { useI18n } from '../useI18n'
 import { api } from '../api'
@@ -24,6 +24,7 @@ import { useLibraryThumbnails } from '../components/Library/hooks/useLibraryThum
 import { useLibraryMetadataFill } from '../components/Library/hooks/useLibraryMetadataFill'
 import { preloadViewerPages } from '../routes/viewerPages'
 import { getViewerPath } from '../components/Library/mediaLabels'
+import { needsLibraryReload, patchLibraryItem, subscribeLibraryUpdates } from '../libraryUpdates'
 
 function runWhenIdle(task: () => void) {
   if (typeof window.requestIdleCallback === 'function') {
@@ -35,9 +36,9 @@ function runWhenIdle(task: () => void) {
   return () => window.clearTimeout(timeoutId)
 }
 
-export default function LibraryPage() {
+export default function LibraryPage({ active = true }: { active?: boolean }) {
   const navigate = useNavigate()
-  const { id } = useParams<{ id?: string }>()
+  const id = useMatch('/items/:id')?.params.id
   const { tr, languageSetting, changeLanguageSetting } = useI18n()
   const searchFilters = useLibrarySearchFilters(tr)
   const [items, setItems] = useState<Item[]>([])
@@ -62,6 +63,9 @@ export default function LibraryPage() {
   const perPage = 100
 
   const playlistThumbnails = useLibraryThumbnails(playlistItems.map((entry) => entry.item))
+  const reloadOnReturn = useRef(false)
+  const wasActive = useRef(active)
+  const [metadataRefreshVersion, setMetadataRefreshVersion] = useState(0)
 
   const loadItems = useCallback(async (tagChange?: { removedId: number | null; id: number }) => {
     setLoading(true)
@@ -105,6 +109,32 @@ export default function LibraryPage() {
 
   const loadPlaylistItems = playlists.reload
 
+  const latestList = useRef({ items, active, loadItems, watchedState: searchFilters.watchedState, sortBy: searchFilters.sortBy })
+  latestList.current = { items, active, loadItems, watchedState: searchFilters.watchedState, sortBy: searchFilters.sortBy }
+  useEffect(() => subscribeLibraryUpdates(update => {
+    const current = latestList.current
+    const previous = current.items.find(item => item.id === update.id)
+    if (needsLibraryReload(update, previous, current.watchedState, current.sortBy)) {
+      reloadOnReturn.current = true
+      if (current.active) {
+        reloadOnReturn.current = false
+        void current.loadItems().catch(console.error)
+      }
+    }
+    if (update.item) setItems(items => items.map(item => item.id === update.id ? patchLibraryItem(item, update.item!) : item))
+  }), [])
+
+  useEffect(() => {
+    const returned = active && !wasActive.current
+    wasActive.current = active
+    if (!returned) return
+    if (reloadOnReturn.current) {
+      reloadOnReturn.current = false
+      void loadItems().catch(console.error)
+    }
+    void loadPlaylistItems().catch(console.error)
+  }, [active, loadItems, loadPlaylistItems])
+
   const updatePlaylistCollapsed = useCallback((next: boolean | ((value: boolean) => boolean)) => {
     setPlaylistCollapsed((current) => {
       const resolved = typeof next === 'function'
@@ -115,12 +145,19 @@ export default function LibraryPage() {
     })
   }, [])
 
-  const fileImport = useFileImport({ tr, loadItems })
-  const hdtImport = useHdtImport({ tr, loadItems })
+  const reloadNewItems = useCallback(async () => {
+    setMetadataRefreshVersion(version => version + 1)
+    await loadItems()
+  }, [loadItems])
+  const fileImport = useFileImport({ tr, loadItems: reloadNewItems })
+  const hdtImport = useHdtImport({ tr, loadItems: reloadNewItems })
   const reloadLibraryData = useCallback(async () => {
     await Promise.all([loadItems(), loadPlaylistItems()])
   }, [loadItems, loadPlaylistItems])
-  const librarySettings = useLibrarySettings({ tr, changeLanguageSetting, loadItems: reloadLibraryData })
+  const reloadNewLibraryData = useCallback(async () => {
+    await Promise.all([reloadNewItems(), loadPlaylistItems()])
+  }, [reloadNewItems, loadPlaylistItems])
+  const librarySettings = useLibrarySettings({ tr, changeLanguageSetting, loadItems: reloadLibraryData, onItemsAdded: reloadNewLibraryData })
 
   useEffect(() => {
     searchFilters.persist()
@@ -162,9 +199,10 @@ export default function LibraryPage() {
     })
   }, [initialListReady])
 
-  useLibraryMetadataFill({ total, loadItems })
+  useLibraryMetadataFill({ total, loadItems, refreshVersion: metadataRefreshVersion })
 
   useEffect(() => {
+    if (!active) return
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault()
@@ -173,7 +211,7 @@ export default function LibraryPage() {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [])
+  }, [active])
 
   useEffect(() => {
     if (!id) {
@@ -463,7 +501,7 @@ export default function LibraryPage() {
       ) : null}
 
       <ItemDetailModal
-        itemId={detailItemId}
+        itemId={active ? detailItemId : null}
         onClose={handleCloseDetail}
         onAddToPlaylist={handleAddToPlaylist}
         onMoveToProfile={handleMoveToProfile}

@@ -181,7 +181,7 @@ export function registerItemCoreIPC(db: DB) {
     const now = Date.now()
     const activeProfileId = getActiveProfileId()
     const ext = data.fileExtension
-    const title = data.title || normalizeTitle(data.fileName)
+    const title = data.title?.trim() ?? normalizeTitle(data.fileName)
     const containerType = detectContainerType(ext)
     const contentType = data.contentType || getDefaultContentType(containerType)
 
@@ -191,9 +191,9 @@ export function registerItemCoreIPC(db: DB) {
       fileName: data.fileName,
       fileExtension: ext,
       title,
-      sourceUrl: data.sourceUrl,
-      author: data.author,
-      memo: data.memo,
+      sourceUrl: data.sourceUrl?.trim(),
+      author: data.author?.trim(),
+      memo: data.memo?.trim(),
       contentType,
       containerType,
       language: data.language || 'unspecified',
@@ -224,6 +224,9 @@ export function registerItemCoreIPC(db: DB) {
   })
 
   ipcMain.handle('items:update', async (_event, { id, ...fields }: { id: number; [key: string]: any }) => {
+    for (const key of ['title', 'author', 'memo', 'sourceUrl']) {
+      if (typeof fields[key] === 'string') fields[key] = fields[key].trim()
+    }
     const now = Date.now()
     const existingItem = db.select({ language: items.language })
       .from(items)

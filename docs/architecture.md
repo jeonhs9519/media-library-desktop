@@ -17,6 +17,7 @@ Last updated: 2026-10-05
 
 - `index.ts`: 앱 시작점, 윈도우 생성, 포터블 경로 처리, DB 초기화, 프로토콜 등록
 - `ipc/`: 렌더러에서 호출하는 기능 단위 IPC 핸들러
+- `ipc/items/core.ts`와 `ipc/reviews.ts`는 저장 전 사용자 텍스트의 앞뒤 공백을 제거합니다. 제목·작성자·메모·출처 URL·리뷰의 빈 문자열을 유지하며, `ipc/tags.ts`는 태그 생성 이름을 정리하고 빈 이름을 거절합니다. 상세보기는 정리한 입력값을 상태에도 반영해 재편집 시 같은 값을 표시합니다.
 - `db/`: Drizzle 스키마와 마이그레이션
 - `services/`: IPC 여러 곳에서 재사용하는 도메인 유지보수 기능
 - `services/windowState.ts`: 창 저장값 검증과 모니터 작업 영역에 따른 복원 좌표 계산. `index.ts`가 userData JSON 저장과 BrowserWindow 이벤트를 연결합니다.
@@ -25,13 +26,16 @@ Last updated: 2026-10-05
 
 ### `src/preload`
 
-- `index.ts`: `window.api` 브리지를 노출합니다.
+- `index.ts`: `window.api` 브리지를 노출합니다. 창 capture 단계에서 마우스 보조 버튼 3·4의 기본 방문 기록 이동과 이벤트 전파를 차단합니다.
 - `api.clipboard.readText()`는 `main/ipc/clipboard.ts`의 IPC로 시스템 클립보드 텍스트를 읽습니다. 사용자가 붙여넣기 버튼을 누를 때만 호출합니다.
 
 ### `src/renderer`
 
 - `src/App.tsx`: 라우트 구성
-- `src/useViewerIdle.ts`: PDF·ZIP·동영상의 공통 2.4초 숨김 타이머와 조작 이벤트 처리. 뷰어 루트의 `viewer-idle`로 커서를 숨기고 툴바의 `inert`로 숨긴 조작 영역을 비활성화합니다.
+- `src/routes/LibraryLayout.tsx`: 공통 라우트에서 라이브러리 화면을 보존하고 뷰어만 전환합니다. 숨긴 목록의 조작·접근성을 차단하고 복귀 레이아웃 반영 후 스크롤을 복원합니다. 상세보기 id는 `useMatch`로 읽으며 뷰어에서는 Modal과 검색 단축키를 비활성화합니다.
+- `src/libraryUpdates.ts`: 항목 저장 결과 구독과 목록 필드 갱신, 읽기 상태 필터·수정일 정렬의 재조회 필요 여부를 판정합니다. `api.items.update`는 저장 완료 후 이벤트를 발행하며 목록은 뷰어 동안 필요한 재조회만 모아 복귀 시 처리합니다.
+- `src/thumbnailCache.ts`: 렌더러 세션의 썸네일 결과·진행 중 요청 공유와 구독을 처리합니다. `api.ts`는 썸네일 저장·항목 삭제/이동 후 해당 캐시를 무효화하고 프로필 전환·삭제 시 전체를 비웁니다. `useLibraryThumbnails`는 목록 교체·화면 이동 후에도 결과를 유지합니다.
+- `src/useViewerIdle.ts`: PDF·ZIP·동영상의 공통 2.4초 숨김 타이머와 조작 이벤트 처리. 키보드 모드 기본값은 모든 키 입력이며 PDF·ZIP의 공통 overlay는 Tab·컨텍스트 메뉴 접근 키만 표시하는 모드를 사용합니다. 뷰어 루트의 `viewer-idle`로 커서를 숨기고 툴바의 `inert`로 숨긴 조작 영역을 비활성화합니다.
 - `src/routes/viewerPages.ts`: 뷰어 route lazy loading과 idle preload 진입점
 - `src/pages/LibraryPage.tsx`: 메인 라이브러리 화면
 - `src/pages/*ViewerPage.tsx`: 포맷별 뷰어 화면
@@ -39,6 +43,7 @@ Last updated: 2026-10-05
 - `src/components/`: 공용 UI 조각
 - `src/components/PasteInput.tsx`: 상세보기 텍스트 입력과 입력란 내부 SVG 붙여넣기 버튼, 전체 텍스트 교체와 포커스 복원을 처리합니다.
 - `src/components/Library/`: 라이브러리 화면 전용 툴바, 목록, 카드, 모달, hook
+- `useLibraryMetadataFill`은 최초 목록과 신규 데이터 추가 신호에서 페이지 수·재생 시간을 보완합니다. 진행 중 Queue는 완료를 기다린 후 신규 항목을 재수집하고, 완료 시 변경이 있으면 최신 검색 조건으로 목록을 한 번 갱신합니다. polling 수명은 목록 건수나 조회 콜백 변경과 분리합니다.
 - `src/components/icons/`: 뷰어와 라이브러리에서 공유하는 SVG 아이콘 컴포넌트
 - `src/i18n/`: 다국어 리소스
 
@@ -206,14 +211,15 @@ Last updated: 2026-10-05
 ### `src/renderer/src/components/Library/PlaylistPanel.tsx`
 
 - 라이브러리와 뷰어에서 공유하는 플레이리스트 패널입니다.
+- `viewerMode`에서는 제거 버튼·순서 변경/제거 메뉴를 비활성화하고 편집 함수·pointer drag·외부 drop을 차단합니다. 목록이 처리한 키 입력은 전파를 중단해 뷰어의 페이지 이동과 중복 실행되지 않습니다.
 - `PlaylistManager.tsx`가 라이브러리 전용 목록 선택·관리 Modal을 표시하며 `hooks/useLibraryPlaylists.ts`가 목록 상태·항목의 함께 갱신과 오래된 응답 폐기를 처리합니다.
 - 뷰어의 `useViewerPlaylist`는 진입 시 목록 id를 보관합니다. 라우트 state의 `playlistId`와 함께 타입 간 이동·자동 이어보기에 전달하며, 선택값을 매번 다시 읽지 않습니다.
 - 라이브러리 화면에서는 좌/우 표시 설정을 지원하되, HTML 순서는 툴바 다음, 라이브러리 본문 이전으로 유지합니다.
-- 항목 클릭으로 뷰어를 열고, 항목별 제거와 전체 초기화를 제공합니다.
-- 목록은 단일 Tab 진입 영역이며, 위/아래 방향키로 active 항목을 이동하고 `Delete` 키로 active 항목을 제거합니다.
+- 항목 클릭으로 뷰어를 열고, 라이브러리에서 항목별 제거와 전체 초기화를 제공합니다.
+- 목록은 단일 Tab 진입 영역이며, 위/아래 방향키로 active 항목을 이동하고 라이브러리에서 `Delete` 키로 active 항목을 제거합니다.
 - 항목 제거 버튼은 Tab 순서에서 제외하며, 삭제 후 포커스는 목록 컨테이너로 돌아가 방향키 탐색을 이어갈 수 있습니다.
 - 항목 컨텍스트 메뉴는 공용 `ContextMenu`를 사용하며 재생, 한 칸 위/아래 이동, 상세정보 확인, 목록에서 제거 액션과 단축키 표기를 제공합니다.
-- 플레이리스트 항목은 pointer 기반 drag and drop으로 재정렬하며, 삽입 위치 placeholder를 표시합니다.
+- 라이브러리 플레이리스트 항목은 pointer 기반 drag and drop으로 재정렬하며, 삽입 위치 placeholder를 표시합니다.
 - 라이브러리 카드 drag and drop으로 플레이리스트에 항목을 추가할 때도 표시된 위치에 삽입합니다.
 
 ### `src/renderer/src/components/ContextMenu/index.tsx`

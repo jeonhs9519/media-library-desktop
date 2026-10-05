@@ -1,33 +1,38 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { api } from '../../../api'
+import { getThumbnailRevision, peekThumbnail, subscribeThumbnails } from '../../../thumbnailCache'
 import type { Item } from '../../../types'
 
 export function useLibraryThumbnails(items: Item[]) {
-  const [thumbnails, setThumbnails] = useState<Record<number, string>>({})
-  const loadedThumbnailIds = useRef<Set<number>>(new Set())
+  const revision = useSyncExternalStore(subscribeThumbnails, getThumbnailRevision)
+  const ids = items.map((item) => item.id).join(',')
 
   useEffect(() => {
     let canceled = false
 
     const loadThumbnails = async () => {
-      for (const item of items) {
+      for (const id of ids ? ids.split(',').map(Number) : []) {
         if (canceled) return
-        if (loadedThumbnailIds.current.has(item.id)) continue
-
-        loadedThumbnailIds.current.add(item.id)
-        const thumb = await api.thumbnail.get(item.id)
-        if (thumb && !canceled) {
-          setThumbnails((prev) => ({ ...prev, [item.id]: `data:image/jpeg;base64,${thumb}` }))
+        if (peekThumbnail(id) !== undefined) continue
+        try {
+          await api.thumbnail.get(id)
+        } catch (error) {
+          console.error('Thumbnail load error:', error)
         }
       }
     }
 
-    loadThumbnails()
+    void loadThumbnails()
 
     return () => {
       canceled = true
     }
-  }, [items])
+  }, [ids, revision])
 
+  const thumbnails: Record<number, string> = {}
+  for (const item of items) {
+    const value = peekThumbnail(item.id)
+    if (value) thumbnails[item.id] = `data:image/jpeg;base64,${value}`
+  }
   return thumbnails
 }

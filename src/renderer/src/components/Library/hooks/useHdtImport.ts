@@ -182,9 +182,9 @@ export function useHdtImport({ tr, loadItems }: UseHdtImportOptions) {
 
     setHdtApplying(true)
     try {
-      await api.items.importHdtApply(hdtSelectedIds)
+      const result = await api.items.importHdtApply(hdtSelectedIds)
       resetHdtImport()
-      await loadItems()
+      if (result.added > 0) await loadItems()
     } finally {
       setHdtApplying(false)
     }

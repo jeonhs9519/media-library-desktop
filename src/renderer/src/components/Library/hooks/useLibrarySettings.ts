@@ -7,6 +7,7 @@ type UseLibrarySettingsOptions = {
   tr: Translate
   changeLanguageSetting: (value: LanguageSetting) => Promise<void>
   loadItems: () => Promise<void>
+  onItemsAdded?: () => Promise<void>
 }
 
 type ProfileSummary = {
@@ -42,7 +43,7 @@ function getProfileErrorMessage(tr: Translate, reason?: string) {
   return tr('settings.profile.errorDefault')
 }
 
-export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: UseLibrarySettingsOptions) {
+export function useLibrarySettings({ tr, changeLanguageSetting, loadItems, onItemsAdded }: UseLibrarySettingsOptions) {
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [fileModifiedPolicy, setFileModifiedPolicy] = useState('once')
   const [playlistPosition, setPlaylistPosition] = useState<'left' | 'right'>('right')
@@ -321,13 +322,14 @@ export function useLibrarySettings({ tr, changeLanguageSetting, loadItems }: Use
       }))
       setLegacyDbPreviewOpen(false)
       setLegacyDbPreview(null)
-      await loadItems()
+      if (Number(result?.imported ?? 0) > 0 && onItemsAdded) await onItemsAdded()
+      else await loadItems()
     } catch (error: any) {
       setLegacyDbNotice(String(error?.message || ''))
     } finally {
       setLegacyDbImporting(false)
     }
-  }, [legacyDbImporting, legacyDbPath, loadItems, tr])
+  }, [legacyDbImporting, legacyDbPath, loadItems, onItemsAdded, tr])
 
   return {
     settingsModalOpen,

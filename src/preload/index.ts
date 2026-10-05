@@ -1,4 +1,14 @@
+/// <reference lib="dom" />
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+
+const blockMouseHistoryNavigation = (event: MouseEvent) => {
+  if (event.button !== 3 && event.button !== 4) return
+  event.preventDefault()
+  event.stopImmediatePropagation()
+}
+for (const type of ['mousedown', 'mouseup', 'auxclick'] as const) {
+  window.addEventListener(type, blockMouseHistoryNavigation, { capture: true, passive: false })
+}
 
 const api = {
   clipboard: {

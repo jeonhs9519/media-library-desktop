@@ -25,7 +25,7 @@ export function useFileImport({ tr, loadItems }: UseFileImportOptions) {
     const exists = await api.items.checkExists(dir, fileName, fileExtension)
     if (exists) {
       setDuplicateModal({ fileName: baseName })
-      return
+      return false
     }
 
     const stat = await api.file.readStat(filePath)
@@ -35,8 +35,17 @@ export function useFileImport({ tr, loadItems }: UseFileImportOptions) {
       fileExtension,
       fileModifiedAt: stat?.mtime,
     })
-    await loadItems()
-  }, [loadItems])
+    return true
+  }, [])
+
+  const addFiles = useCallback(async (paths: string[]) => {
+    let added = false
+    try {
+      for (const path of paths) added = await addFile(path) || added
+    } finally {
+      if (added) await loadItems()
+    }
+  }, [addFile, loadItems])
 
   const beginFileAdd = useCallback(async (paths: string[]) => {
     if (!paths.length) {
@@ -45,13 +54,11 @@ export function useFileImport({ tr, loadItems }: UseFileImportOptions) {
     }
 
     setFileUploadNotice('')
-    for (const path of paths) {
-      await addFile(path)
-    }
+    await addFiles(paths)
     setFileUploadDragging(false)
     setFileUploadNotice('')
     setFileUploadModalOpen(false)
-  }, [addFile, tr])
+  }, [addFiles, tr])
 
   const openFileUploadModal = useCallback(() => {
     setFileUploadNotice('')
@@ -75,10 +82,8 @@ export function useFileImport({ tr, loadItems }: UseFileImportOptions) {
     if (blocked) return
 
     const paths = getDroppedFilePaths(Array.from(event.dataTransfer.files))
-    for (const filePath of paths) {
-      await addFile(filePath)
-    }
-  }, [addFile])
+    await addFiles(paths)
+  }, [addFiles])
 
   const handleFileUploadDrop = useCallback(async (event: React.DragEvent) => {
     event.preventDefault()

@@ -412,6 +412,9 @@ export default function LibraryGrid({
               role="grid"
               tabIndex={items.length ? 0 : -1}
               aria-label={tr('library.items', { count: total })}
+              onPointerDown={(event) => {
+                if (event.button === 0 && event.target === event.currentTarget) event.preventDefault()
+              }}
               onFocus={handleGridFocus}
               onKeyDown={handleGridKeyDown}
               onContextMenu={(event) => event.preventDefault()}

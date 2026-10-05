@@ -9,6 +9,7 @@ type DB = BetterSQLite3Database<typeof schema>
 
 export function registerReviewsIPC(db: DB) {
   ipcMain.handle('reviews:upsert', async (_event, { itemId, rating, comment }: { itemId: number; rating: number; comment?: string }) => {
+    comment = comment?.trim()
     const item = db.select().from(schema.items)
       .where(eq(schema.items.id, itemId))
       .get()

@@ -170,10 +170,18 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
   const fullPath = buildDisplayItemPath(item)
 
   const handleSave = async () => {
-    await api.items.update(itemId, {
+    const normalizedForm = {
       ...editForm,
+      title: editForm.title.trim(),
+      author: editForm.author.trim(),
+      memo: editForm.memo.trim(),
+      sourceUrl: editForm.sourceUrl.trim(),
+    }
+    await api.items.update(itemId, {
+      ...normalizedForm,
       watched: editForm.watched ? 1 : 0,
     })
+    setEditForm(normalizedForm)
     setEditing(false)
     const data = await api.items.getById(itemId)
     setItem(data)
@@ -277,7 +285,9 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
   }
 
   const handleReviewSave = async () => {
-    await api.reviews.upsert(itemId, reviewForm.rating, reviewForm.comment)
+    const comment = reviewForm.comment.trim()
+    await api.reviews.upsert(itemId, reviewForm.rating, comment)
+    setReviewForm((form) => ({ ...form, comment }))
     setReviewModal(false)
     const data = await api.items.getById(itemId)
     setItem(data)

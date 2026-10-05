@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
-import LibraryPage from './pages/LibraryPage'
+import LibraryLayout from './routes/LibraryLayout'
 import { api } from './api'
 import { loadCbzViewerPage, loadPdfViewerPage, loadVideoPlayerPage } from './routes/viewerPages'
 import { TrashIcon } from './components/icons'
@@ -620,11 +620,13 @@ export default function App() {
         <HashRouter>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
-              <Route path="/" element={<LibraryPage />} />
-              <Route path="/items/:id" element={<LibraryPage />} />
-              <Route path="/view/pdf/:id" element={<PdfViewerPage />} />
-              <Route path="/view/cbz/:id" element={<CbzViewerPage />} />
-              <Route path="/view/video/:id" element={<VideoPlayerPage />} />
+              <Route element={<LibraryLayout fallback={<RouteFallback />} />}>
+                <Route path="/" element={<></>} />
+                <Route path="/items/:id" element={<></>} />
+                <Route path="/view/pdf/:id" element={<PdfViewerPage />} />
+                <Route path="/view/cbz/:id" element={<CbzViewerPage />} />
+                <Route path="/view/video/:id" element={<VideoPlayerPage />} />
+              </Route>
             </Routes>
           </Suspense>
         </HashRouter>

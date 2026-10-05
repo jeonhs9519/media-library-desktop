@@ -4,7 +4,7 @@ import { useViewerIdle } from '../../useViewerIdle'
 export function useBookViewerOverlayUx() {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
-  const idle = useViewerIdle(contextMenu !== null)
+  const idle = useViewerIdle(contextMenu !== null, 'toolbar')
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

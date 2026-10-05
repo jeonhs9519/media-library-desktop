@@ -128,6 +128,7 @@ export default function PlaylistPanel({
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault()
     event.stopPropagation()
+    if (viewerMode) return
     const targetIndex = dropTargetIndexRef.current ?? dropTargetIndex ?? items.length
     setDropTargetIndex(null)
     dropTargetIndexRef.current = null
@@ -171,6 +172,7 @@ export default function PlaylistPanel({
   }
 
   const removePlaylistItem = async (itemId: number, index: number) => {
+    if (viewerMode) return
     setActiveIndex(Math.min(index, Math.max(items.length - 2, 0)))
     await Promise.resolve(onRemoveItem(itemId))
     window.setTimeout(() => {
@@ -179,7 +181,7 @@ export default function PlaylistPanel({
   }
 
   const movePlaylistItemByOffset = async (index: number, offset: -1 | 1) => {
-    if (!onReorderItems) return
+    if (viewerMode || !onReorderItems) return
 
     const targetIndex = index + offset
     if (targetIndex < 0 || targetIndex >= itemIds.length) return
@@ -254,7 +256,7 @@ export default function PlaylistPanel({
   }
 
   const startPlaylistPointerDrag = (event: React.PointerEvent<HTMLDivElement>, itemId: number) => {
-    if (!onReorderItems || event.button !== 0) return
+    if (viewerMode || !onReorderItems || event.button !== 0) return
     if ((event.target as HTMLElement).closest('button')) return
 
     pointerDragRef.current = {
@@ -423,14 +425,14 @@ export default function PlaylistPanel({
       key: 'move-up',
       label: '위로 한 칸 이동',
       shortcut: 'Ctrl + ↑',
-      disabled: !onReorderItems || index === 0,
+      disabled: viewerMode || !onReorderItems || index === 0,
       onSelect: () => movePlaylistItemByOffset(index, -1),
     },
     {
       key: 'move-down',
       label: '아래로 한 칸 이동',
       shortcut: 'Ctrl + ↓',
-      disabled: !onReorderItems || index >= items.length - 1,
+      disabled: viewerMode || !onReorderItems || index >= items.length - 1,
       onSelect: () => movePlaylistItemByOffset(index, 1),
     },
     { key: 'separator-move', type: 'separator' },
@@ -446,7 +448,7 @@ export default function PlaylistPanel({
       label: '목록에서 제거',
       shortcut: 'Delete',
       tone: 'danger',
-      disabled: item.id === currentItemId,
+      disabled: viewerMode || item.id === currentItemId,
       onSelect: () => removePlaylistItem(item.id, index),
     },
   ]
@@ -458,6 +460,7 @@ export default function PlaylistPanel({
         className={`playlist-panel${collapsed ? ' is-collapsed' : ''}`}
         aria-label={tr('playlist.title')}
         onDragOver={(event) => {
+          if (viewerMode) return
           if (!canAcceptDrag(event)) return
           event.preventDefault()
           event.dataTransfer.dropEffect = 'copy'
@@ -507,7 +510,10 @@ export default function PlaylistPanel({
             role="listbox"
             aria-label={tr('playlist.title')}
             onFocus={handlePlaylistItemsFocus}
-            onKeyDown={handlePlaylistItemsKeyDown}
+            onKeyDown={(event) => {
+              handlePlaylistItemsKeyDown(event)
+              if (event.defaultPrevented) event.stopPropagation()
+            }}
           >
             {items.length === 0 ? (
               dropTargetIndex === 0 ? renderDropIndicator(0) : <div className="playlist-empty">{tr('playlist.empty')}</div>
@@ -530,7 +536,7 @@ export default function PlaylistPanel({
                         itemElementRefs.current.delete(item.id)
                       }
                     }}
-                    className={`playlist-item-main${onReorderItems ? ' is-reorderable' : ''}${index === activeIndex ? ' is-active' : ''}`}
+                    className={`playlist-item-main${!viewerMode && onReorderItems ? ' is-reorderable' : ''}${index === activeIndex ? ' is-active' : ''}`}
                     title={item.title}
                     role="option"
                     aria-selected={index === activeIndex}
@@ -574,7 +580,7 @@ export default function PlaylistPanel({
                       title={tr('playlist.remove')}
                       aria-label={tr('playlist.remove')}
                       tabIndex={-1}
-                      disabled={item.id === currentItemId}
+                      disabled={viewerMode || item.id === currentItemId}
                       onClick={(event) => {
                         event.stopPropagation()
                         setActiveIndex(index)
