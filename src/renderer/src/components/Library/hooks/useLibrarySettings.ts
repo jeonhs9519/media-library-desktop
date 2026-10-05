@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { LanguageSetting } from '../../../i18n/index'
+import type { ProfileStatus } from '../../../types/profile'
 import { api } from '../../../api'
 import type { BulkRelinkConflict, BulkRelinkFailedTarget, LegacyDatabasePreview, Translate } from '../types'
 
@@ -8,24 +9,6 @@ type UseLibrarySettingsOptions = {
   changeLanguageSetting: (value: LanguageSetting) => Promise<void>
   loadItems: () => Promise<void>
   onItemsAdded?: () => Promise<void>
-}
-
-type ProfileSummary = {
-  id: number
-  name: string
-  createdAt: number
-  updatedAt: number
-}
-
-type ProfileStatus = {
-  currentProfileId: number | null
-  profiles: ProfileSummary[]
-  unassignedCounts: {
-    items: number
-    tags: number
-    playlists: number
-    settings: number
-  }
 }
 
 type ProfileToast = {

@@ -10,8 +10,9 @@ export default function LibraryLayout({ fallback }: { fallback?: ReactNode }) {
   useEffect(() => { if (active) setVisited(true) }, [active])
   useLayoutEffect(() => {
     if (!active) return
-    restoring.current = true
     const positions = [...scrollPositions.current]
+    if (!positions.length) return
+    restoring.current = true
     const restore = () => positions.forEach(([element, position]) => {
       element.scrollTop = position.top
       element.scrollLeft = position.left

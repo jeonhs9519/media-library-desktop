@@ -32,6 +32,7 @@ export default function Modal({
   const pointerStartedOnBackdropRef = useRef(false)
   const pointerEndedOnBackdropRef = useRef(false)
   const modalIdRef = useRef<number | null>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
 
   if (modalIdRef.current === null) {
     modalIdRef.current = nextModalId
@@ -56,6 +57,19 @@ export default function Modal({
   const isTopModal = () => modalStack[modalStack.length - 1] === modalIdRef.current
 
   useEffect(() => {
+    if (open) return
+    const rememberFocus = () => {
+      const element = document.activeElement
+      if (!(element instanceof HTMLElement) || element === document.body
+        || element.closest(`[data-modal-id="${modalIdRef.current}"]`)) return
+      returnFocusRef.current = element
+    }
+    rememberFocus()
+    document.addEventListener('focusin', rememberFocus)
+    return () => document.removeEventListener('focusin', rememberFocus)
+  }, [open])
+
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!isTopModal()) return
       if (e.key === 'Escape') onClose()
@@ -67,7 +81,7 @@ export default function Modal({
   useEffect(() => {
     if (!open) return
 
-    const previousActiveElement = document.activeElement as HTMLElement | null
+    const previousActiveElement = returnFocusRef.current
     const focusableSelector = [
       'a[href]',
       'button:not([disabled])',
@@ -111,12 +125,13 @@ export default function Modal({
       }
     }
 
-    window.setTimeout(focusFirstElement, 0)
+    const focusTimer = window.setTimeout(focusFirstElement, 0)
     document.addEventListener('keydown', handleTabKey)
 
     return () => {
       document.removeEventListener('keydown', handleTabKey)
-      previousActiveElement?.focus?.()
+      window.clearTimeout(focusTimer)
+      previousActiveElement?.focus?.({ preventScroll: true })
     }
   }, [open])
 
@@ -150,6 +165,7 @@ export default function Modal({
       <div
         ref={contentRef}
         role="dialog"
+        data-modal-id={modalIdRef.current}
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}

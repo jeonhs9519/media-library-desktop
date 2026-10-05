@@ -21,119 +21,33 @@ import { useHdtImport } from '../components/Library/hooks/useHdtImport'
 import { useLibrarySettings } from '../components/Library/hooks/useLibrarySettings'
 import { useLibrarySearchFilters } from '../components/Library/hooks/useLibrarySearchFilters'
 import { useLibraryThumbnails } from '../components/Library/hooks/useLibraryThumbnails'
-import { useLibraryMetadataFill } from '../components/Library/hooks/useLibraryMetadataFill'
-import { preloadViewerPages } from '../routes/viewerPages'
+import Toast, { useToast } from '../components/Toast'
+import { useLibraryItems } from '../components/Library/hooks/useLibraryItems'
+import { useLibraryProfileTransfer } from '../components/Library/hooks/useLibraryProfileTransfer'
 import { getViewerPath } from '../components/Library/mediaLabels'
-import { needsLibraryReload, patchLibraryItem, subscribeLibraryUpdates } from '../libraryUpdates'
-
-function runWhenIdle(task: () => void) {
-  if (typeof window.requestIdleCallback === 'function') {
-    const callbackId = window.requestIdleCallback(task, { timeout: 3000 })
-    return () => window.cancelIdleCallback(callbackId)
-  }
-
-  const timeoutId = window.setTimeout(task, 500)
-  return () => window.clearTimeout(timeoutId)
-}
 
 export default function LibraryPage({ active = true }: { active?: boolean }) {
   const navigate = useNavigate()
   const id = useMatch('/items/:id')?.params.id
   const { tr, languageSetting, changeLanguageSetting } = useI18n()
   const searchFilters = useLibrarySearchFilters(tr)
-  const [items, setItems] = useState<Item[]>([])
-  const [total, setTotal] = useState(0)
-  const thumbnails = useLibraryThumbnails(items)
-  const [loading, setLoading] = useState(false)
   const [searchFiltersOpen, setSearchFiltersOpen] = useState(false)
   const [detailItemId, setDetailItemId] = useState<number | null>(null)
   const [detailReturnTarget, setDetailReturnTarget] = useState<'library' | 'playlist'>('library')
   const playlists = useLibraryPlaylists()
+  const loadPlaylistItems = playlists.reload
+  const { items, total, loading, perPage, loadItems, reloadNewItems } = useLibraryItems({ active, searchFilters, loadPlaylistItems })
+  const thumbnails = useLibraryThumbnails(items)
+  const { toast: libraryToast, showToast: showLibraryToast, hideToast: hideLibraryToast } = useToast()
   const playlistItems = playlists.items
   const selectedPlaylistId = playlists.state?.selectedId
   const [playlistCollapsed, setPlaylistCollapsed] = useState(true)
   const [playlistFocusRequest, setPlaylistFocusRequest] = useState(0)
   const [playlistFocusItemId, setPlaylistFocusItemId] = useState<number | null>(null)
   const [libraryFocusRequest, setLibraryFocusRequest] = useState(0)
-  const [libraryToast, setLibraryToast] = useState<{ id: number; message: string; tone: 'success' | 'error' } | null>(null)
-  const [libraryToastClosing, setLibraryToastClosing] = useState(false)
   const searchRef = useRef<HTMLButtonElement>(null)
-  const initialListReadyReportedRef = useRef(false)
-  const [initialListReady, setInitialListReady] = useState(false)
-  const perPage = 100
 
   const playlistThumbnails = useLibraryThumbnails(playlistItems.map((entry) => entry.item))
-  const reloadOnReturn = useRef(false)
-  const wasActive = useRef(active)
-  const [metadataRefreshVersion, setMetadataRefreshVersion] = useState(0)
-
-  const loadItems = useCallback(async (tagChange?: { removedId: number | null; id: number }) => {
-    setLoading(true)
-    try {
-      const nextTagUsageCounts = await api.tags.getUsageCounts()
-      const activeTagIds = searchFilters.reconcileTagUsageCounts(nextTagUsageCounts, tagChange?.removedId, tagChange?.id)
-      const result = await api.items.getAll({
-        search: searchFilters.search || undefined,
-        contentType: searchFilters.contentType || undefined,
-        language: searchFilters.language || undefined,
-        watchedState: searchFilters.watchedState === 'all' ? undefined : searchFilters.watchedState,
-        fileState: searchFilters.fileState === 'all' ? undefined : searchFilters.fileState,
-        tagIds: !searchFilters.untaggedOnly && activeTagIds.length > 0 ? activeTagIds : undefined,
-        untagged: searchFilters.untaggedOnly || undefined,
-        sortBy: searchFilters.sortBy,
-        sortDir: searchFilters.sortDir,
-        page: searchFilters.page,
-        perPage,
-      })
-      setItems(result.items)
-      setTotal(result.total)
-      if (!initialListReadyReportedRef.current) {
-        initialListReadyReportedRef.current = true
-        setInitialListReady(true)
-      }
-    } finally {
-      setLoading(false)
-    }
-  }, [
-    searchFilters.search,
-    searchFilters.contentType,
-    searchFilters.language,
-    searchFilters.watchedState,
-    searchFilters.fileState,
-    searchFilters.untaggedOnly,
-    searchFilters.sortBy,
-    searchFilters.sortDir,
-    searchFilters.page,
-    searchFilters.reconcileTagUsageCounts,
-  ])
-
-  const loadPlaylistItems = playlists.reload
-
-  const latestList = useRef({ items, active, loadItems, watchedState: searchFilters.watchedState, sortBy: searchFilters.sortBy })
-  latestList.current = { items, active, loadItems, watchedState: searchFilters.watchedState, sortBy: searchFilters.sortBy }
-  useEffect(() => subscribeLibraryUpdates(update => {
-    const current = latestList.current
-    const previous = current.items.find(item => item.id === update.id)
-    if (needsLibraryReload(update, previous, current.watchedState, current.sortBy)) {
-      reloadOnReturn.current = true
-      if (current.active) {
-        reloadOnReturn.current = false
-        void current.loadItems().catch(console.error)
-      }
-    }
-    if (update.item) setItems(items => items.map(item => item.id === update.id ? patchLibraryItem(item, update.item!) : item))
-  }), [])
-
-  useEffect(() => {
-    const returned = active && !wasActive.current
-    wasActive.current = active
-    if (!returned) return
-    if (reloadOnReturn.current) {
-      reloadOnReturn.current = false
-      void loadItems().catch(console.error)
-    }
-    void loadPlaylistItems().catch(console.error)
-  }, [active, loadItems, loadPlaylistItems])
 
   const updatePlaylistCollapsed = useCallback((next: boolean | ((value: boolean) => boolean)) => {
     setPlaylistCollapsed((current) => {
@@ -145,10 +59,6 @@ export default function LibraryPage({ active = true }: { active?: boolean }) {
     })
   }, [])
 
-  const reloadNewItems = useCallback(async () => {
-    setMetadataRefreshVersion(version => version + 1)
-    await loadItems()
-  }, [loadItems])
   const fileImport = useFileImport({ tr, loadItems: reloadNewItems })
   const hdtImport = useHdtImport({ tr, loadItems: reloadNewItems })
   const reloadLibraryData = useCallback(async () => {
@@ -157,6 +67,7 @@ export default function LibraryPage({ active = true }: { active?: boolean }) {
   const reloadNewLibraryData = useCallback(async () => {
     await Promise.all([reloadNewItems(), loadPlaylistItems()])
   }, [reloadNewItems, loadPlaylistItems])
+  const { handleMoveToProfile, handleCopyToProfile } = useLibraryProfileTransfer({ tr, reloadLibraryData, showLibraryToast })
   const librarySettings = useLibrarySettings({ tr, changeLanguageSetting, loadItems: reloadLibraryData, onItemsAdded: reloadNewLibraryData })
 
   useEffect(() => {
@@ -164,42 +75,10 @@ export default function LibraryPage({ active = true }: { active?: boolean }) {
   }, [searchFilters.persist])
 
   useEffect(() => {
-    loadItems()
-  }, [loadItems])
-
-  useEffect(() => {
-    if (!libraryToast) return
-    const timeoutId = window.setTimeout(() => setLibraryToastClosing(true), 2400)
-    return () => window.clearTimeout(timeoutId)
-  }, [libraryToast])
-
-  useEffect(() => {
-    if (!libraryToast || !libraryToastClosing) return
-    const timeoutId = window.setTimeout(() => setLibraryToast(null), 160)
-    return () => window.clearTimeout(timeoutId)
-  }, [libraryToast, libraryToastClosing])
-
-  useEffect(() => {
     api.settings.get('library.playlist.collapsed').then((value: string | undefined) => {
       if (value === '0' || value === '1') setPlaylistCollapsed(value === '1')
     })
   }, [])
-
-  useEffect(() => {
-    if (!initialListReady) return
-
-    api.startup.markLibraryReady().catch((error: unknown) => {
-      console.error('Failed to mark library ready:', error)
-    })
-
-    return runWhenIdle(() => {
-      preloadViewerPages().catch((error: unknown) => {
-        console.error('Failed to preload viewer pages:', error)
-      })
-    })
-  }, [initialListReady])
-
-  useLibraryMetadataFill({ total, loadItems, refreshVersion: metadataRefreshVersion })
 
   useEffect(() => {
     if (!active) return
@@ -267,51 +146,6 @@ export default function LibraryPage({ active = true }: { active?: boolean }) {
     setPlaylistFocusItemId(playlistId === selectedPlaylistId ? item.id : null)
     setPlaylistFocusRequest((value) => value + 1)
   }
-
-  const showLibraryToast = useCallback((message: string, tone: 'success' | 'error') => {
-    setLibraryToastClosing(false)
-    setLibraryToast((current) => ({ id: (current?.id ?? 0) + 1, message, tone }))
-  }, [])
-
-  const getMoveErrorMessage = useCallback((reason?: string) => {
-    if (reason === 'duplicate-file') return tr('library.context.moveDuplicate')
-    if (reason === 'current-profile') return tr('library.context.moveCurrent')
-    if (reason === 'missing-profile') return tr('library.context.moveMissingProfile')
-    return tr('library.context.moveFailed')
-  }, [tr])
-
-  const handleMoveToProfile = useCallback(async (item: Item, targetProfileId: number, targetProfileName: string) => {
-    try {
-      const result = await api.items.moveToProfile(item.id, targetProfileId)
-      if (!result?.ok) {
-        showLibraryToast(result?.message || getMoveErrorMessage(result?.reason), 'error')
-        return false
-      }
-
-      await Promise.all([loadItems(), loadPlaylistItems()])
-      showLibraryToast(tr('library.context.moveDone', { profile: targetProfileName }), 'success')
-      return true
-    } catch (error: any) {
-      showLibraryToast(String(error?.message || error), 'error')
-      return false
-    }
-  }, [getMoveErrorMessage, loadItems, loadPlaylistItems, showLibraryToast, tr])
-
-  const handleCopyToProfile = useCallback(async (item: Item, targetProfileId: number, targetProfileName: string) => {
-    try {
-      const result = await api.items.copyToProfile(item.id, targetProfileId)
-      if (!result?.ok) {
-        showLibraryToast(result?.message || getMoveErrorMessage(result?.reason), 'error')
-        return false
-      }
-
-      showLibraryToast(tr('library.context.copyDone', { profile: targetProfileName }), 'success')
-      return true
-    } catch (error: any) {
-      showLibraryToast(String(error?.message || error), 'error')
-      return false
-    }
-  }, [getMoveErrorMessage, showLibraryToast, tr])
 
   const handleDropToPlaylist = async (itemId: number, position?: number) => {
     const item = items.find((candidate) => candidate.id === itemId)
@@ -494,11 +328,7 @@ export default function LibraryPage({ active = true }: { active?: boolean }) {
         tr={tr}
       />
 
-      {libraryToast ? (
-        <div className={`library-center-toast is-${libraryToast.tone}${libraryToastClosing ? ' is-closing' : ''}`} role="status" aria-live="polite">
-          {libraryToast.message}
-        </div>
-      ) : null}
+      <Toast toast={libraryToast} onClose={hideLibraryToast} className={`library-center-toast is-${libraryToast?.tone}`} />
 
       <ItemDetailModal
         itemId={active ? detailItemId : null}
@@ -614,6 +444,3 @@ export default function LibraryPage({ active = true }: { active?: boolean }) {
     </div>
   )
 }
-
-
-

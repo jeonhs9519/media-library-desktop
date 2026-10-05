@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
-import { Item, Tag } from '../types'
-import Modal from '../components/Modal'
+import { Tag } from '../types'
 import StarRating from '../components/StarRating'
 import ChoiceInput from '../components/ChoiceInput'
 import Dropdown from '../components/Dropdown'
@@ -12,156 +11,22 @@ import Tooltip from '../components/Tooltip'
 import { PlaylistAddIcon, ShareIcon } from '../components/icons'
 import { useI18n } from '../useI18n'
 import { getViewerPath } from '../components/Library/mediaLabels'
-
-function formatVideoProgress(currentRaw: number, totalRaw: number): string {
-  const total = Math.max(0, Math.floor(totalRaw))
-  const current = Math.min(total, Math.max(0, Math.floor(currentRaw)))
-
-  if (total < 60) {
-    return `00:${current.toString().padStart(2, '0')}/00:${total.toString().padStart(2, '0')}`
-  }
-
-  if (total < 3600) {
-    const cm = Math.floor(current / 60).toString().padStart(2, '0')
-    const cs = (current % 60).toString().padStart(2, '0')
-    const tm = Math.floor(total / 60).toString().padStart(2, '0')
-    const ts = (total % 60).toString().padStart(2, '0')
-    return `${cm}:${cs}/${tm}:${ts}`
-  }
-
-  const ch = Math.floor(current / 3600).toString().padStart(2, '0')
-  const cm = Math.floor((current % 3600) / 60).toString().padStart(2, '0')
-  const cs = (current % 60).toString().padStart(2, '0')
-  const th = Math.floor(total / 3600).toString().padStart(2, '0')
-  const tm = Math.floor((total % 3600) / 60).toString().padStart(2, '0')
-  const ts = (total % 60).toString().padStart(2, '0')
-  return `${ch}:${cm}:${cs}/${th}:${tm}:${ts}`
-}
-
-function formatProgressDetail(item: any): string {
-  const pct = Math.round(item.progress * 100)
-  if (!item.totalContent) return `${pct}%`
-
-  if (item.containerType === 'video') {
-    const pos = item.lastPositionSeconds ?? 0
-    return `${formatVideoProgress(pos, item.totalContent)} (${pct}%)`
-  }
-
-  // PDF/ZIP의 lastPageIndex는 0부터 시작합니다.
-  const current = (item.lastPageIndex ?? 0) + 1
-  const total = Math.round(item.totalContent)
-  return `${current}p/${total}p (${pct}%)`
-}
-
-function isReservedTagName(name: string, untaggedLabel: string) {
-  const normalized = name.trim().toLocaleLowerCase()
-  return ['미지정', 'untagged', '未指定', untaggedLabel.toLocaleLowerCase()].includes(normalized)
-}
-
-function getDisplayPathSeparator() {
-  return /\bWin/i.test(navigator.platform) ? '\\' : '/'
-}
-
-function normalizeDisplayPath(input: string) {
-  return input.replace(/[\\/]+/g, getDisplayPathSeparator())
-}
-
-function buildDisplayItemPath(item: { filePath: string; fileName: string; fileExtension?: string }) {
-  const separator = getDisplayPathSeparator()
-  const normalizedDir = normalizeDisplayPath(item.filePath).replace(/[\\/]+$/, '')
-  const fileLabel = `${item.fileName}${item.fileExtension ? `.${item.fileExtension}` : ''}`
-  return `${normalizedDir}${separator}${fileLabel}`
-}
-
-interface ItemDetailPageProps {
-  itemId: number
-  onClose: () => void
-  onAddToPlaylist?: (item: Item) => void
-  onMoveToProfile?: (item: Item, targetProfileId: number, targetProfileName: string) => Promise<boolean>
-  onCopyToProfile?: (item: Item, targetProfileId: number, targetProfileName: string) => Promise<boolean>
-}
-
-type ProfileMoveTarget = {
-  id: number
-  name: string
-  disabled: boolean
-  reason?: string | null
-}
-
-type UsedTag = Tag & {
-  count: number
-}
+import type { ItemDetailPageProps } from '../components/ItemDetail/types'
+import { useItemDetail } from '../components/ItemDetail/useItemDetail'
+import { useItemProfileTransfer } from '../components/ItemDetail/useItemProfileTransfer'
+import { buildDisplayItemPath, formatProgressDetail } from '../components/ItemDetail/formatters'
+import ItemDetailDialogs from '../components/ItemDetail/ItemDetailDialogs'
 
 export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMoveToProfile, onCopyToProfile }: ItemDetailPageProps) {
   const navigate = useNavigate()
-  const [item, setItem] = useState<any>(null)
-  const [usedTags, setUsedTags] = useState<UsedTag[]>([])
-  const [editing, setEditing] = useState(false)
-  const [editForm, setEditForm] = useState<any>({})
-  const [reviewModal, setReviewModal] = useState(false)
-  const [reviewForm, setReviewForm] = useState({ rating: 0, comment: '' })
-  const [thumbnail, setThumbnail] = useState<string | null>(null)
-  const [newTagName, setNewTagName] = useState('')
-  const [tagInputError, setTagInputError] = useState('')
-  const [relinkModal, setRelinkModal] = useState(false)
-  const [relinkDuplicate, setRelinkDuplicate] = useState<{
-    targetPath: string
-    duplicatePath: string
-    duplicateTitle?: string
-  } | null>(null)
-  const [relinkErrorOpen, setRelinkErrorOpen] = useState(false)
-  const [relinkErrorMessage, setRelinkErrorMessage] = useState('')
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [deleteBusy, setDeleteBusy] = useState(false)
-  const [profileMoveTargets, setProfileMoveTargets] = useState<ProfileMoveTarget[]>([])
-  const [profileMoveTargetsLoading, setProfileMoveTargetsLoading] = useState(false)
-  const [profileTransferTargetId, setProfileTransferTargetId] = useState<number | null>(null)
-  const [profileTransferBusy, setProfileTransferBusy] = useState(false)
   const { tr } = useI18n()
-
-  useEffect(() => {
-    const load = async () => {
-      const data = await api.items.getById(itemId)
-      setItem(data)
-      setEditForm({
-        title: data?.title || '',
-        contentType: data?.contentType || 'other',
-        language: data?.language || 'unspecified',
-        author: data?.author || '',
-        memo: data?.memo || '',
-        sourceUrl: data?.sourceUrl || '',
-        watched: data?.watched === 1,
-      })
-      if (data?.review) {
-        setReviewForm({ rating: data.review.rating, comment: data.review.comment || '' })
-      }
-      const thumb = await api.thumbnail.get(itemId)
-      if (thumb) setThumbnail(`data:image/jpeg;base64,${thumb}`)
-    }
-    load()
-    api.tags.getUsageCounts().then(setUsedTags)
-  }, [itemId])
-
-  const loadProfileMoveTargets = async () => {
-    setProfileMoveTargetsLoading(true)
-    try {
-      const result = await api.items.getMoveTargets(itemId)
-      const targets = result?.ok ? result.targets || [] : []
-      setProfileMoveTargets(targets)
-      setProfileTransferTargetId((current) => {
-        if (current && targets.some((target: ProfileMoveTarget) => target.id === current && !target.disabled)) {
-          return current
-        }
-        return targets.find((target: ProfileMoveTarget) => !target.disabled)?.id ?? null
-      })
-    } finally {
-      setProfileMoveTargetsLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadProfileMoveTargets()
-  }, [itemId])
+  const detail = useItemDetail({ itemId, onClose, tr })
+  const { item, thumbnail, editing, setEditing, editForm, setEditForm, handleSave, handleDelete,
+    usedTags, newTagName, setNewTagName, tagInputError, setTagInputError,
+    commitTagName, handleAddTag, handleRemoveTag, setReviewModal, setRelinkModal } = detail
+  const { profileMoveTargets, profileMoveTargetsLoading, profileTransferTargetId, setProfileTransferTargetId,
+    profileTransferBusy, getProfileTransferOptionLabel, handleProfileMove, handleProfileCopy, canUseProfileTransfer
+  } = useItemProfileTransfer({ itemId, item, onClose, onMoveToProfile, onCopyToProfile, tr })
 
   if (!item) {
     return <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{tr('common.loading')}</div>
@@ -169,163 +34,11 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
 
   const fullPath = buildDisplayItemPath(item)
 
-  const handleSave = async () => {
-    const normalizedForm = {
-      ...editForm,
-      title: editForm.title.trim(),
-      author: editForm.author.trim(),
-      memo: editForm.memo.trim(),
-      sourceUrl: editForm.sourceUrl.trim(),
-    }
-    await api.items.update(itemId, {
-      ...normalizedForm,
-      watched: editForm.watched ? 1 : 0,
-    })
-    setEditForm(normalizedForm)
-    setEditing(false)
-    const data = await api.items.getById(itemId)
-    setItem(data)
-  }
-
-  const handleDelete = () => {
-    setDeleteConfirmOpen(true)
-  }
-
-  const handleDeleteConfirm = async () => {
-    setDeleteBusy(true)
-    try {
-      await api.items.delete(itemId)
-      setDeleteConfirmOpen(false)
-      onClose()
-    } catch (error) {
-      console.error('Failed to delete item:', error)
-      setDeleteBusy(false)
-    }
-  }
-
-  const handleRelink = async () => {
-    try {
-      const paths = await api.file.openDialog()
-      if (paths.length > 0) {
-        const result = await api.items.relink(itemId, paths[0])
-
-        if (result?.ok === false && result?.reason === 'duplicate') {
-          const dup = result.duplicate
-          const duplicatePath = dup
-            ? buildDisplayItemPath(dup)
-            : ''
-
-          setRelinkDuplicate({
-            targetPath: result.targetPath || paths[0],
-            duplicatePath,
-            duplicateTitle: dup?.title,
-          })
-        } else if (result?.ok === false) {
-          setRelinkErrorMessage(String(result?.message || ''))
-          setRelinkErrorOpen(true)
-        } else {
-          const data = await api.items.getById(itemId)
-          setItem(data)
-        }
-      }
-    } catch (error: any) {
-      setRelinkErrorMessage(String(error?.message || ''))
-      setRelinkErrorOpen(true)
-    } finally {
-      setRelinkModal(false)
-    }
-  }
-
   const handleOpenViewer = () => {
     const state = { returnTo: `/items/${itemId}` }
     const viewerPath = getViewerPath(item)
     if (viewerPath) navigate(viewerPath, { state })
   }
-
-  const handleAddTag = async () => {
-    const trimmed = newTagName.trim()
-    await commitTagName(trimmed)
-  }
-
-  const commitTagName = async (trimmed: string) => {
-    if (!trimmed) return
-    if (isReservedTagName(trimmed, tr('filters.untagged'))) {
-      setTagInputError(tr('detail.invalidTagNameShort'))
-      window.setTimeout(() => setTagInputError(''), 2600)
-      return
-    }
-
-    let tag: Tag | undefined = usedTags.find(t => t.name === trimmed)
-
-    if (!tag) {
-      try {
-        tag = await api.tags.create(trimmed)
-      } catch {
-        const refreshedTags = await api.tags.getAll()
-        tag = refreshedTags.find((t: Tag) => t.name === trimmed)
-      }
-    }
-
-    if (!tag) return
-
-    await api.tags.assignToItem(itemId, tag.id)
-    setNewTagName('')
-    const data = await api.items.getById(itemId)
-    setItem(data)
-    const refreshedUsedTags = await api.tags.getUsageCounts()
-    setUsedTags(refreshedUsedTags)
-  }
-
-  const handleRemoveTag = async (tagId: number) => {
-    await api.tags.removeFromItem(itemId, tagId)
-    const data = await api.items.getById(itemId)
-    setItem(data)
-    const refreshedUsedTags = await api.tags.getUsageCounts()
-    setUsedTags(refreshedUsedTags)
-  }
-
-  const handleReviewSave = async () => {
-    const comment = reviewForm.comment.trim()
-    await api.reviews.upsert(itemId, reviewForm.rating, comment)
-    setReviewForm((form) => ({ ...form, comment }))
-    setReviewModal(false)
-    const data = await api.items.getById(itemId)
-    setItem(data)
-  }
-
-  const selectedProfileTransferTarget = profileMoveTargets.find((target) => target.id === profileTransferTargetId)
-
-  const getProfileTransferOptionLabel = (target: ProfileMoveTarget) => {
-    if (target.reason === 'duplicate-file') return `${target.name} - ${tr('library.context.moveDuplicate')}`
-    if (target.reason === 'current-profile') return `${target.name} - ${tr('library.context.moveCurrent')}`
-    return target.name
-  }
-
-  const handleProfileMove = async () => {
-    if (!item || !selectedProfileTransferTarget || selectedProfileTransferTarget.disabled || !onMoveToProfile) return
-
-    setProfileTransferBusy(true)
-    try {
-      const ok = await onMoveToProfile(item, selectedProfileTransferTarget.id, selectedProfileTransferTarget.name)
-      if (ok) onClose()
-    } finally {
-      setProfileTransferBusy(false)
-    }
-  }
-
-  const handleProfileCopy = async () => {
-    if (!item || !selectedProfileTransferTarget || selectedProfileTransferTarget.disabled || !onCopyToProfile) return
-
-    setProfileTransferBusy(true)
-    try {
-      const ok = await onCopyToProfile(item, selectedProfileTransferTarget.id, selectedProfileTransferTarget.name)
-      if (ok) await loadProfileMoveTargets()
-    } finally {
-      setProfileTransferBusy(false)
-    }
-  }
-
-  const canUseProfileTransfer = Boolean(selectedProfileTransferTarget && !selectedProfileTransferTarget.disabled)
 
   return (
     <div style={{ width: '100%', height: '100%', background: 'var(--bg-primary)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -348,7 +61,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
             {editing ? (
               <PasteInput
                 value={editForm.title}
-                onChange={value => setEditForm((f: any) => ({ ...f, title: value }))}
+                onChange={value => setEditForm((f) => ({ ...f, title: value }))}
                 label={tr('filters.sort.title')}
                 pasteLabel={tr('common.paste')}
                 pasteErrorLabel={tr('common.pasteFailed')}
@@ -413,7 +126,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
                           { value: 'video', label: tr('filters.type.video') },
                           { value: 'other', label: tr('filters.type.other') },
                         ]}
-                        onChange={(nextValue) => setEditForm((f: any) => ({ ...f, contentType: nextValue }))}
+                        onChange={(nextValue) => setEditForm((f) => ({ ...f, contentType: nextValue as typeof editForm.contentType }))}
                         ariaLabel={tr('detail.contentType')}
                       />
                     )
@@ -455,7 +168,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
                           { value: 'zh', label: tr('filters.language.zh') },
                           { value: 'other', label: tr('filters.language.other') },
                         ]}
-                        onChange={(nextValue) => setEditForm((f: any) => ({ ...f, language: nextValue }))}
+                        onChange={(nextValue) => setEditForm((f) => ({ ...f, language: nextValue }))}
                         ariaLabel={tr('detail.language')}
                       />
                     )
@@ -465,7 +178,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
             </div>
             <Field label={tr('detail.author')} style={{ gridColumn: '1 / -1' }}>
               {editing
-                ? <PasteInput value={editForm.author} onChange={value => setEditForm((f: any) => ({ ...f, author: value }))} label={tr('detail.author')} pasteLabel={tr('common.paste')} pasteErrorLabel={tr('common.pasteFailed')} />
+                ? <PasteInput value={editForm.author} onChange={value => setEditForm((f) => ({ ...f, author: value }))} label={tr('detail.author')} pasteLabel={tr('common.paste')} pasteErrorLabel={tr('common.pasteFailed')} />
                 : (item.author || '—')
               }
             </Field>
@@ -477,7 +190,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
                       className="detail-choice"
                       type="checkbox"
                       checked={editForm.watched}
-                      onChange={e => setEditForm((f: any) => ({ ...f, watched: e.target.checked }))}
+                      onChange={e => setEditForm((f) => ({ ...f, watched: e.target.checked }))}
                     >
                       <span>{tr('detail.watched')}</span>
                     </ChoiceInput>
@@ -487,7 +200,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
             </Field>
             <Field label={tr('detail.sourceUrl')} style={{ gridColumn: '1 / -1' }}>
               {editing
-                ? <PasteInput value={editForm.sourceUrl} onChange={value => setEditForm((f: any) => ({ ...f, sourceUrl: value }))} label={tr('detail.sourceUrl')} pasteLabel={tr('common.paste')} pasteErrorLabel={tr('common.pasteFailed')} />
+                ? <PasteInput value={editForm.sourceUrl} onChange={value => setEditForm((f) => ({ ...f, sourceUrl: value }))} label={tr('detail.sourceUrl')} pasteLabel={tr('common.paste')} pasteErrorLabel={tr('common.pasteFailed')} />
                 : (item.sourceUrl
                     ? (
                         <a
@@ -511,7 +224,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
               <label style={{ display: 'block', fontSize: 12, color: '#a0a0b0', marginBottom: 4 }}>{tr('detail.memo')}</label>
               <textarea
                 value={editForm.memo}
-                onChange={e => setEditForm((f: any) => ({ ...f, memo: e.target.value }))}
+                onChange={e => setEditForm((f) => ({ ...f, memo: e.target.value }))}
                 style={{ width: '100%', minHeight: 80 }}
               />
             </div>
@@ -651,79 +364,7 @@ export default function ItemDetailPage({ itemId, onClose, onAddToPlaylist, onMov
         <button className="btn-primary" style={{ width: '33%', minWidth: 140, paddingTop: 8, paddingBottom: 8 }} onClick={onClose}>{tr('common.close')}</button>
       </div>
 
-      <Modal open={reviewModal} onClose={() => setReviewModal(false)} title={tr('detail.editReview')}>
-        <div style={{ marginBottom: 16 }}>
-          <StarRating value={reviewForm.rating} onChange={v => setReviewForm(f => ({ ...f, rating: v }))} />
-        </div>
-        <textarea
-          value={reviewForm.comment}
-          onChange={e => setReviewForm(f => ({ ...f, comment: e.target.value }))}
-          placeholder={tr('detail.commentPlaceholder')}
-          style={{ width: '100%', minHeight: 100, marginBottom: 16 }}
-        />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button className="btn-secondary" onClick={() => setReviewModal(false)}>{tr('common.cancel')}</button>
-          <button className="btn-primary" onClick={handleReviewSave}>{tr('common.save')}</button>
-        </div>
-      </Modal>
-
-      <Modal open={relinkModal} onClose={() => setRelinkModal(false)} title={tr('detail.relink')}>
-        <p style={{ marginBottom: 16 }}>{tr('detail.relinkDescription')}</p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button className="btn-secondary" onClick={() => setRelinkModal(false)}>{tr('common.cancel')}</button>
-          <button className="btn-primary" onClick={handleRelink}>{tr('detail.browse')}</button>
-        </div>
-      </Modal>
-
-      <Modal open={!!relinkDuplicate} onClose={() => setRelinkDuplicate(null)} title={tr('detail.relinkDuplicateTitle')}>
-        <p style={{ marginBottom: 8 }}>{tr('detail.relinkDuplicateMessage')}</p>
-        {relinkDuplicate?.duplicateTitle && (
-          <p style={{ marginBottom: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
-            {tr('detail.relinkDuplicateItem')}: {relinkDuplicate.duplicateTitle}
-          </p>
-        )}
-        {relinkDuplicate?.targetPath && (
-          <p style={{ marginBottom: 8, fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
-            {tr('detail.relinkDuplicateTarget')}: {relinkDuplicate.targetPath}
-          </p>
-        )}
-        {relinkDuplicate?.duplicatePath && (
-          <p style={{ marginBottom: 16, fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
-            {tr('detail.relinkDuplicateExisting')}: {relinkDuplicate.duplicatePath}
-          </p>
-        )}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-primary" onClick={() => setRelinkDuplicate(null)}>{tr('common.ok')}</button>
-        </div>
-      </Modal>
-
-      <Modal open={relinkErrorOpen} onClose={() => setRelinkErrorOpen(false)} title={tr('detail.relinkErrorTitle')}>
-        <p style={{ marginBottom: 16 }}>{tr('detail.relinkErrorMessage')}</p>
-        {relinkErrorMessage && (
-          <pre style={{ marginBottom: 16, padding: 10, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-            {relinkErrorMessage}
-          </pre>
-        )}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-primary" onClick={() => {
-            setRelinkErrorOpen(false)
-            setRelinkErrorMessage('')
-          }}>{tr('common.ok')}</button>
-        </div>
-      </Modal>
-
-      <Modal open={deleteConfirmOpen} onClose={() => { if (!deleteBusy) setDeleteConfirmOpen(false) }} title={tr('common.delete')}>
-        <p style={{ marginBottom: 8 }}>{tr('detail.confirmDelete')}</p>
-        <p style={{ marginBottom: 16, color: 'var(--text-secondary)' }}>{tr('detail.deleteWarning')}</p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button className="btn-secondary" onClick={() => setDeleteConfirmOpen(false)} disabled={deleteBusy}>
-            {tr('common.cancel')}
-          </button>
-          <button className="btn-danger" onClick={handleDeleteConfirm} disabled={deleteBusy}>
-            {deleteBusy ? tr('common.loading') : tr('common.delete')}
-          </button>
-        </div>
-      </Modal>
+      <ItemDetailDialogs detail={detail} tr={tr} />
     </div>
   )
 }

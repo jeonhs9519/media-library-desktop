@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../../../api'
 import { getDroppedFilePaths } from '../fileDrop'
 import type { Translate } from '../types'
@@ -9,6 +9,11 @@ type UseFileImportOptions = {
 }
 
 export function useFileImport({ tr, loadItems }: UseFileImportOptions) {
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
   const [duplicateModal, setDuplicateModal] = useState<{ fileName: string } | null>(null)
   const [fileUploadModalOpen, setFileUploadModalOpen] = useState(false)
   const [fileUploadDragging, setFileUploadDragging] = useState(false)
@@ -23,12 +28,14 @@ export function useFileImport({ tr, loadItems }: UseFileImportOptions) {
     const fileExtension = lastDot > 0 ? baseName.substring(lastDot + 1) : ''
 
     const exists = await api.items.checkExists(dir, fileName, fileExtension)
+    if (!mounted.current) return false
     if (exists) {
       setDuplicateModal({ fileName: baseName })
       return false
     }
 
     const stat = await api.file.readStat(filePath)
+    if (!mounted.current) return false
     await api.items.add({
       filePath: dir,
       fileName,
@@ -41,13 +48,17 @@ export function useFileImport({ tr, loadItems }: UseFileImportOptions) {
   const addFiles = useCallback(async (paths: string[]) => {
     let added = false
     try {
-      for (const path of paths) added = await addFile(path) || added
+      for (const path of paths) {
+        if (!mounted.current) break
+        added = await addFile(path) || added
+      }
     } finally {
-      if (added) await loadItems()
+      if (added && mounted.current) await loadItems()
     }
   }, [addFile, loadItems])
 
   const beginFileAdd = useCallback(async (paths: string[]) => {
+    if (!mounted.current) return
     if (!paths.length) {
       setFileUploadNotice(tr('modal.fileUpload.noFilesAdded'))
       return

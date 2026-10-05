@@ -5,6 +5,7 @@ import { zhMessages } from './locales/zh'
 
 export type Locale = 'en' | 'ko' | 'ja' | 'zh'
 export type LanguageSetting = 'system' | Locale
+export type Translate = (key: string, params?: Record<string, string | number>) => string
 
 const languageSettings: LanguageSetting[] = ['system', 'en', 'ko', 'ja', 'zh']
 

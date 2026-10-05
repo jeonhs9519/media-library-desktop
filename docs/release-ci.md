@@ -1,11 +1,11 @@
 # Release And CI
 
-Last updated: 2026-05-07
+Last updated: 2026-10-05
 
 ## 릴리즈 경로 요약
 
 - 태그 `v*` 푸시가 정식 Windows ZIP 릴리즈 경로입니다.
-- `CI - Build Electron ZIP` 워크플로가 의존성 설치, 테스트, 빌드, 패키징, ZIP 검증, GitHub Release 업로드를 처리합니다.
+- `CI - Build Electron ZIP` 워크플로가 Node.js 22에서 의존성 설치, 단위·통합 테스트, 빌드, 패키징, ZIP 검증, GitHub Release 업로드를 처리합니다. 정의는 `.github/workflows/ci-build.yml`입니다.
 - `Create or Update Release Notes` 워크플로는 이미 존재하는 태그의 릴리즈 노트만 수동으로 다시 만들 때 사용합니다.
 - `Check Artifact Storage Usage` 워크플로는 Actions artifact quota 상태를 점검할 때 수동으로 실행합니다.
 
@@ -16,12 +16,17 @@ Last updated: 2026-05-07
 ```bash
 git status --short
 npm test
+npx tsc --noEmit -p tsconfig.json
+npx tsc --noEmit -p tsconfig.web.json
 npm run build
+npm run test:e2e
 ```
 
 샌드박스 환경에서 `npm test`가 `spawn EPERM`으로 실패하면, esbuild 프로세스 실행 제한 때문일 수 있으므로 승인된 터미널에서 다시 실행합니다.
 
 ## 로컬 패키징 확인
+
+패키징 검증은 단위·통합·E2E 통과와 별도입니다. 현재 소스의 테스트 통과를 배포 ZIP 실행 확인으로 간주하지 않습니다.
 
 CI와 최대한 같은 순서로 Windows ZIP을 만들려면 다음 순서를 사용합니다.
 Windows에서 개발 앱이나 Electron 프로세스가 실행 중이면 `better_sqlite3.node` 같은 native 모듈 파일이 잠겨 패키징이 실패할 수 있으므로, 패키징 전 실행 중인 앱을 먼저 종료합니다.
@@ -36,6 +41,8 @@ npm run package:win
 생성물은 `dist/MediaLibrary_v<version>.zip`에서 확인합니다.
 
 ## 릴리스 버전 올리기
+
+아래 자동·수동 절차는 실제 commit·태그·push와 배포를 수행합니다. Codex는 현재 요청에서 해당 실행을 명시적으로 요청받았을 때만 진행합니다. 문서 정리나 릴리즈 노트 미리보기 요청에서는 실행하지 않습니다.
 
 현재 버전은 `package.json`과 `package-lock.json`에 함께 기록됩니다. 다음 patch 릴리즈는 아래 명령을 사용합니다.
 
@@ -53,13 +60,15 @@ npm run release:patch -- major
 
 `scripts/release.js`는 버전 변경, `docs/release-notes/<tag>.md` 생성, release commit 생성, 태그 생성, `git push`, `git push --tags`까지 수행합니다. 릴리즈 노트 파일이 이미 있으면 새로 생성한 내용으로 덮어씁니다. 변경 중인 파일이 있으면 자동 stash/pop을 시도하지만, 릴리즈 직전에는 충돌을 피하기 위해 반드시 clean 상태에서 실행하는 것을 원칙으로 합니다.
 
+자동 script는 현재 `chore(release): <version>`으로 commit합니다. 아래 수동 예시는 [문서 작성 규칙](doc-style-guide.md)의 한글 접두사를 따릅니다.
+
 수동 대안:
 
 ```bash
 npm version 0.1.1 --no-git-tag-version
 npm run release:notes:docs -- --tag v0.1.1 --to HEAD --out docs/release-notes/v0.1.1.md
 git add package.json package-lock.json docs/release-notes/v0.1.1.md
-git commit -m "chore(release): 0.1.1"
+git commit -m "배포: 0.1.1 릴리즈"
 git tag v0.1.1
 git push
 git push --tags
@@ -68,8 +77,9 @@ git push --tags
 ## CI 요약
 
 - 태그(`v*`) 푸시: Windows ZIP 빌드 후 같은 태그의 GitHub Release에 ZIP을 업로드합니다.
-- 수동 실행: Windows ZIP을 빌드하고, 선택 시 `dist-windows-latest` Actions artifact로 업로드합니다.
+- 수동 실행: 선택한 ref를 빌드하고, 선택 시 `dist-windows-latest` Actions artifact로 업로드합니다. ref가 `v*` 태그이면 태그 검증·Release 업로드 조건도 적용됩니다.
 - `main` 브랜치 푸시는 현재 릴리즈 빌드를 실행하지 않습니다.
+- CI는 `npm test`와 build를 실행하며 별도 main/preload·renderer 타입 검사와 Electron E2E는 실행하지 않습니다. 로컬 사전 검증에서 수행합니다.
 
 태그 릴리즈에서는 `package.json` 버전과 태그명이 일치해야 합니다. 예를 들어 `package.json` 버전이 `0.1.1`이면 태그는 `v0.1.1`이어야 합니다.
 CI는 checkout 직후, 의존성 설치나 Windows ZIP 빌드 전에 `docs/release-notes/<tag>.md`가 존재하고 `## 릴리즈 개요`로 시작하는지 먼저 확인합니다. 이후 `dist` 안에 ZIP 파일이 정확히 1개 생성되었고 비어 있지 않은지 확인한 뒤, 해당 릴리즈 노트 파일을 GitHub Release 본문으로 사용해 Release 업로드를 진행합니다.
@@ -102,7 +112,9 @@ gh run download <run-id> --name dist-windows-latest
 
 ## 릴리즈 노트 재생성
 
-태그는 이미 있는데 Release 본문만 다시 반영하고 싶다면 `Create or Update Release Notes` 워크플로를 수동 실행하고 `tag` 입력에 `v0.1.0`처럼 기존 태그명을 넣습니다. 이 워크플로는 ZIP을 빌드하거나 첨부하지 않고, 태그에 포함된 `docs/release-notes/<tag>.md`를 GitHub Release 본문으로 그대로 사용합니다.
+수동 워크플로는 `tag` 입력만으로 checkout 대상을 변경하지 않습니다. 태그 시점의 문서를 사용하려면 실행 ref도 해당 태그로 선택합니다. 관련 정의는 `.github/workflows/release.yml`입니다.
+
+태그는 이미 있는데 Release 본문만 다시 반영하고 싶다면 `Create or Update Release Notes` 워크플로를 수동 실행하고 `tag` 입력에 `v0.1.0`처럼 기존 태그명을 넣습니다. 이 워크플로는 ZIP을 빌드하거나 첨부하지 않고, 선택한 실행 ref의 `docs/release-notes/<tag>.md`를 해당 태그의 GitHub Release 본문으로 사용합니다.
 
 릴리즈 노트는 `scripts/build-release-notes.js`가 이전 semver 태그와 현재 태그 사이의 `git log`를 읽어 자동 생성합니다. 커밋 제목과 본문을 기준으로 주요 기능, UI/UX 개선, 구조 및 성능, 배포 및 CI, 문서 및 계획 항목으로 묶습니다.
 GitHub Release 화면이 이미 버전 제목을 표시하므로, 생성 본문은 `# v0.1.0` 같은 최상위 제목 없이 `## 릴리즈 개요`부터 시작합니다.
@@ -114,16 +126,16 @@ GitHub Release 화면이 이미 버전 제목을 표시하므로, 생성 본문�
 npm run release:notes -- --tag v0.1.0 --out RELEASE_NOTES.md
 ```
 
-릴리즈 commit에 들어갈 파일을 직접 생성하거나 덮어쓰려면 아래 명령을 사용합니다.
+다음 릴리즈용 문서를 생성할 때는 실제 다음 버전을 지정합니다. 아래 `v0.1.1`은 예시이며 기존 배포판 노트에 이후 구현 내용을 덮어쓰지 않습니다.
 
 ```bash
-npm run release:notes:docs -- --tag v0.1.0 --to HEAD --out docs/release-notes/v0.1.0.md
+npm run release:notes:docs -- --tag v0.1.1 --to HEAD --out docs/release-notes/v0.1.1.md
 ```
 
 GitHub Release 본문과 같은 내용을 임시 파일과 `docs/release-notes/`에 함께 저장하려면 `--save-docs`를 사용할 수도 있습니다.
 
 ```bash
-npm run release:notes -- --tag v0.1.0 --out RELEASE_NOTES.md --save-docs
+npm run release:notes -- --tag v0.1.1 --to HEAD --out RELEASE_NOTES.md --save-docs
 ```
 
 ## Windows 코드 서명

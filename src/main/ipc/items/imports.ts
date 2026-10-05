@@ -17,10 +17,12 @@ import {
 
 export function registerItemImportIPC(db: DB) {
   const hdtPreviewCache = new Map<string, HdtPreparedItem>()
+  let hdtPreviewProfileId: number | null = null
 
   ipcMain.handle('items:importHdtPreview', async (_event, { filePaths }: { filePaths: string[] }) => {
     hdtPreviewCache.clear()
     const activeProfileId = getActiveProfileId()
+    hdtPreviewProfileId = activeProfileId
 
     const prepared: HdtPreparedItem[] = []
     let rawTotal = 0
@@ -160,6 +162,11 @@ export function registerItemImportIPC(db: DB) {
     let added = 0
     let skipped = 0
     const activeProfileId = getActiveProfileId()
+    if (hdtPreviewProfileId !== activeProfileId) {
+      hdtPreviewCache.clear()
+      hdtPreviewProfileId = null
+      return { added: 0, skipped: selectedIds?.length ?? 0 }
+    }
 
     for (const previewId of selectedIds || []) {
       const item = hdtPreviewCache.get(previewId)
@@ -221,6 +228,7 @@ export function registerItemImportIPC(db: DB) {
     }
 
     hdtPreviewCache.clear()
+    hdtPreviewProfileId = null
     return { added, skipped }
   })
 }

@@ -11,6 +11,8 @@ Last updated: 2026-10-05
 - 렌더러: React UI, 라우팅, 화면 상태 관리
 - 데이터 저장: SQLite
 
+현재 구현은 Electron 기준입니다. 이 문서는 모듈 구조 개요이며 Tauri 재구축을 위한 상세 분석서와 구분합니다.
+
 ## 디렉터리 맵
 
 ### `src/main`
@@ -31,18 +33,23 @@ Last updated: 2026-10-05
 
 ### `src/renderer`
 
-- `src/App.tsx`: 라우트 구성
+- `src/App.tsx`: 시작·프로필 gate와 라우트 구성
+- `src/components/Startup/StartupGate.tsx`: startup 상태 구독, 준비 화면과 route fallback
+- `src/components/Profile/`: `ProfileGate`의 선택 화면, `useProfileSelection`의 조회·생성·선택·삭제 상태, `ProfileDeleteModal`의 삭제·이관 확인 UI
+- `src/types/profile.ts`: 프로필 선택·설정 화면에서 공유하는 상태·요약 타입
 - `src/routes/LibraryLayout.tsx`: 공통 라우트에서 라이브러리 화면을 보존하고 뷰어만 전환합니다. 숨긴 목록의 조작·접근성을 차단하고 복귀 레이아웃 반영 후 스크롤을 복원합니다. 상세보기 id는 `useMatch`로 읽으며 뷰어에서는 Modal과 검색 단축키를 비활성화합니다.
 - `src/libraryUpdates.ts`: 항목 저장 결과 구독과 목록 필드 갱신, 읽기 상태 필터·수정일 정렬의 재조회 필요 여부를 판정합니다. `api.items.update`는 저장 완료 후 이벤트를 발행하며 목록은 뷰어 동안 필요한 재조회만 모아 복귀 시 처리합니다.
 - `src/thumbnailCache.ts`: 렌더러 세션의 썸네일 결과·진행 중 요청 공유와 구독을 처리합니다. `api.ts`는 썸네일 저장·항목 삭제/이동 후 해당 캐시를 무효화하고 프로필 전환·삭제 시 전체를 비웁니다. `useLibraryThumbnails`는 목록 교체·화면 이동 후에도 결과를 유지합니다.
 - `src/useViewerIdle.ts`: PDF·ZIP·동영상의 공통 2.4초 숨김 타이머와 조작 이벤트 처리. 키보드 모드 기본값은 모든 키 입력이며 PDF·ZIP의 공통 overlay는 Tab·컨텍스트 메뉴 접근 키만 표시하는 모드를 사용합니다. 뷰어 루트의 `viewer-idle`로 커서를 숨기고 툴바의 `inert`로 숨긴 조작 영역을 비활성화합니다.
 - `src/routes/viewerPages.ts`: 뷰어 route lazy loading과 idle preload 진입점
 - `src/pages/LibraryPage.tsx`: 메인 라이브러리 화면
-- `src/pages/*ViewerPage.tsx`: 포맷별 뷰어 화면
+- `src/pages/PdfViewerPage.tsx`, `src/pages/CbzViewerPage.tsx`, `src/pages/VideoPlayerPage.tsx`: 포맷별 뷰어 화면
 - `src/useCbzPages.ts`, `src/cbzPageCache.ts`: ZIP 바이너리의 Blob URL과 decode, 앞뒤 한 화면의 순차 미리 읽기, 추정 이미지 예산 128MiB, 오래된 결과 폐기와 URL 해제를 처리합니다. ZIP IPC는 `open/getPage/close` 세션 API를 사용합니다.
 - `src/components/`: 공용 UI 조각
 - `src/components/PasteInput.tsx`: 상세보기 텍스트 입력과 입력란 내부 SVG 붙여넣기 버튼, 전체 텍스트 교체와 포커스 복원을 처리합니다.
 - `src/components/Library/`: 라이브러리 화면 전용 툴바, 목록, 카드, 모달, hook
+- `src/components/ItemDetail/`: 항목 조회·편집·태그·리뷰·파일 처리 hook, 프로필 이동·복사 hook, 확인/오류 팝업과 표시 형식 함수
+- `src/components/Toast.tsx`: 뷰어와 라이브러리의 알림 상태·표시·종료 타이머. 호출부가 위치·성공/오류 스타일을 지정하고 기본 뷰어 스타일을 유지합니다.
 - `useLibraryMetadataFill`은 최초 목록과 신규 데이터 추가 신호에서 페이지 수·재생 시간을 보완합니다. 진행 중 Queue는 완료를 기다린 후 신규 항목을 재수집하고, 완료 시 변경이 있으면 최신 검색 조건으로 목록을 한 번 갱신합니다. polling 수명은 목록 건수나 조회 콜백 변경과 분리합니다.
 - `src/components/icons/`: 뷰어와 라이브러리에서 공유하는 SVG 아이콘 컴포넌트
 - `src/i18n/`: 다국어 리소스
@@ -92,7 +99,7 @@ Last updated: 2026-10-05
 - `src/main/index.ts`는 startup 단계별 상태를 저장하고 renderer에 `startup:status`, `startup:ready` 이벤트로 전달합니다.
 - 각 단계는 `performance.now()` 기준으로 소요 시간을 console에 남깁니다.
 - `src/preload/index.ts`는 `window.api.startup` 아래에 `getStatus`, `markLibraryReady`, `onStatus`, `onReady`를 노출합니다.
-- `src/renderer/src/App.tsx`의 `StartupGate`는 ready 전까지 startup 화면을 보여주며, ready 이후에만 라우터와 라이브러리 화면을 mount합니다.
+- `src/renderer/src/components/Startup/StartupGate.tsx`는 ready 전까지 startup 화면을 보여주며, ready 이후에만 프로필 gate와 라우터·라이브러리 화면을 mount합니다.
 - 현재 단계는 창 생성, DB 열기, 마이그레이션, 런타임 스키마 확인, IPC 등록입니다.
 - 앱 창은 `ready-to-show`를 기다리지 않고 먼저 표시합니다.
 - 최초 라이브러리 목록이 준비되면 renderer가 `startup:markLibraryReady`를 호출하고, main process는 `[startup] library:list-ready ...ms` 로그를 남깁니다.
@@ -137,6 +144,7 @@ Last updated: 2026-10-05
 - `src/main/ipc/items/profileMove.ts`는 항목 단위 프로필 이동/복사와 대상 프로필 목록 조회를 담당합니다.
 - `profile.lastActiveIds`는 `SYSTEM` 설정으로 저장하며, 최근 사용 프로필을 최대 2개 보존합니다. 삭제된 프로필은 직전 프로필 또는 `GUEST`로 fallback합니다.
 - `profile.useLastOnStartup`이 `true`이면 앱 실행 시 마지막 유효 프로필로 자동 진입합니다.
+- UI 언어·동영상 볼륨·파일 수정일 정책·최근 프로필·자동 진입 설정은 SYSTEM에 저장하고 나머지 사용자 설정은 active profile에 저장합니다. SYSTEM 키 구분은 `src/main/ipc/settings.ts`를 기준으로 합니다.
 - 프로필 삭제 시 해당 프로필의 플레이리스트는 삭제하고, `reviews`, `itemTags`, `playlistItems`는 명시적으로 정리합니다.
 - 항목 이동/복사와 프로필 삭제 이관은 태그명을 기준으로 대상 프로필의 태그를 재사용하거나 새로 생성합니다.
 - 과거 DB 가져오기는 가져온 항목/태그/플레이리스트를 현재 active profile에 귀속합니다.
@@ -171,7 +179,8 @@ Last updated: 2026-10-05
 - `index.ts`: 아이템 IPC 등록 진입점
 - `core.ts`: 목록 조회, 상세 조회, 추가, 수정, 삭제, 중복 확인
 - `relink.ts`: 개별 relink, 폴더 prefix count, bulk relink
-- `imports.ts`: `.hdt` preview/apply
+- `imports.ts`: `.hdt` preview/apply. 미리보기 캐시에 준비한 `profileId`를 저장하고 다른 프로필에서 적용하면 폐기·거절합니다.
+- `relink.ts`는 개별·폴더 일괄 경로 변경 전 충돌을 검사하고 충돌 시 기존 항목·연결 데이터를 보존합니다.
 - `metadata.ts`: 누락 메타데이터 보강과 상태 조회
 - `profileMove.ts`: 항목 프로필 이동/복사, 대상 프로필 조회
 - `utils.ts`: 경로 비교, full path 구성, HDT 보조 타입과 이미지 디코딩
@@ -189,9 +198,11 @@ Last updated: 2026-10-05
 
 ### `src/renderer/src/pages/LibraryPage.tsx`
 
-- 메인 라이브러리 화면의 데이터 로드와 조립을 담당하는 허브입니다.
+- 메인 라이브러리 화면의 조립과 상세보기·플레이리스트 포커스 연결을 담당합니다.
+- `useLibraryItems`가 목록 조회, 항목 저장 응답 반영, 뷰어 복귀의 조건부 재조회, 최초 준비 알림·idle preload와 metadata fill 연결을 관리합니다.
+- `useLibraryProfileTransfer`가 이동·복사 요청과 결과 알림을 처리합니다. 이동 성공 시 목록·플레이리스트를 함께 갱신합니다.
 - 검색/필터 툴바, 카드, 목록/페이지네이션, 주요 모달 렌더링은 `src/renderer/src/components/Library/` 아래로 분리되었습니다.
-- 파일 추가, `.hdt` 가져오기, 설정/bulk relink 흐름 일부는 전용 hook으로 분리되었습니다.
+- 파일 추가·`.hdt` 가져오기·설정/bulk relink는 전용 hook에서 처리합니다. `useFileImport`는 화면 이탈 후 남은 요청·갱신을 중단하고, `useHdtImport`는 취소·화면 이탈 이전 요청의 늦은 응답을 무시합니다.
 - `.hdt` 가져오기 진입점은 설정 팝업의 `HDT 가져오기` 항목입니다.
 - 검색/필터 상태는 `useLibrarySearchFilters` hook으로 분리되었습니다.
 - 썸네일 로드는 `useLibraryThumbnails` hook으로 분리되었습니다.
@@ -217,7 +228,7 @@ Last updated: 2026-10-05
 - 라이브러리 화면에서는 좌/우 표시 설정을 지원하되, HTML 순서는 툴바 다음, 라이브러리 본문 이전으로 유지합니다.
 - 항목 클릭으로 뷰어를 열고, 라이브러리에서 항목별 제거와 전체 초기화를 제공합니다.
 - 목록은 단일 Tab 진입 영역이며, 위/아래 방향키로 active 항목을 이동하고 라이브러리에서 `Delete` 키로 active 항목을 제거합니다.
-- 항목 제거 버튼은 Tab 순서에서 제외하며, 삭제 후 포커스는 목록 컨테이너로 돌아가 방향키 탐색을 이어갈 수 있습니다.
+- 항목 제거 버튼은 Tab 순서에서 제외합니다. 삭제 후 남은 인접 항목에 포커스를 이어가고, 빈 목록은 컨테이너에 둡니다.
 - 항목 컨텍스트 메뉴는 공용 `ContextMenu`를 사용하며 재생, 한 칸 위/아래 이동, 상세정보 확인, 목록에서 제거 액션과 단축키 표기를 제공합니다.
 - 라이브러리 플레이리스트 항목은 pointer 기반 drag and drop으로 재정렬하며, 삽입 위치 placeholder를 표시합니다.
 - 라이브러리 카드 drag and drop으로 플레이리스트에 항목을 추가할 때도 표시된 위치에 삽입합니다.
@@ -268,7 +279,9 @@ Last updated: 2026-10-05
 
 ### `src/renderer/src/pages/ItemDetailPage.tsx`
 
-- 상세 정보 본문을 렌더링하고 태그, 리뷰, 진행률, 파일 정보, relink 흐름을 담당합니다.
+- 상세 정보 본문과 뷰어 진입을 구성합니다. `components/ItemDetail/useItemDetail.ts`가 조회·편집 저장·태그·리뷰·삭제·relink 상태와 요청을 처리하며, 항목과 편집 폼은 명시적 타입을 사용합니다.
+- `useItemProfileTransfer.ts`는 대상 프로필 조회와 이동·복사를 관리하고, `ItemDetailDialogs.tsx`는 리뷰·relink 확인/오류·삭제 팝업을 공용 Modal로 표시합니다.
+- `formatters.ts`는 진행률과 OS별 표시 경로를 구성합니다. UI의 번역 함수 타입은 공용 `i18n/index.ts`의 `Translate`를 사용합니다.
 - 파일 경로 표시는 OS별 구분자로 정규화합니다. Windows는 `\`, 그 외 OS는 `/`를 사용합니다.
 - 파일 섹션 제목 오른쪽에는 `파일 위치 열기` 버튼을 표시하고 `api.file.showInFolder`로 연결합니다.
 - 리뷰와 파일 사이에는 프로필 이동 항목이 있으며, 컨텍스트 메뉴와 같은 기준의 대상 프로필 select로 항목 이동/복사를 실행합니다.
@@ -281,19 +294,21 @@ Last updated: 2026-10-05
 - 폴더 경로 일괄 변경의 대상 항목 수와 실행 버튼은 같은 행에 표시합니다.
 - 배율 컨트롤은 `app:getZoomFactor`, `app:zoomIn`, `app:zoomOut`, `app:zoomReset`을 사용해 현재 배율 표시를 즉시 갱신합니다.
 - 개발자 도구는 `CodeIcon` 아이콘 버튼으로 제공합니다.
-- 프로필 관리 섹션은 현재 프로필 확인, 사용자 프로필 이름 변경, 프로필 선택 화면으로 돌아가는 전환 버튼을 제공합니다.
+- 프로필 관리 탭은 현재 프로필 확인·사용자 프로필 이름 변경·과거 DB 가져오기를 제공합니다. 프로필 선택 화면으로 돌아가는 전환 버튼은 footer에 있습니다.
 - 팝업 폭은 720px, 최대 높이는 860px이며, 모든 화면 폭에서 상단 탭으로 카테고리를 전환합니다. 탭 순서는 기본 설정(표시·파일 수정일 정책), 데이터 관리(태그명 변경·병합·bulk relink·HDT), 프로필 관리(프로필명 변경·과거 DB)입니다. 팝업을 닫으면 선택 탭을 `기본 설정`으로 초기화합니다. body의 `scrollbar-gutter: stable both-edges`로 좌우에 같은 공간을 확보해 설정 그룹을 가운데에 배치합니다.
 
 ### `src/renderer/src/components/Modal/index.tsx`
 
 - 공용 모달 래퍼입니다.
 - `role="dialog"`, `aria-modal`, focus trap, `Escape` 닫기를 제공합니다.
+- 닫힌 동안 외부 포커스를 기억해 자동 포커스 입력란·일시 비활성화 버튼에도 복귀 대상을 유지합니다. 닫을 때 지연 포커스를 취소하고 `preventScroll`로 복원합니다.
 - 중첩 Modal의 표시 순서를 조정할 수 있도록 선택적 `zIndex`를 받을 수 있습니다.
 
-## 테스트 현황
+## 테스트 구성
 
-- 단위 테스트: `titleNormalizer`
-- 단위 테스트: `tagMaintenance`
-- E2E: 초기 화면 진입과 버튼 노출 정도
-
-현재 테스트는 최소 수준이며, 프로필 선택 화면 도입 이후 E2E 시나리오 갱신과 프로필 이관/삭제 흐름 자동 검증이 필요합니다.
+- `tests/unit/`: 캐시·자원 해제·비동기 응답 경합·Modal 포커스·알림 타이머 등 로직과 UI hook 테스트
+- `tests/integration/`: 메모리 SQLite 기반 프로필·태그·플레이리스트·HDT·relink·과거 DB 가져오기와 데이터 보존 테스트
+- `tests/e2e/app.spec.ts`: 임시 폴더에서 Electron을 실행하는 실제 화면·뷰어·프로필·파일 처리·키보드 회귀 테스트
+- `scripts/run-tests.js`는 Electron의 Node 실행 모드로 Vitest를 구동합니다. `playwright.config.ts`는 E2E를 worker 1개로 실행합니다.
+- E2E의 OS 파일 선택·외부 URL 응답은 필요한 시나리오에서 대체합니다. 실제 사용자 데이터는 사용하지 않습니다.
+- 최신 검증일·건수·결과는 [Current Status](current-status.md#최신-구현-검증), 실행 명령은 [Setup](setup.md#검사와-빌드)에서 관리합니다.

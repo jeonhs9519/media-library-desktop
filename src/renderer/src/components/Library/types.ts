@@ -1,4 +1,4 @@
-export type Translate = (key: string, params?: Record<string, string | number>) => string
+export type { Translate } from '../../i18n'
 
 export type TagUsageCount = {
   id: number

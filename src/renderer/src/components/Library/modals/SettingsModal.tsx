@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { LanguageSetting } from '../../../i18n/index'
+import type { ProfileStatus } from '../../../types/profile'
 import { api } from '../../../api'
 import Modal from '../../Modal'
 import ChoiceInput from '../../ChoiceInput'
@@ -28,10 +29,7 @@ interface Props {
   hdtFilePaths: string[]
   hdtNotice: string
   hdtPreviewing: boolean
-  profileStatus: {
-    currentProfileId: number | null
-    profiles: Array<{ id: number; name: string }>
-  } | null
+  profileStatus: Pick<ProfileStatus, 'currentProfileId' | 'profiles'> | null
   profileNameDraft: string
   profileNotice: { message: string; tone: 'success' | 'error' } | null
   profileToastClosing: boolean

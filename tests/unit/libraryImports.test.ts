@@ -8,7 +8,7 @@ import { useFileImport } from '../../src/renderer/src/components/Library/hooks/u
 const mocks = vi.hoisted(() => ({ status: vi.fn(), fill: vi.fn(), exists: vi.fn(), add: vi.fn(), dialog: vi.fn(), stat: vi.fn() }))
 vi.mock('../../src/renderer/src/api', () => ({ api: {
   items: { getMetadataFillStatus: mocks.status, fillMissingMetadata: mocks.fill, checkExists: mocks.exists, add: mocks.add },
-  file: { openDialog: mocks.dialog, readStat: mocks.stat },
+  file: { openDialog: mocks.dialog, readStat: mocks.stat, getPathForFile: () => '' },
 } }))
 const status = (running = false, updated = 0) => ({ running, updated, queued: 2, processed: running ? 0 : 2, failed: 0 })
 let root: Root
@@ -111,4 +111,49 @@ it('refreshes successful additions even when a later file in the batch fails', a
   await render()
   await act(async () => { await expect(files.handleBrowseFiles()).rejects.toThrow('failed') })
   expect(load).toHaveBeenCalledTimes(1)
+})
+it('keeps the upload dialog open without writing when file selection is canceled', async () => {
+  mocks.dialog.mockResolvedValue([])
+  await render()
+  act(() => files.openFileUploadModal())
+  await act(async () => { await files.handleBrowseFiles() })
+  expect(files.fileUploadModalOpen).toBe(true)
+  expect(mocks.add).not.toHaveBeenCalled()
+  expect(load).not.toHaveBeenCalled()
+})
+it('rejects text drops and files without an accessible path before writing', async () => {
+  await render()
+  const event = (types: string[], entries: unknown[]) => ({ preventDefault: vi.fn(), stopPropagation: vi.fn(),
+    dataTransfer: { types, files: entries } }) as unknown as React.DragEvent
+  await act(async () => { await files.handleFileUploadDrop(event(['text/plain'], [])) })
+  expect(files.fileUploadNotice).toBe('modal.fileUpload.invalidSelection')
+  await act(async () => { await files.handleFileUploadDrop(event(['Files'], [{}])) })
+  expect(files.fileUploadNotice).toBe('modal.fileUpload.dropBlocked')
+  expect(mocks.add).not.toHaveBeenCalled()
+  expect(load).not.toHaveBeenCalled()
+})
+it('does not add a file when its stat response arrives after leaving the library', async () => {
+  let resolveStat!: (value: { mtime: number }) => void
+  mocks.dialog.mockResolvedValue(['S:/books/first.pdf'])
+  mocks.stat.mockImplementation(() => new Promise(resolve => { resolveStat = resolve }))
+  await render()
+  let pending!: Promise<void>
+  await act(async () => { pending = files.handleBrowseFiles() })
+  await act(async () => root.render(null))
+  await act(async () => { resolveStat({ mtime: 1 }); await pending })
+  expect(mocks.add).not.toHaveBeenCalled()
+  expect(load).not.toHaveBeenCalled()
+})
+it('stops a batch after unmount while an already submitted addition finishes', async () => {
+  let resolveAdd!: (value: { id: number }) => void
+  mocks.dialog.mockResolvedValue(['S:/books/first.zip', 'S:/books/second.pdf'])
+  mocks.add.mockImplementationOnce(() => new Promise(resolve => { resolveAdd = resolve }))
+  await render()
+  let pending!: Promise<void>
+  await act(async () => { pending = files.handleBrowseFiles() })
+  expect(mocks.add).toHaveBeenCalledTimes(1)
+  await act(async () => root.render(null))
+  await act(async () => { resolveAdd({ id: 1 }); await pending })
+  expect(mocks.add).toHaveBeenCalledTimes(1)
+  expect(load).not.toHaveBeenCalled()
 })

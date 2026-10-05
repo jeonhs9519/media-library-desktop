@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../../../api'
 import { getDroppedFilePaths } from '../fileDrop'
 import type { HdtPreviewItem, HdtPreviewResponse, HdtPreviewStats, Translate } from '../types'
@@ -9,6 +9,8 @@ type UseHdtImportOptions = {
 }
 
 export function useHdtImport({ tr, loadItems }: UseHdtImportOptions) {
+  const requestVersion = useRef(0)
+  useEffect(() => () => { requestVersion.current++ }, [])
   const [hdtUploadModalOpen, setHdtUploadModalOpen] = useState(false)
   const [hdtUploadDragging, setHdtUploadDragging] = useState(false)
   const [hdtUploadNotice, setHdtUploadNotice] = useState('')
@@ -52,7 +54,9 @@ export function useHdtImport({ tr, loadItems }: UseHdtImportOptions) {
     }
 
     setHdtUploadNotice('')
+    const version = ++requestVersion.current
     const previewResult = await api.items.importHdtPreview(hdtPaths) as HdtPreviewItem[] | HdtPreviewResponse
+    if (version !== requestVersion.current) return
     const previewItems = Array.isArray(previewResult) ? previewResult : previewResult.items
     const stats = Array.isArray(previewResult)
       ? {
@@ -113,6 +117,7 @@ export function useHdtImport({ tr, loadItems }: UseHdtImportOptions) {
   }, [])
 
   const closeHdtUploadModal = useCallback(() => {
+    requestVersion.current++
     setHdtUploadModalOpen(false)
     setHdtUploadDragging(false)
     setHdtUploadNotice('')
@@ -168,6 +173,7 @@ export function useHdtImport({ tr, loadItems }: UseHdtImportOptions) {
   }, [])
 
   const resetHdtImport = useCallback(() => {
+    requestVersion.current++
     setHdtModalOpen(false)
     setHdtPreviewItems([])
     setHdtPreviewStats({ rawTotal: 0, visibleTotal: 0, selectableTotal: 0 })
@@ -181,8 +187,10 @@ export function useHdtImport({ tr, loadItems }: UseHdtImportOptions) {
     }
 
     setHdtApplying(true)
+    const version = requestVersion.current
     try {
       const result = await api.items.importHdtApply(hdtSelectedIds)
+      if (version !== requestVersion.current) return
       resetHdtImport()
       if (result.added > 0) await loadItems()
     } finally {
